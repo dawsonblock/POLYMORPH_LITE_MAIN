@@ -1,0 +1,41 @@
+
+services:
+  polymorph4:
+    build: 
+      context: ..
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=sqlite:///data/audit.db
+    volumes:
+      - polymorph4_data:/app/data
+      - polymorph4_logs:/app/logs
+      - polymorph4_config:/app/config
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - polymorph4
+    restart: unless-stopped
+
+volumes:
+  polymorph4_data:
+  polymorph4_logs:
+  polymorph4_config:

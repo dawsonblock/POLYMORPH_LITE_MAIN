@@ -1,0 +1,200 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "polymorph4-lite"
+version = "1.0.0"
+authors = [
+    {name = "POLYMORPH-4 Team", email = "support@polymorph4.com"},
+]
+description = "Unified Retrofit Control + Raman-Gating Kit for Analytical Instrument Automation"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Manufacturing",
+    "Intended Audience :: Healthcare Industry",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11", 
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Framework :: FastAPI",
+    "Framework :: Pydantic",
+]
+keywords = [
+    "raman", "spectroscopy", "automation", "analytical", "instruments",
+    "daq", "national-instruments", "ocean-optics", "horiba", "andor", 
+    "21cfr11", "compliance", "audit", "gmp", "pharmaceutical",
+    "process-control", "crystallization", "monitoring"
+]
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.6",
+    "pydantic>=2.8.2",
+    "pydantic-settings>=2.4.0",
+    "typer>=0.12.3",
+    "jinja2>=3.1.4",
+    "python-multipart>=0.0.9",
+    "numpy>=2.0.2",
+    "scipy>=1.13.1", 
+    "pandas>=2.2.2",
+    "sqlalchemy>=2.0.32",
+    "aiosqlite>=0.20.0",
+    "cryptography>=43.0.1",
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose>=3.3.0",
+    "httpx>=0.27.0",
+    "websockets>=12.0",
+    "loguru>=0.7.2",
+    "rich>=13.7.1",
+    "pyyaml>=6.0.2",
+    "psutil>=5.9.0",
+]
+
+[project.optional-dependencies]
+hardware = [
+    "nidaqmx",
+    "seabreeze",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0", 
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.20.0",
+]
+all = [
+    "polymorph4-lite[hardware,dev,docs]"
+]
+
+[project.urls]
+Homepage = "https://github.com/dawsonblock/POLYMORPH_Lite"
+Documentation = "https://github.com/dawsonblock/POLYMORPH_Lite/tree/main/docs"
+Repository = "https://github.com/dawsonblock/POLYMORPH_Lite"
+"Bug Tracker" = "https://github.com/dawsonblock/POLYMORPH_Lite/issues"
+Changelog = "https://github.com/dawsonblock/POLYMORPH_Lite/blob/main/CHANGELOG.md"
+
+[project.scripts]
+polymorph4 = "retrofitkit.cli:main"
+p4-cli = "scripts.unified_cli:main"
+p4-install = "install:main"
+p4-wizard = "scripts.hardware_wizard:main"
+
+[tool.setuptools.packages.find]
+exclude = ["tests*", "docs*", "examples*"]
+
+[tool.setuptools.package-data]
+retrofitkit = ["api/static/*", "*.yaml", "*.json"]
+
+[tool.black]
+line-length = 127
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 127
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+
+[tool.flake8]
+max-line-length = 127
+extend-ignore = ["E203", "W503", "E501"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build", 
+    "dist",
+    ".venv",
+    ".eggs",
+    "*.egg-info"
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "nidaqmx.*",
+    "seabreeze.*", 
+    "psutil.*"
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+markers = [
+    "hardware: marks tests that require physical hardware (deselect with '-m \"not hardware\"')",
+    "integration: marks tests that test integration between components",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["retrofitkit"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "setup.py",
+    "*/venv/*", 
+    "*/.venv/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

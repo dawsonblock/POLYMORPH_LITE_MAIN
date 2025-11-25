@@ -1,0 +1,149 @@
+name: "Process Optimization - Design of Experiments"
+description: |
+  Automated DOE study for process optimization using Raman monitoring.
+  Systematically varies voltage and time parameters to optimize yield.
+  
+author: "Process Development"  
+version: "1.0"
+created: "2025-09-08"
+
+metadata:
+  use_case: "process_development"
+  study_type: "factorial_design" 
+  factors: 2
+  levels: 3
+  replicates: 2
+
+parameters:
+  # DOE design parameters
+  voltage_levels: [1.5, 2.5, 3.5]  # Low, medium, high
+  time_levels: [30, 60, 90]        # Short, medium, long (minutes)
+  replicates: 2
+  randomize: true
+  
+  # Response variables to monitor
+  response_variables:
+    - peak_intensity_532nm
+    - peak_area_ratio
+    - reaction_time
+    - final_temperature
+    
+  # Process limits
+  max_temperature: 80.0  # °C
+  safety_voltage_limit: 5.0  # V
+
+# Generate full factorial design: 3² × 2 = 18 runs
+design_matrix:
+  # Auto-generated during execution based on parameters
+  # Run, Voltage, Time, Replicate
+  
+steps:
+  # Study initialization
+  - type: bias_set
+    voltage: 0.0
+    description: "Initialize system for DOE study"
+    
+  - type: log_event
+    message: "Starting DOE study: {{factors}}^{{levels}} factorial design"
+    category: "study_start"
+    
+  # Execute experimental runs
+  - type: factorial_design
+    factors:
+      voltage: "{{voltage_levels}}"
+      time: "{{time_levels}}" 
+    replicates: "{{replicates}}"
+    randomize: "{{randomize}}"
+    
+    run_template:
+      # Set experimental conditions
+      - type: bias_set
+        voltage: "{{run.voltage}}"
+        description: "Run {{run.number}}: Set voltage {{run.voltage}} V"
+        
+      - type: log_event
+        message: "Run {{run.number}}: V={{run.voltage}}, T={{run.time}}, Rep={{run.replicate}}"
+        category: "run_start"
+        
+      # Process execution  
+      - type: raman_monitor
+        duration: "{{run.time * 60}}"  # Convert minutes to seconds
+        interval: 30  # Sample every 30 seconds
+        description: "Monitor reaction progress"
+        
+      # Safety monitoring during run
+      - type: monitor_safety
+        conditions:
+          - temperature: "< {{max_temperature}}"
+          - voltage: "< {{safety_voltage_limit}}"
+        action_on_violation: "abort_run"
+        
+      # End-point analysis
+      - type: raman_measure
+        integration_time: 1000  # ms
+        averages: 5
+        description: "Final analysis - Run {{run.number}}"
+        
+      # Cool-down between runs
+      - type: bias_set
+        voltage: 0.0
+        description: "Reset for next run"
+        
+      - type: hold
+        duration: 120
+        description: "Cool-down between experimental runs"
+        
+  # Data analysis and modeling
+  - type: doe_analysis
+    model_type: "response_surface"
+    responses: "{{response_variables}}"
+    include_interactions: true
+    
+  - type: optimization
+    objective: "maximize"
+    target_variable: "peak_intensity_532nm" 
+    constraints:
+      - "temperature <= {{max_temperature}}"
+      - "voltage <= {{safety_voltage_limit}}"
+      
+  # Generate study report
+  - type: generate_doe_report
+    sections:
+      - experimental_design
+      - raw_data_summary  
+      - statistical_analysis
+      - response_surface_plots
+      - optimization_results
+      - recommendations
+      
+  - type: gate_stop
+    reason: "DOE study completed successfully"
+
+analysis:
+  statistical_methods:
+    - anova
+    - regression_analysis
+    - response_surface_methodology
+    - optimization
+    
+  visualization:
+    - main_effects_plots
+    - interaction_plots  
+    - contour_plots
+    - 3d_response_surfaces
+    
+validation:
+  pre_checks:
+    - sufficient_materials
+    - instrument_calibrated
+    - environmental_stable
+    
+  during_execution:
+    - real_time_data_quality
+    - safety_parameter_monitoring
+    - statistical_power_assessment
+    
+  post_analysis:
+    - model_adequacy_check
+    - residual_analysis
+    - confirmation_runs_recommended

@@ -1,0 +1,82 @@
+name: "Crystallization Monitoring with Raman Gating"
+description: |
+  Monitor crystallization process in real-time using Raman spectroscopy.
+  Stop when characteristic crystalline peak appears at 532 nm.
+  
+author: "POLYMORPH-4 Team"
+version: "1.0"
+created: "2025-09-08"
+
+metadata:
+  use_case: "crystallization"
+  chemistry: "organic_crystallization"
+  expected_duration: "30-180 minutes"
+  safety_level: "standard"
+
+parameters:
+  # Process parameters
+  initial_voltage: 0.0
+  process_voltage: 2.5
+  final_voltage: 0.0
+  
+  # Monitoring parameters
+  peak_wavelength: 532.0
+  intensity_threshold: 1500.0
+  monitoring_interval: 30.0
+  
+  # Safety parameters
+  max_process_time: 7200  # 2 hours maximum
+  
+steps:
+  # Initialize system
+  - type: bias_set
+    voltage: "{{initial_voltage}}"
+    description: "Reset system to initial state"
+    
+  - type: hold
+    duration: 30
+    description: "Initial equilibration period"
+    
+  # Start crystallization process
+  - type: bias_set
+    voltage: "{{process_voltage}}"
+    description: "Apply crystallization voltage"
+    
+  - type: hold
+    duration: 60
+    description: "Process initialization period"
+    
+  # Monitor for crystallization
+  - type: wait_for_raman
+    condition:
+      type: peak_threshold
+      line_nm: "{{peak_wavelength}}"
+      threshold: "{{intensity_threshold}}"
+      direction: "above"
+    timeout: "{{max_process_time}}"
+    monitoring_interval: "{{monitoring_interval}}"
+    description: "Monitor for crystalline peak formation"
+    
+  # Graceful shutdown
+  - type: bias_ramp
+    start_voltage: "{{process_voltage}}"
+    end_voltage: "{{final_voltage}}"
+    duration: 120
+    description: "Gradual voltage reduction"
+    
+  - type: gate_stop
+    reason: "Crystallization detected - process complete"
+    description: "Safe process termination"
+
+validation:
+  # Pre-execution checks
+  pre_checks:
+    - safety_interlocks_clear
+    - raman_connected
+    - daq_connected
+    
+  # Post-execution validation
+  success_criteria:
+    - peak_detected: true
+    - process_completed: true
+    - no_safety_violations: true

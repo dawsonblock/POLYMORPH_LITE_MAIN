@@ -1,0 +1,16 @@
+part11_mapping:
+  audit_trail:
+    sections: ["11.10(e)", "11.10(k)", "11.30", "11.50"]
+    implemented_by: ["compliance.audit", "compliance.signatures"]
+  electronic_signatures:
+    sections: ["11.100", "11.200", "11.300"]
+    implemented_by: ["compliance.signatures", "compliance.users"]
+  authority_checks:
+    sections: ["11.10(g)"]
+    implemented_by: ["compliance.users", "api.auth"]
+  record_protection:
+    sections: ["11.10(c)", "11.10(d)"]
+    implemented_by: ["data.storage", "backup_policy"]
+backup_policy:
+  frequency: "daily"
+  retention_days: 3650

@@ -1,0 +1,61 @@
+system:
+  name: Polymorph4 Retrofit Kit
+  mode: simulation   # options: simulation | ni | redpitaya
+  timezone: UTC
+  data_dir: data
+  logs_dir: logs
+
+security:
+  password_policy:
+    min_length: 12
+    require_upper: true
+    require_digit: true
+    require_symbol: true
+  two_person_signoff: true
+  jwt_exp_minutes: 480
+  rsa_private_key: config/keys/private.pem
+  rsa_public_key: config/keys/public.pem
+
+daq:
+  backend: simulator    # options: simulator | ni | redpitaya
+  ni:
+    device_name: "Dev1"
+    ao_voltage_channel: "ao0"
+    ai_voltage_channel: "ai0"
+    di_lines: ["port0/line0","port0/line1"]  # estop, door
+  redpitaya:
+    host: "192.168.1.100"
+    port: 5000
+    ai_channel: 1
+    ao_channel: 1
+  simulator:
+    noise_std: 0.003
+    estop: false
+    door_open: false
+
+raman:
+  provider: simulator   # options: simulator | vendor
+  simulator:
+    peak_nm: 532.0
+    base_intensity: 1200.0
+    noise_std: 3.0
+    drift_per_s: 0.8
+  vendor:
+    driver_module: "retrofitkit.drivers.raman.vendor_stub"
+    config: {}
+
+gating:
+  rules:
+    - name: peak_threshold
+      line_nm: 532.0
+      threshold: 1500.0
+      direction: "above"   # above | below
+    - name: slope_stop
+      window_s: 2.0
+      slope_threshold: -30.0
+
+safety:
+  interlocks:
+    estop_line: 0
+    door_line: 1
+  watchdog_seconds: 2.0

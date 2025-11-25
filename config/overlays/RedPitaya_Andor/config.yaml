@@ -1,0 +1,13 @@
+system:
+  mode: production
+daq:
+  backend: redpitaya
+  redpitaya:
+    host: 192.168.1.100
+    port: 5025
+raman:
+  provider: andor
+safety:
+  interlocks:
+    estop_line: 0
+    door_line: 1

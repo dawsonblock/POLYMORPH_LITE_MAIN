@@ -1,0 +1,93 @@
+# Multi-stage Dockerfile for Polymorph-4
+# Supports development, production, and hardware-enabled builds
+
+# Base stage with common dependencies
+FROM python:3.11-slim as base
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy and install base requirements
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Development stage
+FROM base as development
+
+# Install development dependencies
+RUN pip install --no-cache-dir pytest pytest-cov black flake8 mypy
+
+# Copy all source code
+COPY . .
+
+# Make scripts executable
+RUN chmod +x install.py scripts/*.py
+
+ENV ENVIRONMENT=development
+EXPOSE 8000
+CMD ["python", "scripts/unified_cli.py", "server", "--reload"]
+
+# Hardware stage (includes hardware drivers)
+FROM base as hardware
+
+# Install system dependencies for hardware drivers
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install hardware requirements
+COPY requirements-hw.txt ./
+RUN pip install --no-cache-dir -r requirements-hw.txt || echo "Some hardware drivers may not be available in container"
+
+# Copy application code
+COPY retrofitkit ./retrofitkit
+COPY config ./config
+COPY recipes ./recipes
+COPY scripts ./scripts
+COPY docs ./docs
+COPY install.py ./
+
+# Make scripts executable
+RUN chmod +x install.py scripts/*.py
+
+ENV ENVIRONMENT=hardware
+ENV P4_CONFIG=/app/config/config.yaml
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "retrofitkit.api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Production stage (minimal, optimized)
+FROM base as production
+
+# Copy only necessary files for production
+COPY retrofitkit ./retrofitkit
+COPY config ./config
+COPY recipes ./recipes
+COPY scripts ./scripts
+COPY install.py ./
+
+# Create non-root user for security
+RUN groupadd -r polymorph4 && useradd -r -g polymorph4 polymorph4
+RUN mkdir -p data logs && chown -R polymorph4:polymorph4 /app
+USER polymorph4
+
+ENV ENVIRONMENT=production
+ENV P4_CONFIG=/app/config/config.yaml
+ENV PYTHONPATH=/app
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Use Gunicorn for production
+RUN pip install --no-cache-dir gunicorn[gthread]
+CMD ["gunicorn", "retrofitkit.api.server:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-"]

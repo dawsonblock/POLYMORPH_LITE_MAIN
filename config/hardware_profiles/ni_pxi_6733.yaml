@@ -1,0 +1,5 @@
+device_name: "Dev1"
+ao_voltage_channel: "ao0"
+ai_voltage_channel: "ai0"
+di_lines: ["port0/line0","port0/line3"]
+do_watchdog_line: "port0/line2"

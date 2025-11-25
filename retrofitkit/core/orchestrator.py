@@ -1,0 +1,229 @@
+import asyncio, time, json
+import redis.asyncio as redis
+import httpx
+from retrofitkit.core.app import AppContext
+from retrofitkit.core.recipe import Recipe
+from retrofitkit.core.gating import GatingEngine
+from retrofitkit.drivers.daq.factory import make_daq
+from retrofitkit.drivers.raman.factory import make_raman
+from retrofitkit.compliance.audit import Audit
+from retrofitkit.data.storage import DataStore
+from retrofitkit.metrics.exporter import Metrics
+
+RUN_STATE = {"IDLE":0, "ACTIVE":1, "ERROR":2}
+
+class Orchestrator:
+    def __init__(self, ctx: AppContext):
+        self.ctx = ctx
+        self.audit = Audit()
+        self.store = DataStore(ctx.config.system.data_dir)
+        self.daq = make_daq(ctx.config)
+        self.raman = make_raman(ctx.config)
+        self.mx = Metrics.get()
+        self.mx.set("polymorph_run_state", RUN_STATE["IDLE"])
+        
+        # Redis connection for state persistence
+        self.redis = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        
+        # Watchdog
+        self._watchdog_task = asyncio.create_task(self._watchdog_loop())
+        self._last_heartbeat = time.time()
+        
+        # AI Service URL
+        self.ai_service_url = ctx.config.ai.service_url
+        
+        # AI Service Circuit Breaker
+        self._ai_failures = 0
+        self._ai_last_failure_time = 0
+        self._ai_circuit_open = False
+        self._ai_failure_threshold = 3
+        self._ai_recovery_timeout = 60.0
+
+    async def _call_inference_service(self, spectrum: list) -> dict:
+        """Call the BentoML AI service with Circuit Breaker pattern."""
+        # Check if circuit is open
+        if self._ai_circuit_open:
+            if time.time() - self._ai_last_failure_time > self._ai_recovery_timeout:
+                # Half-open: try one request
+                print("AI Circuit Breaker: Attempting recovery...")
+            else:
+                return {}
+
+        try:
+            async with httpx.AsyncClient() as client:
+                payload = {"spectrum": spectrum}
+                response = await client.post(self.ai_service_url, json=payload, timeout=2.0)
+                
+                if response.status_code == 200:
+                    # Success: Reset circuit
+                    if self._ai_circuit_open:
+                        print("AI Circuit Breaker: Recovered.")
+                    self._ai_failures = 0
+                    self._ai_circuit_open = False
+                    return response.json()
+                else:
+                    print(f"AI Service Error: {response.status_code} - {response.text}")
+                    self._record_ai_failure()
+                    return {}
+        except Exception as e:
+            print(f"AI Service Call Failed: {e}")
+            self._record_ai_failure()
+            return {}
+
+    def _record_ai_failure(self):
+        self._ai_failures += 1
+        self._ai_last_failure_time = time.time()
+        if self._ai_failures >= self._ai_failure_threshold:
+            if not self._ai_circuit_open:
+                print("AI Circuit Breaker: OPEN (Too many failures)")
+            self._ai_circuit_open = True
+
+    async def _watchdog_loop(self):
+        """Global watchdog to monitor system health."""
+        while True:
+            try:
+                # Update heartbeat
+                self._last_heartbeat = time.time()
+                
+                # Check for system freeze (if this loop doesn't run, external watchdog should trigger)
+                # Here we can check if hardware is responsive if needed
+                
+                # Toggle hardware watchdog if supported
+                if hasattr(self.daq, "toggle_watchdog"):
+                    await self.daq.toggle_watchdog(True)
+                    await asyncio.sleep(0.1)
+                    await self.daq.toggle_watchdog(False)
+                
+                await asyncio.sleep(1.0)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Watchdog error: {e}")
+                await asyncio.sleep(1.0)
+
+    async def _emergency_shutdown(self):
+        """Stop all hardware immediately."""
+        try:
+            if hasattr(self.daq, "set_voltage"):
+                await self.daq.set_voltage(0.0)
+            # Add other shutdown logic here
+        except Exception as e:
+            print(f"Emergency shutdown failed: {e}")
+
+    async def run(self, recipe: Recipe, operator_email: str, simulation: bool=False, resume: bool=True) -> str:
+        return await self.execute_recipe(recipe, operator_email, simulation, resume)
+
+    async def execute_recipe(self, recipe: Recipe, operator_email: str, simulation: bool=False, resume: bool=True) -> str:
+        recipe_id = f"{recipe.name}_{operator_email}" # Simple ID for checkpointing
+        checkpoint_key = f"checkpoint:{recipe_id}"
+        
+        start_idx = 0
+        rid = None
+        
+        if resume:
+            try:
+                checkpoint = await self.redis.get(checkpoint_key)
+                if checkpoint:
+                    data = json.loads(checkpoint)
+                    start_idx = data["step"] + 1
+                    rid = data["rid"]
+                    self.audit.record(event="RESUME_FOUND", actor=operator_email, subject=recipe.name, details={"step": start_idx})
+            except Exception as e:
+                print(f"Failed to load checkpoint: {e}")
+
+        if rid is None:
+            rid = self.store.start_run(recipe.name, operator_email, simulation)
+            self.audit.record(event="RUN_START", actor=operator_email, subject=recipe.name, details={"run_id": rid, "simulation": simulation})
+
+        self.mx.set("polymorph_run_active", 1, {"run_id": rid})
+        self.mx.set("polymorph_run_state", RUN_STATE["ACTIVE"])
+        gating = GatingEngine(self.ctx.config.gating.rules)
+
+        try:
+            steps = recipe.steps
+            for idx, step in enumerate(steps):
+                if idx < start_idx:
+                    continue
+
+                # Checkpoint before step
+                await self.redis.setex(checkpoint_key, 86400, json.dumps({"step": idx, "rid": rid, "ts": time.time()}))
+
+                try:
+                    async with asyncio.timeout(float(step.params.get("timeout", 300))):
+                        if step.type == "bias_set":
+                            v = float(step.params.get("volts", 0.0))
+                            await self.daq.set_voltage(v)
+                            self.mx.set("polymorph_ao_volts", v)
+                            self.mx.set("polymorph_ai_volts", await self.daq.read_ai())
+                            self.audit.record(event="BIAS_SET", actor=operator_email, subject=recipe.name, details={"V": v})
+                        elif step.type == "bias_ramp":
+                            v0 = float(step.params.get("from", 0.0))
+                            v1 = float(step.params.get("to", 1.0))
+                            dt = float(step.params.get("seconds", 5.0))
+                            n = max(2, int(dt * 20))
+                            for i in range(n):
+                                v = v0 + (v1 - v0) * (i / (n - 1))
+                                await self.daq.set_voltage(v)
+                                self.mx.set("polymorph_ao_volts", v)
+                                self.mx.set("polymorph_ai_volts", await self.daq.read_ai())
+                                await asyncio.sleep(dt / n)
+                            self.audit.record(event="BIAS_RAMP", actor=operator_email, subject=recipe.name, details={"from": v0, "to": v1, "seconds": dt})
+                        elif step.type == "hold":
+                            dur = float(step.params.get("seconds", 1.0))
+                            t0 = time.time()
+                            while time.time()-t0 < dur:
+                                self.mx.set("polymorph_ai_volts", await self.daq.read_ai())
+                                await asyncio.sleep(0.2)
+                            self.audit.record(event="HOLD", actor=operator_email, subject=recipe.name, details={"seconds": dur})
+                        elif step.type == "wait_for_raman":
+                            timeout = float(step.params.get("timeout_s", 120.0))
+                            tstart = time.time()
+                            while True:
+                                spec = await self.raman.read_frame()
+                                self.store.append_spectrum(rid, spec)
+                                self.mx.set("polymorph_raman_peak_intensity", spec.get("peak_intensity", 0.0))
+                                
+                                # AI Inference Call
+                                if "intensity" in spec:
+                                    ai_result = await self._call_inference_service(spec["intensity"])
+                                    if ai_result:
+                                        self.mx.set("polymorph_ai_active_modes", ai_result.get("active_modes", 0))
+                                        if ai_result.get("new_polymorph"):
+                                            self.audit.record(event="AI_DISCOVERY", actor="BentoML", subject=recipe.name, details={"polymorph": ai_result["new_polymorph"]})
+                                            print(f"AI DISCOVERY: {ai_result['new_polymorph']}")
+
+                                hit = gating.update(spec)
+                                if hit:
+                                    self.audit.record(event="GATE_TRIGGERED", actor=operator_email, subject=recipe.name, details={"t": spec["t"], "peak": spec["peak_nm"], "intensity": spec["peak_intensity"]})
+                                    break
+                                if time.time() - tstart > timeout:
+                                    self.audit.record(event="GATE_TIMEOUT", actor=operator_email, subject=recipe.name, details={"timeout_s": timeout})
+                                    break
+                        elif step.type == "gate_stop":
+                            await self.daq.set_voltage(0.0)
+                            self.mx.set("polymorph_ao_volts", 0.0)
+                            self.mx.set("polymorph_ai_volts", await self.daq.read_ai())
+                            self.audit.record(event="STOP", actor=operator_email, subject=recipe.name, details={})
+                        else:
+                            self.audit.record(event="UNKNOWN_STEP", actor=operator_email, subject=recipe.name, details={"step": step.type})
+                except asyncio.TimeoutError:
+                    await self._emergency_shutdown()
+                    raise
+
+            self.audit.record(event="RUN_END", actor=operator_email, subject=recipe.name, details={"run_id": rid})
+            # Clear checkpoint on success
+            await self.redis.delete(checkpoint_key)
+            
+        except Exception as e:
+            self.audit.record(event="RUN_ERROR", actor=operator_email, subject=recipe.name, details={"error": str(e)})
+            self.mx.set("polymorph_run_state", RUN_STATE["ERROR"])
+            raise
+        finally:
+            # Ensure safe state
+            try:
+                await self.daq.set_voltage(0.0)
+            except:
+                pass
+            self.mx.set("polymorph_run_active", 0, {"run_id": rid})
+            self.mx.set("polymorph_run_state", RUN_STATE["IDLE"])
+        return rid

@@ -1,0 +1,213 @@
+{
+  "description": "Sample spectral and process data for POLYMORPH-4 Lite demonstration",
+  "generated": "2025-09-08T12:00:00Z",
+  
+  "spectral_data": {
+    "crystallization_example": {
+      "description": "Raman spectra showing crystallization progression",
+      "metadata": {
+        "compound": "organic_crystalline_material",
+        "solvent": "ethanol",
+        "temperature": 25.0,
+        "laser_wavelength": 785,
+        "integration_time_ms": 1000
+      },
+      "timepoints": [
+        {
+          "timestamp": "2025-09-08T12:00:00Z",
+          "time_minutes": 0,
+          "description": "Initial solution state",
+          "wavelengths": [780, 782, 784, 786, 788, 790, 792, 794, 796, 798, 800],
+          "intensities": [1100, 1150, 1200, 1180, 1220, 1200, 1190, 1170, 1160, 1140, 1120],
+          "peak_detected": false,
+          "crystalline_peak_532nm": 1180
+        },
+        {
+          "timestamp": "2025-09-08T12:15:00Z", 
+          "time_minutes": 15,
+          "description": "Early nucleation",
+          "wavelengths": [780, 782, 784, 786, 788, 790, 792, 794, 796, 798, 800],
+          "intensities": [1120, 1180, 1250, 1220, 1280, 1350, 1280, 1240, 1200, 1170, 1150],
+          "peak_detected": false,
+          "crystalline_peak_532nm": 1320
+        },
+        {
+          "timestamp": "2025-09-08T12:30:00Z",
+          "time_minutes": 30,
+          "description": "Crystal growth phase", 
+          "wavelengths": [780, 782, 784, 786, 788, 790, 792, 794, 796, 798, 800],
+          "intensities": [1150, 1220, 1320, 1380, 1450, 1520, 1480, 1420, 1350, 1280, 1220],
+          "peak_detected": true,
+          "crystalline_peak_532nm": 1520
+        },
+        {
+          "timestamp": "2025-09-08T12:45:00Z",
+          "time_minutes": 45,
+          "description": "Crystallization complete",
+          "wavelengths": [780, 782, 784, 786, 788, 790, 792, 794, 796, 798, 800],
+          "intensities": [1180, 1250, 1350, 1420, 1500, 1580, 1550, 1480, 1400, 1320, 1250],
+          "peak_detected": true,
+          "crystalline_peak_532nm": 1580
+        }
+      ]
+    },
+    
+    "batch_qc_example": {
+      "description": "QC batch testing spectral data",
+      "metadata": {
+        "batch_id": "LOT_20250908_001",
+        "product": "API_Compound_X",
+        "analyst": "QC_Analyst_001", 
+        "instrument": "Raman_System_01"
+      },
+      "test_points": [
+        {
+          "voltage": 1.0,
+          "replicate": 1,
+          "wavelengths": [780, 785, 790, 795, 800],
+          "intensities": [1200, 1350, 1520, 1380, 1250],
+          "peak_wavelength": 790.2,
+          "peak_intensity": 1520,
+          "integration_time_ms": 500
+        },
+        {
+          "voltage": 1.0,
+          "replicate": 2, 
+          "wavelengths": [780, 785, 790, 795, 800],
+          "intensities": [1180, 1330, 1505, 1365, 1235],
+          "peak_wavelength": 790.1,
+          "peak_intensity": 1505,
+          "integration_time_ms": 500
+        },
+        {
+          "voltage": 1.0,
+          "replicate": 3,
+          "wavelengths": [780, 785, 790, 795, 800],
+          "intensities": [1210, 1360, 1535, 1390, 1260],
+          "peak_wavelength": 790.3,
+          "peak_intensity": 1535,
+          "integration_time_ms": 500
+        }
+      ],
+      "statistics": {
+        "peak_intensity_mean": 1520.0,
+        "peak_intensity_std": 15.0,
+        "peak_intensity_rsd_percent": 0.99,
+        "peak_wavelength_mean": 790.2,
+        "peak_wavelength_std": 0.1,
+        "acceptance_criteria_met": true
+      }
+    }
+  },
+  
+  "process_data": {
+    "voltage_profile_example": {
+      "description": "DAQ voltage control during crystallization",
+      "data_points": [
+        {"time_s": 0, "target_voltage": 0.0, "actual_voltage": 0.02, "current_ma": 0.1},
+        {"time_s": 30, "target_voltage": 2.5, "actual_voltage": 2.48, "current_ma": 12.3},
+        {"time_s": 60, "target_voltage": 2.5, "actual_voltage": 2.51, "current_ma": 12.5},
+        {"time_s": 1800, "target_voltage": 2.5, "actual_voltage": 2.49, "current_ma": 12.1},
+        {"time_s": 2700, "target_voltage": 0.0, "actual_voltage": 0.01, "current_ma": 0.0}
+      ]
+    },
+    
+    "safety_monitoring_example": {
+      "description": "Safety system monitoring data",
+      "events": [
+        {
+          "timestamp": "2025-09-08T12:00:00Z",
+          "event_type": "system_start",
+          "estop_status": false,
+          "door_status": false,
+          "temperature": 23.5,
+          "message": "System initialization complete"
+        },
+        {
+          "timestamp": "2025-09-08T12:15:30Z",
+          "event_type": "door_opened",
+          "estop_status": false, 
+          "door_status": true,
+          "temperature": 24.1,
+          "message": "Door interlock activated - process paused"
+        },
+        {
+          "timestamp": "2025-09-08T12:16:15Z",
+          "event_type": "door_closed",
+          "estop_status": false,
+          "door_status": false,
+          "temperature": 24.2,
+          "message": "Door interlock cleared - process resumed"
+        }
+      ]
+    }
+  },
+  
+  "recipe_execution_examples": {
+    "successful_run": {
+      "recipe_name": "crystallization_monitoring",
+      "execution_id": "exec_20250908_001", 
+      "start_time": "2025-09-08T12:00:00Z",
+      "end_time": "2025-09-08T12:45:30Z",
+      "duration_minutes": 45.5,
+      "status": "completed_successfully",
+      "steps_executed": 6,
+      "gating_condition_met": true,
+      "final_peak_intensity": 1580,
+      "operator": "operator_001"
+    },
+    
+    "safety_abort_run": {
+      "recipe_name": "process_optimization_doe",
+      "execution_id": "exec_20250908_002",
+      "start_time": "2025-09-08T14:00:00Z", 
+      "end_time": "2025-09-08T14:23:15Z",
+      "duration_minutes": 23.25,
+      "status": "aborted_safety_violation",
+      "steps_executed": 3,
+      "abort_reason": "E-stop activated by operator",
+      "operator": "operator_002"
+    }
+  },
+  
+  "hardware_configurations": {
+    "ni_ocean_setup": {
+      "description": "NI USB-6343 + Ocean Optics USB4000 configuration",
+      "daq": {
+        "device": "Dev1",
+        "ai_channels": ["ai0", "ai1"],
+        "ao_channels": ["ao0", "ao1"],
+        "di_lines": ["port0/line0", "port0/line1"],
+        "sample_rate": 1000
+      },
+      "raman": {
+        "model": "USB4000",
+        "serial": "USB4_12345",
+        "wavelength_range": [350, 1000],
+        "integration_time_ms": 100,
+        "averages": 1
+      }
+    }
+  },
+  
+  "compliance_data": {
+    "audit_trail_example": [
+      {
+        "timestamp": "2025-09-08T12:00:00Z",
+        "user": "analyst_001",
+        "action": "recipe_started",
+        "resource": "crystallization_monitoring",
+        "details": {"recipe_version": "1.0", "parameters": {"voltage": 2.5}},
+        "signature": "RSA_SIGNATURE_HASH_HERE"
+      },
+      {
+        "timestamp": "2025-09-08T12:45:30Z",
+        "user": "analyst_001", 
+        "action": "recipe_completed",
+        "resource": "crystallization_monitoring",
+        "details": {"execution_time": 2730, "peak_detected": true},
+        "signature": "RSA_SIGNATURE_HASH_HERE"
+      }
+    ]
+  }
+}

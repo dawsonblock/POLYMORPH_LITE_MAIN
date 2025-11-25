@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Polymorph4 Retrofit Kit</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 20px; }
+    #chart { height: 200px; border: 1px solid #ddd; padding: 8px; overflow: auto; }
+    .row { display: flex; gap: 16px; align-items: flex-start; }
+    .col { flex: 1; min-width: 320px; }
+    pre { background: #0b0f14; color: #7fff7f; padding: 8px; border-radius: 6px; }
+    input, button, select { padding: 6px 10px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 6px; }
+    th { background: #f5f5f5; }
+  </style>
+</head>
+<body>
+  <h1>Polymorph-4 Retrofit Kit</h1>
+
+  <div class="row">
+    <div class="col">
+      <h3>Login</h3>
+      <input id="email" placeholder="email" value="admin@local"/><br/><br/>
+      <input id="pw" placeholder="password" type="password"/><br/><br/>
+      <button onclick="login()">Login</button>
+      <div>Token: <span id="tok" style="font-family:monospace;"></span></div>
+      <hr/>
+      <h3>Status</h3>
+      <pre id="status"></pre>
+    </div>
+
+    <div class="col">
+      <h3>Raman Stream</h3>
+      <div id="chart"></div>
+      <hr/>
+      <h3>Run (requires approval)</h3>
+      <input id="recipePath" value="recipes/demo_gate.yaml" style="width: 100%" />
+      <p>
+        <button onclick="requestRun()">Request Approval</button>
+        <button onclick="runRecipe()">Execute</button>
+      </p>
+      <pre id="log"></pre>
+    </div>
+
+    <div class="col">
+      <h3>Approvals</h3>
+      <button onclick="refreshApprovals()">Refresh</button>
+      <table id="approvals"><thead><tr><th>ID</th><th>Recipe</th><th>Status</th><th>Approvals</th><th>Act</th></tr></thead><tbody></tbody></table>
+      <hr/>
+      <h3>Runs</h3>
+      <button onclick="refreshRuns()">Refresh</button>
+      <table id="runs"><thead><tr><th>ID</th><th>Recipe</th><th>Operator</th><th>State</th><th>Pkg</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+<script>
+let token = null;
+function authHeaders(){ return token ? {'Authorization': 'Bearer ' + token, 'Content-Type':'application/json'} : {'Content-Type':'application/json'}; }
+
+async function login(){
+  const resp = await fetch('/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email: document.getElementById('email').value, password: document.getElementById('pw').value})});
+  const j = await resp.json(); token = j.access_token; document.getElementById('tok').textContent = (token||'').slice(0,24) + '...';
+  status();
+}
+
+async function status(){
+  const resp = await fetch('/api/status', {headers: authHeaders()});
+  const j = await resp.json();
+  document.getElementById('status').textContent = JSON.stringify(j, null, 2);
+}
+
+const ws = new WebSocket(`ws://${location.host}/ws/raman`);
+ws.onmessage = (evt) => {
+  const data = JSON.parse(evt.data);
+  const el = document.getElementById('chart');
+  const p = document.createElement('div');
+  p.textContent = `t=${data.t.toFixed(2)}s peak=${data.peak_nm.toFixed(1)}nm I=${data.peak_intensity.toFixed(1)}`;
+  el.prepend(p);
+  while (el.children.length > 80) el.removeChild(el.lastChild);
+};
+
+const log = (m) => document.getElementById('log').textContent += m + "\n";
+
+async function requestRun(){
+  const recipePath = document.getElementById('recipePath').value;
+  const resp = await fetch('/api/request_run', {method:'POST', headers: authHeaders(), body: JSON.stringify({recipe_path: recipePath})});
+  const j = await resp.json(); log('REQUEST ' + JSON.stringify(j)); refreshApprovals();
+}
+
+async function runRecipe(){
+  const recipePath = document.getElementById('recipePath').value;
+  const resp = await fetch('/api/run', {method:'POST', headers: authHeaders(), body: JSON.stringify({recipe_path: recipePath})});
+  const j = await resp.json(); log('RUN ' + JSON.stringify(j)); refreshRuns();
+}
+
+async function refreshApprovals(){
+  const resp = await fetch('/api/approvals', {headers: authHeaders()});
+  const arr = await resp.json();
+  const tb = document.querySelector('#approvals tbody');
+  tb.innerHTML='';
+  arr.forEach(a=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${a.id}</td><td>${a.recipe_path}</td><td>${a.status}</td><td>${a.approvals.map(x=>x.role).join(',')}</td><td><button data-id="${a.id}">Approve</button></td>`;
+    tr.querySelector('button').onclick = async (e)=>{
+      const rid = parseInt(e.target.getAttribute('data-id'));
+      await fetch('/api/approve', {method:'POST', headers: authHeaders(), body: JSON.stringify({request_id: rid})});
+      refreshApprovals();
+    };
+    tb.appendChild(tr);
+  });
+}
+
+async function refreshRuns(){
+  const resp = await fetch('/api/runs', {headers: authHeaders()});
+  const arr = await resp.json();
+  const tb = document.querySelector('#runs tbody'); tb.innerHTML='';
+  arr.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.id||''}</td><td>${r.recipe}</td><td>${r.operator}</td><td>${r.state||''}</td><td><button data-id="${r.id}">Package</button></td>`;
+    tr.querySelector('button').onclick = async (e)=>{
+      const id = e.target.getAttribute('data-id');
+      const resp = await fetch('/api/package_run', {method:'POST', headers: authHeaders(), body: JSON.stringify({run_id: id})});
+      const j = await resp.json(); log('PACKAGE ' + JSON.stringify(j));
+    };
+    tb.appendChild(tr);
+  });
+}
+</script>
+</body>
+</html>

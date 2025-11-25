@@ -1,0 +1,84 @@
+{
+  "id": null,
+  "uid": "poly4-main",
+  "title": "Polymorph-4 Retrofit Kit",
+  "schemaVersion": 36,
+  "version": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "AO Voltage",
+      "targets": [
+        {
+          "expr": "polymorph_ao_volts"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Raman Peak Intensity",
+      "targets": [
+        {
+          "expr": "polymorph_raman_peak_intensity"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "AI Voltage",
+      "targets": [
+        {
+          "expr": "polymorph_ai_volts"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Approvals Pending",
+      "targets": [
+        {
+          "expr": "polymorph_approvals_pending"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Run State (0=IDLE,1=ACTIVE,2=ERROR)",
+      "targets": [
+        {
+          "expr": "polymorph_run_state"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      }
+    }
+  ]
+}

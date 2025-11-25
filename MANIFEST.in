@@ -1,0 +1,58 @@
+# Include documentation
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include LICENSE
+include VERSION.md
+
+# Include configuration files
+recursive-include config *.yaml *.yml *.json
+recursive-include retrofitkit *.yaml *.yml *.json
+
+# Include static web assets
+recursive-include retrofitkit/api/static *
+
+# Include example recipes
+recursive-include recipes *.yaml *.yml
+
+# Include example data
+recursive-include examples *.json *.yaml *.yml *.md
+
+# Include documentation
+recursive-include docs *.md *.rst *.txt *.pdf
+
+# Include Docker configurations
+recursive-include docker *.yml *.yaml *.conf *.json *.tmpl
+include docker/.env.example
+
+# Include scripts
+recursive-include scripts *.py
+include install.py
+
+# Include test files
+recursive-include tests *.py
+
+# Exclude development/build artifacts
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude .git*
+global-exclude .pytest_cache
+global-exclude .mypy_cache
+global-exclude .coverage
+global-exclude *.egg-info
+
+# Exclude temporary files
+global-exclude *.tmp
+global-exclude *.log
+global-exclude data/*
+global-exclude logs/*
+
+# Exclude IDE files
+global-exclude .vscode
+global-exclude .idea
+global-exclude *.swp
+global-exclude *.swo
+
+# Include GitHub templates
+recursive-include .github *.md *.yml *.yaml

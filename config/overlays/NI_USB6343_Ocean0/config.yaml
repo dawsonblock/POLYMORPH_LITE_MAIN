@@ -1,0 +1,20 @@
+system:
+  mode: production
+daq:
+  backend: ni
+  ni:
+    device_name: Dev1
+    ao_voltage_channel: ao0
+    ai_voltage_channel: ai0
+    di_lines:
+    - port0/line0
+    - port0/line1
+    do_watchdog_line: port0/line2
+raman:
+  provider: ocean
+  vendor:
+    ocean_index: 0
+safety:
+  interlocks:
+    estop_line: 0
+    door_line: 1

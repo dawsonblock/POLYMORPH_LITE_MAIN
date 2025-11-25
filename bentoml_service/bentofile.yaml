@@ -1,0 +1,4 @@
+name: polymorph
+service: "service:PolymorphService"
+python:
+  requirements_txt: "./requirements.txt"

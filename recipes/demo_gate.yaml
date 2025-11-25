@@ -1,0 +1,14 @@
+name: "demo_raman_gate"
+version: "1.0"
+metadata:
+  description: "Demo recipe: ramp to 1.2V, wait for Raman threshold, stop."
+steps:
+  - type: bias_set
+    params: { volts: 0.0 }
+  - type: bias_ramp
+    params: { from: 0.0, to: 1.2, seconds: 5.0 }
+  - type: hold
+    params: { seconds: 2.0 }
+  - type: wait_for_raman
+    params: { timeout_s: 30.0 }
+  - type: gate_stop

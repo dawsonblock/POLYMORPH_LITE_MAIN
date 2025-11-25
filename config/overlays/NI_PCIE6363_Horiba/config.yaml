@@ -1,0 +1,18 @@
+system:
+  mode: production
+daq:
+  backend: ni
+  ni:
+    device_name: Dev1
+    ao_voltage_channel: ao1
+    ai_voltage_channel: ai1
+    di_lines:
+    - port0/line6
+    - port0/line7
+    do_watchdog_line: port0/line5
+raman:
+  provider: horiba
+safety:
+  interlocks:
+    estop_line: 0
+    door_line: 1

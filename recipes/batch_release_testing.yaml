@@ -1,0 +1,136 @@
+name: "Batch Release Testing Protocol"
+description: |
+  Automated batch release testing with multi-point analysis
+  and compliance documentation. Includes two-person approval
+  workflow for critical quality decisions.
+  
+author: "QC Department"
+version: "2.1"
+created: "2025-09-08"
+compliance: "21CFR11"
+
+metadata:
+  use_case: "quality_control" 
+  department: "QC"
+  approval_required: true
+  two_person_signoff: true
+  regulatory: "FDA"
+
+parameters:
+  # Sample identification
+  batch_id: "BATCH_{{timestamp}}"
+  product_code: "P4_SAMPLE"
+  analyst_id: "{{user.id}}"
+  
+  # Test parameters
+  test_points: [1.0, 2.0, 3.0, 2.0, 1.0]  # Voltage sequence
+  dwell_time: 60  # seconds at each point
+  measurement_repeats: 3
+  
+  # Acceptance criteria
+  min_peak_intensity: 1200.0
+  max_peak_intensity: 2000.0
+  peak_wavelength_target: 785.0
+  wavelength_tolerance: 2.0
+  rsd_limit: 5.0  # % RSD between repeats
+
+steps:
+  # Sample preparation and validation
+  - type: bias_set
+    voltage: 0.0
+    description: "Initialize system - baseline state"
+    
+  - type: hold
+    duration: 30
+    description: "System equilibration"
+    
+  # Multi-point analysis sequence
+  - type: loop
+    variable: "voltage"
+    values: "{{test_points}}"
+    steps:
+      - type: bias_set
+        voltage: "{{voltage}}"
+        description: "Set test voltage: {{voltage}} V"
+        
+      - type: hold
+        duration: "{{dwell_time}}"
+        description: "Equilibrate at {{voltage}} V"
+        
+      - type: repeat
+        count: "{{measurement_repeats}}"
+        steps:
+          - type: raman_measure
+            description: "Measurement {{repeat_index}} at {{voltage}} V"
+            store_data: true
+            
+          - type: hold
+            duration: 10
+            description: "Inter-measurement delay"
+            
+  # Data analysis and validation
+  - type: analyze_data
+    calculations:
+      - type: "peak_analysis"
+        wavelength_range: [780, 790]
+      - type: "repeatability" 
+        statistic: "rsd"
+      - type: "trend_analysis"
+        
+  # Automated pass/fail determination  
+  - type: evaluate_criteria
+    criteria:
+      - name: "peak_intensity_range"
+        condition: "{{min_peak_intensity}} <= peak_intensity <= {{max_peak_intensity}}"
+      - name: "wavelength_accuracy" 
+        condition: "abs(peak_wavelength - {{peak_wavelength_target}}) <= {{wavelength_tolerance}}"
+      - name: "repeatability"
+        condition: "rsd_percent <= {{rsd_limit}}"
+        
+  # Compliance and approval workflow
+  - type: generate_report
+    template: "batch_release_report"
+    include:
+      - raw_data
+      - statistical_analysis
+      - pass_fail_results
+      - signatures
+      
+  - type: require_approval
+    approvers:
+      - role: "analyst"
+        user: "{{analyst_id}}"
+      - role: "supervisor" 
+        user: "auto_assign"
+    approval_type: "electronic_signature"
+    
+  - type: gate_stop
+    condition: "all_criteria_passed"
+    reason: "Batch release testing complete"
+
+validation:
+  pre_checks:
+    - instrument_calibrated
+    - reference_standards_valid
+    - analyst_authorized
+    - batch_id_unique
+    
+  post_checks:
+    - data_integrity_verified
+    - approvals_complete
+    - report_generated
+    - archive_complete
+
+documentation:
+  required_fields:
+    - batch_id
+    - analyst_id  
+    - test_date
+    - instrument_id
+    - environmental_conditions
+    
+  attachments:
+    - raw_spectral_data
+    - statistical_summary
+    - chromatograms
+    - audit_trail
