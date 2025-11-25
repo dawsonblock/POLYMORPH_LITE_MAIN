@@ -1,16 +1,39 @@
 from fastapi import FastAPI  # type: ignore[import]
 from fastapi.responses import HTMLResponse, PlainTextResponse  # type: ignore[import]
 from fastapi.staticfiles import StaticFiles  # type: ignore[import]
+from fastapi.middleware.cors import CORSMiddleware  # type: ignore[import]
 from retrofitkit.core.app import AppContext
 from retrofitkit.api.auth import router as auth_router
 from retrofitkit.api.routes import router as api_router
 from retrofitkit.core.raman_stream import RamanStreamer
 from retrofitkit.core.events import EventBus
 from retrofitkit.metrics.exporter import Metrics
+from retrofitkit.security.headers import SecurityHeadersMiddleware, RateLimitMiddleware
 import time
 from datetime import datetime, timezone
 
-app = FastAPI(title="Polymorph4 Retrofit Kit", version="1.0.0")
+app = FastAPI(
+    title="POLYMORPH-4 Lite",
+    version="2.0.0",
+    description="AI-Powered Laboratory Automation Platform",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# Add security middleware (order matters!)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
+
+# CORS configuration (restrictive by default)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost"],  # Update in production
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_headers=["*"],
+    max_age=3600,
+)
+
 ctx = AppContext.load()
 bus = EventBus()
 raman_streamer = RamanStreamer(ctx, bus)
