@@ -45,10 +45,11 @@ export function LoginPage() {
       }
 
       const data = await response.json()
+      const user: User = data.user
 
       // Update store with real data
-      login(data.user, data.access_token)
-      toast.success(`Welcome back, ${data.user.username}!`)
+      login(user, data.access_token)
+      toast.success(`Welcome back, ${user.username}!`)
 
     } catch (error) {
       console.error('Login error:', error)
