@@ -191,5 +191,9 @@ class OceanOpticsSpectrometer(SpectrometerDevice):
         )
 
 
+# Backward compatibility alias for tests and legacy code
+OceanRaman = OceanOpticsSpectrometer
+
+
 # Register driver with global registry
 registry.register("ocean_optics", OceanOpticsSpectrometer)
