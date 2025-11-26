@@ -15,4 +15,14 @@ def login(payload: Login):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token({"sub": user["email"], "role": user["role"]})
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token, 
+        "token_type": "bearer",
+        "user": {
+            "id": "1",  # Mock ID since we use email as PK
+            "username": user["name"],
+            "email": user["email"],
+            "role": user["role"],
+            "isActive": True
+        }
+    }

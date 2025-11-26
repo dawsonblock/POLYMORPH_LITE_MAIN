@@ -19,7 +19,7 @@ export function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!username || !password) {
       toast.error('Please enter both username and password')
       return
@@ -28,25 +28,30 @@ export function LoginPage() {
     setLoading(true)
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Mock successful login
-      const mockUser: User = {
-        id: '1',
-        username,
-        email: `${username}@polymorph.com`,
-        role: username === 'admin' ? 'admin' : 'operator',
-        lastLogin: new Date(),
-        isActive: true,
+      // Real API call
+      const response = await fetch('http://localhost:8000/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: `${username}@polymorph.com`, // Construct email from username
+          password: password,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Login failed')
       }
-      
-      const mockToken = 'mock-jwt-token-' + Date.now()
-      
-      login(mockUser, mockToken)
-      toast.success(`Welcome back, ${username}!`)
-      
+
+      const data = await response.json()
+
+      // Update store with real data
+      login(data.user, data.access_token)
+      toast.success(`Welcome back, ${data.user.username}!`)
+
     } catch (error) {
+      console.error('Login error:', error)
       toast.error('Login failed. Please check your credentials.')
     } finally {
       setLoading(false)
@@ -78,7 +83,7 @@ export function LoginPage() {
               </CardDescription>
             </div>
           </CardHeader>
-          
+
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -93,7 +98,7 @@ export function LoginPage() {
                   className="h-12"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
@@ -121,7 +126,7 @@ export function LoginPage() {
                   </Button>
                 </div>
               </div>
-              
+
               <Button
                 type="submit"
                 className="w-full h-12 text-base"
@@ -137,7 +142,7 @@ export function LoginPage() {
                 )}
               </Button>
             </form>
-            
+
             <div className="mt-6 pt-6 border-t border-border">
               <div className="text-sm text-muted-foreground space-y-1">
                 <p><strong>Demo Credentials:</strong></p>
@@ -147,7 +152,7 @@ export function LoginPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <div className="text-center mt-6 text-sm text-muted-foreground">
           <p>© 2024 POLYMORPH-4 Lite v2.0</p>
           <p>Built with React 19 + TypeScript + Vite</p>
