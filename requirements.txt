@@ -34,7 +34,7 @@ opentelemetry-instrumentation-fastapi==0.45b0
 opentelemetry-exporter-otlp==1.24.0
 
 # Additional validation
-jsonschema==4.21.1
+jsonschema==4.25.1
 python-json-logger==2.0.7
 
 # Testing
