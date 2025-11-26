@@ -59,21 +59,25 @@ class WorkflowEngine:
                 step = workflow.steps[current_id]
                 steps_executed.append(current_id)
                 
+                step_result: Any = None # Initialize step_result for assignment below
+                
                 # Execute step based on kind
                 if step.kind == "action":
-                    result = await self._run_action(step, ctx)
-                    step_results[current_id] = result
+                    step_result = await self._run_action(step, ctx)
                 elif step.kind == "wait":
-                    await self._run_wait(step)
-                    step_results[current_id] = {"waited": step.params.get("seconds", 0)}
-                elif step.kind == "loop":
-                    # TODO: Implement loop support
-                    raise NotImplementedError("Loop steps not yet implemented")
-                elif step.kind == "condition":
-                    # TODO: Implement condition support
-                    raise NotImplementedError("Condition steps not yet implemented")
+                    wait_seconds = float(step.params.get("seconds", 1.0))
+                    await asyncio.sleep(wait_seconds)
+                    step_result = {"waited_seconds": wait_seconds}
                 else:
-                    raise ValueError(f"Unknown step kind: {step.kind}")
+                    # Unsupported step kind
+                    raise ValueError(
+                        f"Unsupported workflow step kind: '{step.kind}'. "
+                        f"Supported kinds: 'action', 'wait'. "
+                        f"Loop and condition steps are planned for a future release."
+                    )
+                
+                # Store result
+                step_results[current_id] = step_result
                 
                 # Move to next step
                 current_id = step.children[0] if step.children else ""
