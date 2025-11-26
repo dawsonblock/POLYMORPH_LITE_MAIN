@@ -1,0 +1,51 @@
+# Ocean Optics Multiple Scan Workflow
+# Demonstrates workflow capabilities: action + wait + repeated acquisition
+
+id: "ocean_multi_scan"
+name: "Ocean Optics Multiple Acquisitions"
+entry_step: "scan_1"
+
+metadata:
+  description: "Acquire multiple spectra from Ocean Optics with different integration times"
+  author: "POLYMORPH-4 Lite"
+  version: "1.0"
+
+steps:
+  scan_1:
+    kind: "action"
+    params:
+      device: "ocean_optics"
+      action: "acquire_spectrum"
+      args:
+        integration_time_ms: 50.0
+    children: ["wait_1"]
+  
+  wait_1:
+    kind: "wait"
+    params:
+      seconds: 2.0
+    children: ["scan_2"]
+  
+  scan_2:
+    kind: "action"
+    params:
+      device: "ocean_optics"
+      action: "acquire_spectrum"
+      args:
+        integration_time_ms: 100.0
+    children: ["wait_2"]
+  
+  wait_2:
+    kind: "wait"
+    params:
+      seconds: 2.0
+    children: ["scan_3"]
+  
+  scan_3:
+    kind: "action"
+    params:
+      device: "ocean_optics"
+      action: "acquire_spectrum"
+      args:
+        integration_time_ms: 200.0
+    children: []

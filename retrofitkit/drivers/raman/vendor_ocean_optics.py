@@ -80,7 +80,7 @@ class OceanOpticsSpectrometer(SpectrometerDevice):
                 f"Found {len(devices)} device(s)."
             )
         
-        self._device = sb.Spectrometer(devices[self._device_ index])
+        self._device = sb.Spectrometer(devices[self._device_index])
         self._device.integration_time_micros(int(self._integration_time_ms * 1000))
         self._connected = True
         
