@@ -2,7 +2,7 @@
 # Supports development, production, and hardware-enabled builds
 
 # Base stage with common dependencies
-FROM python:3.11-slim as base
+FROM python:3.14-slim as base
 
 RUN apt-get update && apt-get install -y \
     curl \
