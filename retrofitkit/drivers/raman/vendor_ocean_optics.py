@@ -8,7 +8,7 @@ This is a reference implementation showing how to:
 """
 import asyncio
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from retrofitkit.drivers.base import DeviceBase, SpectrometerDevice, DeviceCapabilities, DeviceKind
 from retrofitkit.core.data_models import Spectrum
@@ -125,7 +125,7 @@ class OceanOpticsSpectrometer(SpectrometerDevice):
     
     async def acquire_spectrum(
         self,
-        integration_time_ms: float | None = None,
+        integration_time_ms: Optional[float] = None,
         **kwargs
     ) -> Spectrum:
         """
