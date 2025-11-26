@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  ai-service:
+    build:
+      context: ./bentoml_service
+      dockerfile: Dockerfile
+    container_name: polymorph-ai
+    ports:
+      - "3000:3000"
+    environment:
+      - ENVIRONMENT=production
+    volumes:
+      - ai_models:/models
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - polymorph-network
+
+volumes:
+  ai_models:
+
+
+networks:
+  polymorph-network:
+    external: true
+    name: polymorph_polymorph-network

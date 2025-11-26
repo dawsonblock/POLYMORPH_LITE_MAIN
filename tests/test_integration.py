@@ -1,12 +1,27 @@
 import pytest
 import asyncio
+import os
 from unittest.mock import MagicMock, AsyncMock
 from retrofitkit.core.orchestrator import Orchestrator
 from retrofitkit.core.app import AppContext
 from retrofitkit.core.config import PolymorphConfig
 
 @pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.getenv("P4_RUN_AI_INTEGRATION", "0") == "1",
+    reason="AI integration test requires running Bentoml service on localhost:3000. Set P4_RUN_AI_INTEGRATION=1 to enable."
+)
 async def test_ai_integration(tmp_path):
+    """
+    Integration test for AI service connectivity.
+    
+    Requires:
+    - Bentoml service running on localhost:3000
+    - Set environment variable: P4_RUN_AI_INTEGRATION=1
+    
+    To run: P4_RUN_AI_INTEGRATION=1 pytest tests/test_integration.py -v
+    """
     # Setup context
     config = PolymorphConfig()
     # Ensure we point to the running local service
@@ -34,7 +49,7 @@ async def test_ai_integration(tmp_path):
         
         print(f"AI Result: {result}")
         
-      # Verify response structure
+    # Verify response structure
     assert "status" in result
     assert "active_modes" in result
     assert "polymorphs_found" in result

@@ -25,6 +25,6 @@ jobs:
           fi
           pip install pytest
 
-      - name: Run tests
+      - name: Run unit tests (skip integration)
         run: |
-          pytest -q
+          pytest -v -m "not integration"
