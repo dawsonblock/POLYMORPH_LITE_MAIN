@@ -1,12 +1,56 @@
-# Polymorph-4 Quickstart Guide
+# POLYMORPH-4 Lite Quickstart Guide
 
-This guide will get you up and running with Polymorph-4 in minutes.
+This guide will help you get started with POLYMORPH-4 Lite v2.0.0.
 
 ## Prerequisites
 
-- Python 3.11 or later
-- pip (Python package manager)
-- (Optional) Hardware: NI DAQ devices, Raman spectrometers
+- Python 3.9+
+- Docker & Docker Compose (for full stack)
+- Redis server
+- Optional: Ocean Optics USB spectrometer with seabreeze drivers
+
+---
+
+## Development Setup
+
+### Fresh Checkout
+
+If you're setting up the repository for development:
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/POLYMORPH_Lite.git
+cd POLYMORPH_Lite
+
+# Install package in editable mode with all dependencies
+pip install -e ".[all]"
+
+# Or for development with linting tools
+pip install -e ".[all,dev]"
+
+# Run tests
+pytest
+
+# Run with coverage
+pytest --cov=retrofitkit --cov-report=html
+```
+
+### Using Makefile
+
+For convenience, use the provided Makefile:
+
+```bash
+make install      # Install package in editable mode
+make test         # Run test suite
+make test-cov     # Run tests with coverage report
+make lint         # Run code linters
+make format       # Format code
+make clean        # Remove build artifacts
+make dev          # Start development server
+make help         # Show all available commands
+```
+
+---
 
 ## Step 1: Choose Your Setup Path
 

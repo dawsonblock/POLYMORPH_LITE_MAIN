@@ -5,12 +5,15 @@ from typing import Dict, Any, Union
 from retrofitkit.core.app import AppContext
 from retrofitkit.core.recipe import Recipe
 from retrofitkit.core.gating import GatingEngine
-from retrofitkit.drivers.daq.factory import make_daq
-from retrofitkit.drivers.raman.factory import make_raman
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.data.storage import DataStore
 from retrofitkit.metrics.exporter import Metrics
 from retrofitkit.core.data_models import Spectrum
+from retrofitkit.core.registry import registry
+
+# Import drivers to trigger auto-registration
+from retrofitkit.drivers.raman import simulator as raman_sim, vendor_ocean_optics
+from retrofitkit.drivers.daq import simulator as daq_sim, ni
 
 RUN_STATE = {"IDLE":0, "ACTIVE":1, "ERROR":2}
 
@@ -23,8 +26,10 @@ class Orchestrator:
         self.ctx = ctx
         self.audit = Audit()
         self.store = DataStore(ctx.config.system.data_dir)
-        self.daq = make_daq(ctx.config)
-        self.raman = make_raman(ctx.config)
+        
+        # Create devices via DeviceRegistry (Option C path)
+        self.daq = self._create_daq_device(ctx.config)
+        self.raman = self._create_raman_device(ctx.config)
         self.mx = Metrics.get()
         self.mx.set("polymorph_run_state", RUN_STATE["IDLE"])
         
@@ -77,6 +82,46 @@ class Orchestrator:
         
         # Legacy dict format
         return data.get("intensities", [])
+    
+    def _create_daq_device(self, config):
+        """
+        Create DAQ device via DeviceRegistry with factory fallback.
+        
+        Args:
+            config: Application configuration
+            
+        Returns:
+            DAQ device instance
+        """
+        backend = config.daq.backend
+        
+        try:
+            # Try DeviceRegistry first (Option C path)
+            return registry.create(backend, cfg=config)
+        except KeyError:
+            # Fallback to legacy factory during transition
+            from retrofitkit.drivers.daq.factory import make_daq
+            return make_daq(config)
+    
+    def _create_raman_device(self, config):
+        """
+        Create Raman device via DeviceRegistry with factory fallback.
+        
+        Args:
+            config: Application configuration
+            
+        Returns:
+            Raman device instance
+        """
+        provider = config.raman.provider
+        
+        try:
+            # Try DeviceRegistry first (Option C path)
+            return registry.create(provider, cfg=config)
+        except KeyError:
+            # Fallback to legacy factory during transition
+            from retrofitkit.drivers.raman.factory import make_raman
+            return make_raman(config)
 
     async def _call_inference_service(self, spectrum: list, critical: bool = True) -> dict:
         """
