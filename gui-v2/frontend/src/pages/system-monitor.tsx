@@ -17,7 +17,6 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 import useSystemStore from '@/stores/system-store'
-import type { ComponentStatus } from '@/types'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -141,6 +140,13 @@ export function SystemMonitor() {
                     Last update: {new Date(comp.lastUpdate || status.lastUpdate).toLocaleTimeString()}
                   </span>
                 </div>
+
+                <pre className="text-xs overflow-auto max-h-40 mt-4">
+                  {JSON.stringify({
+                    ...status,
+                    lastUpdate: new Date().toISOString() // Add timestamp for display
+                  }, null, 2)}
+                </pre>
 
                 <div className="mt-4 space-y-2">
                   <div className="text-xs font-medium text-muted-foreground">Details</div>

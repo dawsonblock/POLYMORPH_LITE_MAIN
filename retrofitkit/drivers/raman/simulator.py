@@ -48,13 +48,23 @@ class SimRaman(RamanBase, SpectrometerDevice):
             **kwargs: Allow registry creation with named params
         """
         # Handle both cfg object and kwargs for registry compatibility
+        # Handle both cfg object and kwargs for registry compatibility
         if cfg is not None:
-            sim_config = cfg.raman.simulator
-            self.id = "sim_raman_0"
-            self.peak_nm = float(sim_config.get("peak_nm", 532.0))
-            self.intensity = float(sim_config.get("base_intensity", 1000.0))
-            self.noise = float(sim_config.get("noise_std", 2.0))
-            self.drift = float(sim_config.get("drift_per_s", 0.5))
+            if isinstance(cfg, dict):
+                # Legacy dict configuration
+                self.id = "sim_raman_0"
+                self.peak_nm = float(cfg.get("peak_nm", 532.0))
+                self.intensity = float(cfg.get("base_intensity", 1000.0))
+                self.noise = float(cfg.get("noise_std", 2.0))
+                self.drift = float(cfg.get("drift_per_s", 0.5))
+            else:
+                # AppContext Config object
+                sim_config = cfg.raman.simulator
+                self.id = "sim_raman_0"
+                self.peak_nm = float(sim_config.get("peak_nm", 532.0))
+                self.intensity = float(sim_config.get("base_intensity", 1000.0))
+                self.noise = float(sim_config.get("noise_std", 2.0))
+                self.drift = float(sim_config.get("drift_per_s", 0.5))
         else:
             # Registry-style creation
             self.id = kwargs.get("id", "sim_raman_0")
@@ -71,7 +81,16 @@ class SimRaman(RamanBase, SpectrometerDevice):
         self._playback_data = None
         self._playback_wavelengths = None
         self._playback_index = 0
-        self._load_playback_data()
+        
+        # Only load playback if not explicitly disabled
+        use_playback = True
+        if cfg and isinstance(cfg, dict):
+            use_playback = cfg.get("use_playback", True)
+        elif cfg:
+            use_playback = cfg.raman.simulator.get("use_playback", True)
+            
+        if use_playback:
+            self._load_playback_data()
         
     def _load_playback_data(self):
         """Load synthetic data for golden run simulation."""
@@ -187,6 +206,14 @@ class SimRaman(RamanBase, SpectrometerDevice):
             "peak_nm": spectrum.meta["peak_nm"],
             "peak_intensity": spectrum.meta["peak_intensity"],
         }
+        
+    @property
+    def peak_wavelength(self) -> float:
+        return self.peak_nm
+
+    @property
+    def base_intensity(self) -> float:
+        return self.intensity
 
 
 # Backward compatibility alias for tests

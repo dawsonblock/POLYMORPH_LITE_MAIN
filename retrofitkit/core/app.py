@@ -60,3 +60,6 @@ class AppContext:
 
 def get_app_instance():
     return AppContext._instance
+
+def create_app_instance():
+    return AppContext.load()

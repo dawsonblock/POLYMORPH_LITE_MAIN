@@ -9,6 +9,8 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 import datetime
 from retrofitkit.compliance.audit import CompliantAuditTrail
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 # Helper to generate keys
 def generate_test_keys():
@@ -18,9 +20,19 @@ def generate_test_keys():
 @pytest.fixture
 def audit_db(tmp_path):
     db_path = tmp_path / "audit.db"
-    # Patch DB path in audit module
+    db_url = f"sqlite:///{db_path}"
+    
+    # Create temp engine and session
+    engine = create_engine(db_url)
+    TestingSessionLocal = sessionmaker(bind=engine)
+    
+    # Create tables
+    from retrofitkit.compliance.audit import Base
+    Base.metadata.create_all(engine)
+    
+    # Patch SessionLocal in audit module
     with pytest.MonkeyPatch.context() as m:
-        m.setattr("retrofitkit.compliance.audit.DB", str(db_path))
+        m.setattr("retrofitkit.compliance.audit.SessionLocal", TestingSessionLocal)
         yield db_path
 
 def test_signed_audit_log(audit_db):

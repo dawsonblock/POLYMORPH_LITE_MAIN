@@ -17,6 +17,21 @@ class Metrics:
         with self._lock:
             self._m[key] = float(value)
 
+    def get_value(self, name, default=None):
+        """Get metric value (ignoring labels for now)."""
+        with self._lock:
+            # Simple lookup for unlabelled metric
+            key = (name, tuple())
+            if key in self._m:
+                return self._m[key]
+            
+            # Fallback: try to find any key with this name
+            for (k_name, _), val in self._m.items():
+                if k_name == name:
+                    return val
+            
+            return default
+
     def render_prom(self) -> str:
         lines = []
         with self._lock:

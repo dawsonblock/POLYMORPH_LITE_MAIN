@@ -96,14 +96,49 @@ class WorkflowDefinition:
         data = yaml.safe_load(yaml_content)
         
         # Parse steps
+        # Parse steps
         steps = {}
-        for step_id, step_data in data.get("steps", {}).items():
-            steps[step_id] = WorkflowStep(
-                id=step_id,
-                kind=step_data["kind"],
-                params=step_data.get("params", {}),
-                children=step_data.get("children", []),
-            )
+        raw_steps = data.get("steps", {})
+        
+        if isinstance(raw_steps, list):
+            # Handle list format (sequential steps)
+            prev_id = None
+            for i, step_data in enumerate(raw_steps):
+                # Generate ID if missing
+                step_id = step_data.get("id", f"step_{i}")
+                
+                # Create step
+                kind = step_data.get("kind") or step_data.get("type")
+                if not kind:
+                    raise ValueError(f"Step {step_id} missing 'kind' or 'type'")
+                    
+                step = WorkflowStep(
+                    id=step_id,
+                    kind=kind,
+                    params=step_data.get("params", {}),
+                    children=step_data.get("children", []),
+                )
+                
+                # Link previous step to this one if no children specified
+                if prev_id and not steps[prev_id].children:
+                    steps[prev_id].children.append(step_id)
+                
+                steps[step_id] = step
+                prev_id = step_id
+                
+            # Set entry step if missing
+            if "entry_step" not in data and steps:
+                data["entry_step"] = list(steps.keys())[0]
+                
+        else:
+            # Handle dict format (explicit graph)
+            for step_id, step_data in raw_steps.items():
+                steps[step_id] = WorkflowStep(
+                    id=step_id,
+                    kind=step_data["kind"],
+                    params=step_data.get("params", {}),
+                    children=step_data.get("children", []),
+                )
         
         return cls(
             id=data["id"],

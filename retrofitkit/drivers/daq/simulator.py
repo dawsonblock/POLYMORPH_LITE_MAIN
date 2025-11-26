@@ -49,14 +49,26 @@ class SimDAQ(DAQBase, DAQDevice):
             **kwargs: Allow registry creation with named params
         """
         # Handle both cfg object and kwargs for registry compatibility
+        # Handle both cfg object and kwargs for registry compatibility
         if cfg is not None:
-            sim_config = cfg.daq.simulator
+            if isinstance(cfg, dict):
+                # Legacy dict configuration
+                self._noise = cfg.get("noise_std", 0.01)
+                self.estop_active = cfg.get("estop", False)
+                self.door_open = cfg.get("door_open", False)
+            else:
+                # AppContext Config object
+                sim_config = cfg.daq.simulator
+                self._noise = sim_config.get("noise_v", 0.01)
+                self.estop_active = False
+                self.door_open = False
             self.id = "sim_daq_0"
-            self._noise = sim_config.get("noise_v", 0.01)
         else:
             # Registry-style creation
             self.id = kwargs.get("id", "sim_daq_0")
-            self._noise = kwargs.get("noise_v", 0.01)
+            self._noise = kwargs.get("noise_v", kwargs.get("noise_std", 0.01))
+            self.estop_active = kwargs.get("estop", False)
+            self.door_open = kwargs.get("door_open", False)
         
         self.cfg = cfg
         self._voltage = 0.0
@@ -64,6 +76,9 @@ class SimDAQ(DAQBase, DAQDevice):
         self._do_state = [False] * 8
         self._connected = False
         self._t0 = time.time()
+        
+        # Map legacy attributes
+        self.noise_std = self._noise
     
     async def connect(self) -> None:
         """Connect to simulated device (no-op)."""
@@ -87,7 +102,8 @@ class SimDAQ(DAQBase, DAQDevice):
     
     async def set_voltage(self, volts: float):
         """Set simulated output voltage."""
-        self._voltage = float(volts)
+        # Clamp to +/- 10V
+        self._voltage = max(-10.0, min(10.0, float(volts)))
         await asyncio.sleep(0.01)
     
     async def read_ai(self, channel: int = 0) -> float:
@@ -109,6 +125,25 @@ class SimDAQ(DAQBase, DAQDevice):
         """Write digital output line."""
         if 0 <= line < len(self._do_state):
             self._do_state[line] = bool(state)
+
+    async def read_interlocks(self) -> Dict[str, bool]:
+        """Read safety interlocks."""
+        return {
+            "estop": self.estop_active,
+            "door": self.door_open
+        }
+
+    # Compatibility aliases for tests
+    @property
+    def output_voltage(self) -> float:
+        return self._voltage
+
+    @output_voltage.setter
+    def output_voltage(self, value: float):
+        self._voltage = float(value)
+
+    async def read_voltage(self) -> float:
+        return await self.read_ai(0)
 
 
 # Backward compatibility alias for tests

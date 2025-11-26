@@ -57,8 +57,8 @@ class Orchestrator:
         return {
             "ai_circuit_open": self._ai_circuit_open,
             "ai_failures": self._ai_failures,
-            "run_state": self.mx.get("polymorph_run_state"),
-            "active_run_id": self.mx.get("polymorph_run_active", {}).get("run_id"),
+            "run_state": self.mx.get_value("polymorph_run_state"),
+            "active_run_id": self.mx.get_value("polymorph_run_active", {}).get("run_id"),
         }
     
     def _spectrum_to_dict(self, data: Union[Spectrum, Dict[str, Any]]) -> Dict[str, Any]:

@@ -41,14 +41,32 @@ class OceanOpticsSpectrometer(SpectrometerDevice):
         }
     )
     
-    def __init__(self, device_index: int = 0, integration_time_ms: float = 20.0):
+    def __init__(self, cfg=None, **kwargs):
         """
         Initialize Ocean Optics spectrometer.
         
         Args:
-            device_index: Index of device if multiple connected (0-based)
-            integration_time_ms: Default integration time in milliseconds
+            cfg: Configuration object (optional)
+            **kwargs: Device parameters
         """
+        # Handle registry/factory arguments
+        device_index = 0
+        integration_time_ms = 20.0
+        
+        if cfg is not None:
+            if isinstance(cfg, dict):
+                # Legacy dict
+                device_index = cfg.get("device_index", 0)
+                integration_time_ms = cfg.get("integration_time_ms", 20.0)
+            else:
+                # AppContext Config
+                # Assuming config structure, but usually passed as kwargs from factory
+                pass
+        
+        # Override with kwargs
+        device_index = kwargs.get("device_index", device_index)
+        integration_time_ms = kwargs.get("integration_time_ms", integration_time_ms)
+        
         self.id = f"ocean_optics_{device_index}"
         self._device_index = device_index
         self._integration_time_ms = integration_time_ms
@@ -185,10 +203,19 @@ class OceanOpticsSpectrometer(SpectrometerDevice):
                 "mode": "hardware",
                 "device_id": self.id,
                 "model": getattr(self._device, 'model', 'unknown'),
-                "peak_wavelength_nm": peak_wavelength,
+                "peak_nm": peak_wavelength,
                 "peak_intensity": peak_intensity,
             }
         )
+    
+    async def read_frame(self) -> Dict[str, Any]:
+        """Legacy alias for acquire_spectrum."""
+        spec = await self.acquire_spectrum()
+        # Match SimRaman behavior: flatten meta into top level
+        data = spec.to_dict()
+        if "meta" in data:
+            data.update(data.pop("meta"))
+        return data
 
 
 # Backward compatibility alias for tests and legacy code

@@ -21,7 +21,7 @@ from retrofitkit.security.headers import SecurityHeadersMiddleware, RateLimitMid
 import time
 from datetime import datetime, timezone
 
-from retrofitkit.api import auth, system
+from retrofitkit.api import auth
 
 # Socket.IO server
 sio = socketio.AsyncServer(
@@ -184,7 +184,7 @@ app.mount("/socket.io", socket_app)
 
 # Add security middleware (order matters!)
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
+app.add_middleware(RateLimitMiddleware, requests=100, window_sec=60)
 
 # CORS configuration
 app.add_middleware(
@@ -266,3 +266,7 @@ async def root_ready():
 async def root_live():
     from retrofitkit.api.health import liveness_check
     return await liveness_check()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

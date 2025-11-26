@@ -56,7 +56,8 @@ class AuditLog(Base):
 
 
 # Create tables
-Base.metadata.create_all(engine)
+# Create tables lazily
+# Base.metadata.create_all(engine)
 
 
 class Audit:
@@ -70,9 +71,11 @@ class Audit:
         self._init()
     
     def _init(self):
-        """Initialize database tables (already handled by Base.metadata.create_all)."""
-        # Tables are created automatically by SQLAlchemy
-        pass
+        """Initialize database tables."""
+        try:
+            Base.metadata.create_all(engine)
+        except Exception as e:
+            print(f"Warning: Failed to initialize audit tables: {e}")
     
     def log(self, event: str, actor: str, subject: str, details: str = "") -> int:
         """
@@ -114,8 +117,16 @@ class Audit:
             session.commit()
             return entry.id
             
+        except Exception as e:
+            session.rollback()
+            print(f"Audit log failed: {e}")
+            return -1
         finally:
             session.close()
+            
+    def record(self, event: str, actor: str, subject: str, details: Dict[str, Any] = None) -> int:
+        """Alias for log for backward compatibility."""
+        return self.log(event, actor, subject, json.dumps(details) if details else "")
     
     def get_logs(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """
@@ -148,6 +159,8 @@ class Audit:
                 }
                 for e in entries
             ]
+        except Exception:
+            return []
         finally:
             session.close()
 
@@ -156,6 +169,14 @@ class CompliantAuditTrail(Audit):
         super().__init__()
         self.ca_key = ca_key
         self.ca_cert = ca_cert
+
+    def _last_hash(self):
+        session = SessionLocal()
+        try:
+            prev_entry = session.query(AuditLog).order_by(AuditLog.id.desc()).first()
+            return prev_entry.hash if prev_entry else "GENESIS"
+        finally:
+            session.close()
 
     def log_event_signed(self, event_type: str, data: dict, user_id: str, user_key: rsa.RSAPrivateKey, meaning: str = "Approved"):
         prev = self._last_hash()
@@ -172,12 +193,25 @@ class CompliantAuditTrail(Audit):
         h = hashlib.sha256((prev + record_json).encode()).hexdigest()
 
         # Store with certificate
-        con = sqlite3.connect(DB)
-        con.execute("""INSERT INTO audit (ts, event, actor, subject, details, prev_hash, hash, signature, public_key, ca_cert, meaning) 
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (time.time(), event_type, user_id, "signed_event", record_json, prev, h, signature, 
-                     user_key.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo),
-                     self.ca_cert.public_bytes(encoding=serialization.Encoding.PEM) if self.ca_cert else None,
-                     meaning))
-        con.commit()
-        con.close()
+        session = SessionLocal()
+        try:
+            entry = AuditLog(
+                ts=time.time(),
+                event=event_type,
+                actor=user_id,
+                subject="signed_event",
+                details=record_json,
+                prev_hash=prev,
+                hash=h,
+                signature=signature,
+                public_key=user_key.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo),
+                ca_cert=self.ca_cert.public_bytes(encoding=serialization.Encoding.PEM) if self.ca_cert else None,
+                meaning=meaning
+            )
+            session.add(entry)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            print(f"Signed audit log failed: {e}")
+        finally:
+            session.close()

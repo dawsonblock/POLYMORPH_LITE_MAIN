@@ -46,14 +46,24 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
             **kwargs: Allow registry creation with named params
         """
         # Handle both cfg object and kwargs for registry compatibility
+        # Handle both cfg object and kwargs for registry compatibility
         if cfg is not None:
             super().__init__(max_workers=1)
             self.cfg = cfg
-            self.dev = cfg.daq.ni["device_name"]
-            self.ao = cfg.daq.ni["ao_voltage_channel"]
-            self.ai = cfg.daq.ni["ai_voltage_channel"]
-            self.di_lines = cfg.daq.ni.get("di_lines", ["port0/line0","port0/line1"])
-            self.do_watchdog = cfg.daq.ni.get("do_watchdog_line", "port0/line2")
+            if isinstance(cfg, dict):
+                # Legacy dict configuration
+                self.dev = cfg.get("device_name", "Dev1")
+                self.ao = cfg.get("ao_voltage_channel", "ao0")
+                self.ai = cfg.get("ai_voltage_channel", "ai0")
+                self.di_lines = cfg.get("di_lines", ["port0/line0","port0/line1"])
+                self.do_watchdog = cfg.get("do_watchdog_line", "port0/line2")
+            else:
+                # AppContext Config object
+                self.dev = cfg.daq.ni["device_name"]
+                self.ao = cfg.daq.ni["ao_voltage_channel"]
+                self.ai = cfg.daq.ni["ai_voltage_channel"]
+                self.di_lines = cfg.daq.ni.get("di_lines", ["port0/line0","port0/line1"])
+                self.do_watchdog = cfg.daq.ni.get("do_watchdog_line", "port0/line2")
             self.id = f"ni_daq_{self.dev}"
         else:
             # Registry-style creation
@@ -147,6 +157,22 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
                 t.do_channels.add_do_chan(f"{self.dev}/{self.do_watchdog}", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
                 t.write(bool(v))
         await self._run_blocking(_toggle, timeout=1.0)
+
+    # Compatibility aliases for tests
+    @property
+    def device_name(self) -> str:
+        return self.dev
+        
+    @property
+    def ao_channel(self) -> str:
+        return self.ao
+        
+    @property
+    def ai_channel(self) -> str:
+        return self.ai
+
+    async def read_voltage(self) -> float:
+        return await self.read_ai()
 
 
 # Backward compatibility alias for tests
