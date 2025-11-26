@@ -47,3 +47,7 @@ pip-tools==7.4.1
 redis==5.0.8
 pyotp==2.9.0
 argon2-cffi>=21.3.0
+
+# PostgreSQL Support
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9

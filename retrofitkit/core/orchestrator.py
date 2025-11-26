@@ -12,6 +12,10 @@ from retrofitkit.metrics.exporter import Metrics
 
 RUN_STATE = {"IDLE":0, "ACTIVE":1, "ERROR":2}
 
+class AIFailsafeError(Exception):
+    """Raised when AI service is critical but unreachable."""
+    pass
+
 class Orchestrator:
     def __init__(self, ctx: AppContext):
         self.ctx = ctx
@@ -39,13 +43,16 @@ class Orchestrator:
         self._ai_failure_threshold = 3
         self._ai_recovery_timeout = 60.0
 
-    async def _call_inference_service(self, spectrum: list) -> dict:
-        """Call the BentoML AI service with Circuit Breaker pattern."""
-        # Check if circuit is open
+    async def _call_inference_service(self, spectrum: list, critical: bool = True) -> dict:
+        """
+        Call AI service with Circuit Breaker. 
+        If critical=True and service fails/timeout, raises AIFailsafeError.
+        """
         if self._ai_circuit_open:
             if time.time() - self._ai_last_failure_time > self._ai_recovery_timeout:
-                # Half-open: try one request
                 print("AI Circuit Breaker: Attempting recovery...")
+            elif critical:
+                raise AIFailsafeError("AI Circuit Breaker OPEN - Failsafe Triggered")
             else:
                 return {}
 
@@ -55,19 +62,28 @@ class Orchestrator:
                 response = await client.post(self.ai_service_url, json=payload, timeout=2.0)
                 
                 if response.status_code == 200:
-                    # Success: Reset circuit
                     if self._ai_circuit_open:
                         print("AI Circuit Breaker: Recovered.")
-                    self._ai_failures = 0
-                    self._ai_circuit_open = False
+                        self._ai_failures = 0
+                        self._ai_circuit_open = False
                     return response.json()
                 else:
-                    print(f"AI Service Error: {response.status_code} - {response.text}")
                     self._record_ai_failure()
+                    msg = f"AI Service Error: {response.status_code}"
+                    print(msg)
+                    if critical: raise AIFailsafeError(msg)
                     return {}
-        except Exception as e:
-            print(f"AI Service Call Failed: {e}")
+        except httpx.TimeoutException as e:
             self._record_ai_failure()
+            msg = f"AI Connection Timeout: {str(e)}"
+            print(msg)
+            if critical: raise AIFailsafeError(msg)
+            return {}
+        except Exception as e:
+            self._record_ai_failure()
+            msg = f"AI Connection Failed: {str(e)}"
+            print(msg)
+            if critical: raise AIFailsafeError(msg)
             return {}
 
     def _record_ai_failure(self):
