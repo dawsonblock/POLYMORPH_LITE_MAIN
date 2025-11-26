@@ -1,4 +1,4 @@
-import asyncio, time, json
+import asyncio, time, json, os
 import redis.asyncio as redis
 import httpx
 from typing import Dict, Any, Union
@@ -33,20 +33,21 @@ class Orchestrator:
         self.mx = Metrics.get()
         self.mx.set("polymorph_run_state", RUN_STATE["IDLE"])
         
-        # Redis connection for state persistence
-        self.redis = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        # Async components - initialized on start()
+        self._watchdog_task = None
+        self._redis = None
         
-        # Watchdog
-        self._watchdog_task = asyncio.create_task(self._watchdog_loop())
-        self._last_heartbeat = time.time()
+        # AI Service URL (with fallback)
+        try:
+            self.ai_service_url = ctx.config.ai.service_url
+        except AttributeError:
+            # Fallback if ai config missing
+            self.ai_service_url = os.getenv("P4_AI_URL", "http://localhost:3000")
         
-        # AI Service URL
-        self.ai_service_url = ctx.config.ai.service_url
-        
-        # AI Service Circuit Breaker
+        # AI Circuit Breaker state
         self._ai_failures = 0
-        self._ai_last_failure_time = 0
         self._ai_circuit_open = False
+        self._ai_circuit_threshold = 3
         self._ai_failure_threshold = 3
         self._ai_recovery_timeout = 60.0
     

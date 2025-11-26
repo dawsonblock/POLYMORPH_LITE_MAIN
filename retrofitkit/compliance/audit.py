@@ -1,19 +1,41 @@
-import os, sqlite3, time, hashlib, json
+"""
+Production-ready audit logging with PostgreSQL persistence.
+
+Migrated from SQLite to PostgreSQL for:
+- Production reliability
+- Container restart persistence  
+- Multi-process concurrency
+- Better data integrity
+"""
+import os
+import time
+import hashlib
+import json
 from typing import List, Dict, Any, Optional
+from datetime import datetime
+from sqlalchemy import create_engine, Column, Integer, Float, String, LargeBinary, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography import x509
-from datetime import datetime
 
-DB_DIR = os.environ.get("P4_DATA_DIR", "/mnt/data/Polymorph4_Retrofit_Kit_v1/data")
-DB = os.path.join(DB_DIR, "audit.db")
-try:
-    os.makedirs(os.path.dirname(DB), exist_ok=True)
-except OSError:
-    # Fallback for local testing if /mnt is not writable
-    DB_DIR = "data"
-    DB = os.path.join(DB_DIR, "audit.db")
-    os.makedirs(os.path.dirname(DB), exist_ok=True)
+# Database configuration
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://polymorph:polymorph_pass@localhost:5432/polymorph_db"
+)
+
+# Fallback to SQLite for local development
+if "postgresql" not in DATABASE_URL and "sqlite" not in DATABASE_URL:
+    DB_DIR = os.environ.get("P4_DATA_DIR", "data")
+    os.makedirs(DB_DIR, exist_ok=True)
+    DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'audit.db')}"
+
+# SQLAlchemy setup
+Base = declarative_base()
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine)
 
 class Audit:
     def __init__(self):
