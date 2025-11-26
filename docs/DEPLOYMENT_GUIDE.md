@@ -41,11 +41,20 @@
 
 ### Hardware Interfaces
 
-- **Raman Spectrometer**: Horiba LabRAM (USB or Ethernet)
+- **Raman Spectrometer**: Horiba LabRAM (USB or Ethernet) or Ocean Optics (USB)
 - **DAQ Module**: Gamry potentiostat or National Instruments DAQ
 - **Sensors**: Temperature (thermocouple), Pressure, Flow meters
 
 ### Hardware Driver Setup
+
+#### Ocean Optics Spectrometers
+To use Ocean Optics devices via USB:
+1. Install the library: `pip install seabreeze`
+2. **Crucial**: Run the permission setup script (Linux/Mac only):
+   ```bash
+   seabreeze_os_setup
+   ```
+   *This configures udev rules/permissions so the driver can access the USB device.*
 
 #### National Instruments DAQ (NI-DAQmx)
 To use real NI hardware, you must install the NI-DAQmx Runtime.
