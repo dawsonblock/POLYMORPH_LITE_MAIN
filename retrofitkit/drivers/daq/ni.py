@@ -141,14 +141,18 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
     # Optional: call this from an async heartbeat to toggle a DO line
     async def toggle_watchdog(self, v: bool):
         def _toggle():
-            if nidaqmx is None: return
+            if nidaqmx is None:
+                return
             with nidaqmx.Task() as t:
-                t.do_channels.add_do_chan(f"{self.dev}/{self.do_watchdog}", line_grouping=LineGrouping.CHAN_PER_LINE)
+                t.do_channels.add_do_chan(f"{self.dev}/{self.do_watchdog}", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
                 t.write(bool(v))
-        await self._run_blocking(_toggle, timeout=0.5)
+        await self._run_blocking(_toggle, timeout=1.0)
 
-# Backwards-compatible alias (tests and legacy code may import NI_DAQ)
+
+# Backward compatibility alias for tests
 NI_DAQ = NIDAQ
 
-# Backwards-compatible alias (tests and legacy code may import NI_DAQ)
-NI_DAQ = NIDAQ
+
+# Register with DeviceRegistry
+registry.register("ni_daq", NIDAQ)
+registry.register("national_instruments", NIDAQ)  # Alternative name
