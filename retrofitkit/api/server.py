@@ -217,6 +217,8 @@ from retrofitkit.api.compliance import router as compliance_router
 app.include_router(compliance_router, prefix="/api", tags=["compliance"])
 from retrofitkit.api.analytics import router as analytics_router
 app.include_router(analytics_router, prefix="/api", tags=["analytics"])
+from retrofitkit.api.settings import router as settings_router
+app.include_router(settings_router, prefix="/api", tags=["settings"])
 
 app.mount(
     "/static",
