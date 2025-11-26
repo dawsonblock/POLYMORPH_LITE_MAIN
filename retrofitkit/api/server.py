@@ -47,10 +47,15 @@ raman_streamer = RamanStreamer(ctx, bus)
 _start_time = time.time()
 
 from retrofitkit.api.health import router as health_router
+from retrofitkit.api.devices import router as devices_router
+
+# Import drivers to trigger registry auto-registration
+from retrofitkit.drivers.raman import vendor_ocean_optics  # noqa: F401
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(api_router, prefix="/api", tags=["api"])
-app.include_router(health_router, prefix="/api", tags=["health"]) # This mounts /api/health
+app.include_router(health_router, prefix="/api", tags=["health"])  # This mounts /api/health
+app.include_router(devices_router, prefix="/api", tags=["devices"])  # NEW: Device Registry API
 
 app.mount(
     "/static",
