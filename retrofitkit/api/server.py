@@ -213,6 +213,8 @@ app.include_router(api_router, prefix="/api", tags=["api"])
 app.include_router(health_router, prefix="/api", tags=["health"])
 app.include_router(devices_router, prefix="/api", tags=["devices"])
 app.include_router(workflows_router, prefix="/api", tags=["workflows"])
+from retrofitkit.api.compliance import router as compliance_router
+app.include_router(compliance_router, prefix="/api", tags=["compliance"])
 
 app.mount(
     "/static",

@@ -141,21 +141,17 @@ export function SystemMonitor() {
                   </span>
                 </div>
 
-                <pre className="text-xs overflow-auto max-h-40 mt-4">
-                  {JSON.stringify({
-                    ...status,
-                    lastUpdate: new Date().toISOString() // Add timestamp for display
-                  }, null, 2)}
-                </pre>
-
                 <div className="mt-4 space-y-2">
                   <div className="text-xs font-medium text-muted-foreground">Details</div>
-                  <ScrollArea className="h-[80px] w-full rounded-md border p-2">
-                    <pre className="text-xs">
-                      {JSON.stringify(comp, (key, value) => {
-                        if (key === 'name' || key === 'status' || key === 'lastUpdate') return undefined
-                        return value
-                      }, 2)}
+                  <ScrollArea className="h-[120px] w-full rounded-md border p-2 bg-muted/50">
+                    <pre className="text-xs font-mono">
+                      {JSON.stringify(
+                        Object.fromEntries(
+                          Object.entries(comp).filter(([key]) => !['name', 'status', 'lastUpdate'].includes(key))
+                        ),
+                        null,
+                        2
+                      )}
                     </pre>
                   </ScrollArea>
                 </div>

@@ -31,6 +31,7 @@ export interface ComponentStatus {
   flowRate?: number
   errorCode?: string
   lastMaintenance?: Date
+  lastUpdate?: string
 }
 
 export interface Recipe {

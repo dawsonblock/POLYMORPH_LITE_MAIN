@@ -62,8 +62,8 @@
     > "We've designed this to be 'Crash Proof'. Your experiment data is safe, even if the advanced analytics go offline."
 
 ### 4. The "Compliance" Check (1 Minute)
-*   **Action**: Navigate to **Settings** > **Audit Log**.
-*   **Visual**: Show the list of actions (Login, Workflow Start, Circuit Breaker Trip).
+*   **Action**: Navigate to **Compliance**.
+*   **Visual**: Show the **Audit Trail** table. Point out the "Hash" column and the "Integrity Check" card.
 *   **Talk Track**:
     > "Every action you just saw was logged here, with a SHA-256 hash chaining it to the previous record. This is fully 21 CFR Part 11 compliant out of the box."
 
