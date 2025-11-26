@@ -4,15 +4,16 @@ Health check and system diagnostics endpoints
 import asyncio
 import psutil
 import time
+import os
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from retrofitkit.__version__ import __version__
 from retrofitkit.drivers.daq.factory import make_daq
 from retrofitkit.drivers.raman.factory import make_raman
 from retrofitkit.core.app import get_app_instance
-
 
 
 
@@ -64,8 +65,8 @@ async def health_check():
         status="healthy",
         timestamp=datetime.utcnow(),
         uptime_seconds=uptime,
-        version="1.0.0",
-        environment="production"  # Could be read from config
+        version=__version__,  # Import from single source
+        environment=os.getenv("P4_ENVIRONMENT", "production")  # Read from environment
     )
 
 

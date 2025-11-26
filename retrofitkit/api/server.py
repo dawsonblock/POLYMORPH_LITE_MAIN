@@ -7,15 +7,22 @@ from retrofitkit.api.auth import router as auth_router
 from retrofitkit.api.routes import router as api_router
 from retrofitkit.core.raman_stream import RamanStreamer
 from retrofitkit.core.events import EventBus
+from retrofitkit.drivers.raman.factory import make_raman
+from retrofitkit.core.app import get_app_instance, create_app_instance
+from retrofitkit.core.config import PolymorphConfig
+from retrofitkit.__version__ import __version__
 from retrofitkit.metrics.exporter import Metrics
 from retrofitkit.security.headers import SecurityHeadersMiddleware, RateLimitMiddleware
 import time
 from datetime import datetime, timezone
 
+from retrofitkit.api import auth, system
+
+# Create FastAPI application
 app = FastAPI(
     title="POLYMORPH-4 Lite",
-    version="2.0.0",
-    description="AI-Powered Laboratory Automation Platform",
+    version=__version__,  # Import from single source
+    description="Unified Retrofit Control + Raman-Gating Kit for Analytical Instrument Automation",
     docs_url="/docs",
     redoc_url="/redoc"
 )

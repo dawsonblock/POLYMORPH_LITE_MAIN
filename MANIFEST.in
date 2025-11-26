@@ -1,9 +1,6 @@
 # Include documentation
 include README.md
-include CHANGELOG.md
-include CONTRIBUTING.md
 include LICENSE
-include VERSION.md
 
 # Include configuration files
 recursive-include config *.yaml *.yml *.json

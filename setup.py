@@ -5,6 +5,11 @@ Professional Python package installation
 from setuptools import setup, find_packages
 from pathlib import Path
 
+# Single source of truth for version
+import sys
+sys.path.insert(0, str(Path(__file__).parent / "retrofitkit"))
+from __version__ import __version__
+
 # Read README for long description
 this_directory = Path(__file__).parent
 long_description = (this_directory / "README.md").read_text(encoding='utf-8')
@@ -65,7 +70,7 @@ extras_require['all'] = list(set(sum(extras_require.values(), [])))
 
 setup(
     name="polymorph4-lite",
-    version="1.0.0",
+    version=__version__,  # Import from single source
     author="POLYMORPH-4 Team",
     author_email="support@polymorph4.com",
     description="Unified Retrofit Control + Raman-Gating Kit for Analytical Instrument Automation",
@@ -151,9 +156,6 @@ setup(
     
     # Zip safe
     zip_safe=False,
-    
-    # Minimum requirements check
-    python_requires=">=3.11",
     
     # Development requirements
     test_suite="tests",
