@@ -66,6 +66,27 @@ class SimRaman(RamanBase, SpectrometerDevice):
         self.cfg = cfg
         self.t0 = time.time()
         self._connected = False
+        
+        # Golden Run Data Playback
+        self._playback_data = None
+        self._playback_wavelengths = None
+        self._playback_index = 0
+        self._load_playback_data()
+        
+    def _load_playback_data(self):
+        """Load synthetic data for golden run simulation."""
+        import os
+        import pandas as pd
+        
+        csv_path = "data/crystallization_demo.csv"
+        if os.path.exists(csv_path):
+            try:
+                df = pd.read_csv(csv_path)
+                self._playback_wavelengths = np.array([float(c) for c in df.columns])
+                self._playback_data = df.values
+                print(f"✅ SimRaman: Loaded {len(df)} frames of golden run data")
+            except Exception as e:
+                print(f"⚠️ SimRaman: Failed to load demo data: {e}")
     
     async def connect(self) -> None:
         """Connect to simulated device (no-op)."""
@@ -83,6 +104,7 @@ class SimRaman(RamanBase, SpectrometerDevice):
             "peak_nm": self.peak_nm,
             "current_intensity": self.intensity,
             "uptime_s": time.time() - self.t0,
+            "playback_active": self._playback_data is not None
         }
     
     async def acquire_spectrum(self, **kwargs) -> Spectrum:
@@ -94,12 +116,47 @@ class SimRaman(RamanBase, SpectrometerDevice):
         """
         await asyncio.sleep(0.2)  # Simulate acquisition time
         
+        # Playback Mode (Golden Run)
+        if self._playback_data is not None:
+            # Get current frame
+            intensities = self._playback_data[self._playback_index]
+            wavelengths = self._playback_wavelengths
+            
+            # Advance frame (loop)
+            self._playback_index = (self._playback_index + 1) % len(self._playback_data)
+            
+            # Add some live noise on top of playback
+            noise = np.random.normal(0, self.noise, len(intensities))
+            intensities = np.maximum(0, intensities + noise)
+            
+            # Find peak for metadata
+            peak_idx = intensities.argmax()
+            
+            return Spectrum(
+                wavelengths=wavelengths,
+                intensities=intensities,
+                meta={
+                    "t": time.time() - self.t0,
+                    "peak_nm": float(wavelengths[peak_idx]),
+                    "peak_intensity": float(intensities[peak_idx]),
+                    "simulation": True,
+                    "mode": "playback",
+                    "frame": self._playback_index,
+                    "device_id": self.id,
+                }
+            )
+            
+        # Legacy Simulation Mode (Random Noise)
         # Simulate drift
         self.intensity += self.drift + random.gauss(0, self.noise)
         
         # Create spectrum around peak
-        wavelengths = np.array([self.peak_nm])
-        intensities = np.array([max(0.0, self.intensity + random.gauss(0, self.noise))])
+        wavelengths = np.linspace(400, 1000, 1024)
+        # Gaussian peak
+        intensities = self.intensity * np.exp(-((wavelengths - self.peak_nm) ** 2) / (2 * 10 ** 2))
+        # Add noise
+        intensities += np.random.normal(0, self.noise, len(wavelengths))
+        intensities = np.maximum(0, intensities)
         
         return Spectrum(
             wavelengths=wavelengths,
@@ -107,8 +164,9 @@ class SimRaman(RamanBase, SpectrometerDevice):
             meta={
                 "t": time.time() - self.t0,
                 "peak_nm": self.peak_nm,
-                "peak_intensity": float(intensities[0]),
+                "peak_intensity": float(intensities.max()),
                 "simulation": True,
+                "mode": "synthetic",
                 "device_id": self.id,
             }
         )
