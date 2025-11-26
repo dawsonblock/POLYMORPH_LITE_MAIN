@@ -1,14 +1,12 @@
-import time
-from typing import Dict, Any, Optional
-from retrofitkit.drivers.production_base import ProductionHardwareDriver
-
-# Placeholder """
+"""
 Gamry potentiostat driver with simulation detection.
 
 Requires gamry_sdk (fictitious). Falls back to simulation when unavailable.
 """
+import time
 import warnings
 from typing import Dict, Any
+from retrofitkit.drivers.production_base import ProductionHardwareDriver
 from retrofitkit.drivers.daq.base import DAQBase
 from retrofitkit.drivers.base import DeviceCapabilities, DAQDevice, DeviceKind
 from retrofitkit.core.registry import registry
