@@ -1,6 +1,7 @@
 import asyncio, time, json
 import redis.asyncio as redis
 import httpx
+from typing import Dict, Any, Union
 from retrofitkit.core.app import AppContext
 from retrofitkit.core.recipe import Recipe
 from retrofitkit.core.gating import GatingEngine
@@ -9,6 +10,7 @@ from retrofitkit.drivers.raman.factory import make_raman
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.data.storage import DataStore
 from retrofitkit.metrics.exporter import Metrics
+from retrofitkit.core.data_models import Spectrum
 
 RUN_STATE = {"IDLE":0, "ACTIVE":1, "ERROR":2}
 
@@ -42,6 +44,39 @@ class Orchestrator:
         self._ai_circuit_open = False
         self._ai_failure_threshold = 3
         self._ai_recovery_timeout = 60.0
+    
+    def _spectrum_to_dict(self, data: Union[Spectrum, Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Convert Spectrum object to dict, or pass through if already dict.
+        
+        Handles transition period where drivers may return either Spectrum objects
+        or legacy dicts.
+        
+        Args:
+            data: Either a Spectrum object or dict
+            
+        Returns:
+            Dict representation suitable for legacy code
+        """
+        if isinstance(data, Spectrum):
+            return data.to_dict()
+        return data
+    
+    def _extract_spectrum_for_ai(self, data: Union[Spectrum, Dict[str, Any]]) -> list:
+        """
+        Extract spectrum intensities for AI service.
+        
+        Args:
+            data: Either Spectrum object or dict
+            
+        Returns:
+            List of intensity values for AI processing
+        """
+        if isinstance(data, Spectrum):
+            return data.intensities.tolist()
+        
+        # Legacy dict format
+        return data.get("intensities", [])
 
     async def _call_inference_service(self, spectrum: list, critical: bool = True) -> dict:
         """
