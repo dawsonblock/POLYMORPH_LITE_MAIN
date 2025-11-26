@@ -36,7 +36,7 @@ export const useWebSocket = () => {
       return
     }
 
-    socketRef.current = io('http://localhost:8001', {
+    socketRef.current = io('http://localhost:8000', {
       auth: {
         token: token,
       },
