@@ -1,21 +1,92 @@
+"""
+National Instruments DAQ driver with DeviceRegistry integration.
+
+Supports NI-DAQmx hardware with simulation fallback when SDK unavailable.
+"""
+from typing import Dict, Any
 from retrofitkit.drivers.daq.base import DAQBase
 from retrofitkit.drivers.production_base import ProductionHardwareDriver
+from retrofitkit.drivers.base import DeviceCapabilities, DAQDevice, DeviceKind
+from retrofitkit.core.registry import registry
+
 try:
     import nidaqmx
     from nidaqmx.constants import LineGrouping
 except Exception:
     nidaqmx = None
 
-class NIDAQ(ProductionHardwareDriver, DAQBase):
-    def __init__(self, cfg):
-        super().__init__(max_workers=1)
-        self.cfg = cfg
-        self.dev = cfg.daq.ni["device_name"]
-        self.ao = cfg.daq.ni["ao_voltage_channel"]
-        self.ai = cfg.daq.ni["ai_voltage_channel"]
-        self.di_lines = cfg.daq.ni.get("di_lines", ["port0/line0","port0/line1"])
-        self.do_watchdog = cfg.daq.ni.get("do_watchdog_line", "port0/line2")
+
+class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
+    """
+    National Instruments DAQ driver.
+    
+    Requires nidaqmx SDK. Falls back to simulation when unavailable.
+    """
+    
+    # Class-level capabilities for DeviceRegistry
+    capabilities = DeviceCapabilities(
+        kind=DeviceKind.DAQ,
+        vendor="national_instruments",
+        model="NI-DAQmx",
+        actions=["set_voltage", "read_ai", "write_ao", "read_di", "write_do"],
+        features={
+            "simulation": nidaqmx is None,
+            "sdk_available": nidaqmx is not None,
+            "voltage_range_v": [-10.0, 10.0],
+            "supports_watchdog": True,
+        }
+    )
+    
+    def __init__(self, cfg=None, **kwargs):
+        """
+        Initialize NI DAQ.
+        
+        Args:
+            cfg: Configuration object (optional for registry compatibility)
+            **kwargs: Allow registry creation with named params
+        """
+        # Handle both cfg object and kwargs for registry compatibility
+        if cfg is not None:
+            super().__init__(max_workers=1)
+            self.cfg = cfg
+            self.dev = cfg.daq.ni["device_name"]
+            self.ao = cfg.daq.ni["ao_voltage_channel"]
+            self.ai = cfg.daq.ni["ai_voltage_channel"]
+            self.di_lines = cfg.daq.ni.get("di_lines", ["port0/line0","port0/line1"])
+            self.do_watchdog = cfg.daq.ni.get("do_watchdog_line", "port0/line2")
+            self.id = f"ni_daq_{self.dev}"
+        else:
+            # Registry-style creation
+            super().__init__(max_workers=1)
+            self.id = kwargs.get("id", "ni_daq_0")
+            self.dev = kwargs.get("device_name", "Dev1")
+            self.ao = kwargs.get("ao_channel", "ao0")
+            self.ai = kwargs.get("ai_channel", "ai0")
+            self.di_lines = kwargs.get("di_lines", ["port0/line0","port0/line1"])
+            self.do_watchdog = kwargs.get("do_watchdog_line", "port0/line2")
+            self.cfg = None
+        
         self._last_v = 0.0
+        self._connected = False
+    
+    async def connect(self) -> None:
+        """Connect to NI DAQ (marks as connected)."""
+        self._connected = True
+    
+    async def disconnect(self) -> None:
+        """Disconnect from NI DAQ."""
+        self._connected = False
+        self._last_v = 0.0
+    
+    async def health(self) -> Dict[str, Any]:
+        """Get NI DAQ health status."""
+        return {
+            "status": "ok" if self._connected else "disconnected",
+            "mode": "simulation" if nidaqmx is None else "hardware",
+            "device": self.dev,
+            "last_voltage_v": self._last_v,
+            "sdk_available": nidaqmx is not None,
+        }
 
     def _set_voltage_blocking(self, volts: float):
         self._last_v = float(volts)
@@ -55,6 +126,17 @@ class NIDAQ(ProductionHardwareDriver, DAQBase):
 
     async def read_di(self, line: int) -> bool:
         return await self._run_blocking(self._read_di_blocking, line, timeout=0.5)
+
+    def _write_do_blocking(self, line: int, on: bool):
+        if nidaqmx is None:
+            return
+        name = self.di_lines[line] if line < len(self.di_lines) else self.di_lines[0]
+        with nidaqmx.Task() as t:
+            t.do_channels.add_do_chan(f"{self.dev}/{name}", line_grouping=LineGrouping.CHAN_PER_LINE)
+            t.write(bool(on))
+
+    async def write_do(self, line: int, on: bool):
+        await self._run_blocking(self._write_do_blocking, line, on, timeout=1.0)
 
     # Optional: call this from an async heartbeat to toggle a DO line
     async def toggle_watchdog(self, v: bool):
