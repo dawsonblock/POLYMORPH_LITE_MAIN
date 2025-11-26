@@ -51,26 +51,34 @@ class RamanPreprocessor:
         return torch.tensor(x, dtype=torch.float32)
 
     @staticmethod
-    def _als_baseline(y, lam=1e4, p=0.001, niter=10):
-        """Asymmetric Least Squares baseline (Eilers & Boelens)"""
-        L = len(y)
-        if L < 3: return y
-        D = np.diff(np.eye(L), 2)
-        print(f"DEBUG: L={L}, D.shape={D.shape}")
+    def _als_baseline(y: np.ndarray, lam: float = 1e5, p: float = 0.01, niter: int = 10) -> np.ndarray:
+        """
+        Asymmetric Least Squares baseline correction (Eilers & Boelens, 2005).
+
+        Correct version:
+          - D is a (L-2, L) second-difference matrix
+          - Z = W + λ D^T D is (L, L)
+        """
+        L = y.shape[0]
+        if L < 3:
+            # Too short for second derivative; just return zeros baseline
+            return np.zeros_like(y)
+
+        # Second-difference operator
+        D = np.diff(np.eye(L), 2, axis=0)  # (L-2, L)
         w = np.ones(L)
-        for i in range(niter):
+
+        for _ in range(niter):
             W = np.diag(w)
-            # D is (L, L-2). We want (L, L) matrix for Z.
-            # The penalty term is lam * D_correct.T @ D_correct
-            # where D_correct is (L-2, L).
-            # D_correct = D.T
-            # So term is lam * D @ D.T
-            term = lam * D @ D.T
-            print(f"DEBUG: W.shape={W.shape}, term.shape={term.shape}")
-            Z = W + term
+            # Proper ALS system: Z is (L, L)
+            Z = W + lam * (D.T @ D)
+            # Solve Z z = W y
             z = np.linalg.solve(Z, w * y)
-            w = p * (y > z) + (1 - p) * (y <= z)
-        return y - z
+
+            # Update weights: penalize positive residuals more
+            w = p * (y > z) + (1.0 - p) * (y <= z)
+
+        return z
 
 class StaticPseudoModeMemory(nn.Module):
     """FULLY EXPANDED PMM — Explicit Updates + Merge/Split/Prune + Safety + Predictive"""
