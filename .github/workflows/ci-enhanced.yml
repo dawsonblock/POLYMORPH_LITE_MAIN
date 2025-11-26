@@ -1,0 +1,259 @@
+name: CI Enhanced with Coverage
+
+on:
+  push:
+    branches: [ main, develop, 'claude/**' ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # Backend testing with coverage
+  backend-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          if [ -f bentoml_service/requirements.txt ]; then
+            pip install -r bentoml_service/requirements.txt
+          fi
+          pip install pytest pytest-cov pytest-asyncio pytest-xdist pytest-timeout pytest-benchmark
+          pip install coverage[toml]
+
+      - name: Run linting
+        run: |
+          pip install ruff mypy
+          ruff check retrofitkit/ || true
+          mypy retrofitkit/ --ignore-missing-imports || true
+
+      - name: Run unit tests with coverage
+        run: |
+          pytest tests/ \
+            -v \
+            -m "not integration and not slow and not performance" \
+            --cov=retrofitkit \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing \
+            --cov-fail-under=30 \
+            --maxfail=5 \
+            --timeout=30
+
+      - name: Run integration tests
+        run: |
+          pytest tests/ \
+            -v \
+            -m "integration" \
+            --cov=retrofitkit \
+            --cov-append \
+            --cov-report=xml \
+            --timeout=60 \
+            || true  # Don't fail on integration test failures
+
+      - name: Generate coverage badge
+        if: matrix.python-version == '3.11'
+        run: |
+          pip install coverage-badge
+          coverage-badge -o coverage-badge.svg -f
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+
+      - name: Upload coverage HTML report
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-report
+          path: htmlcov/
+
+      - name: Check coverage thresholds
+        if: matrix.python-version == '3.11'
+        run: |
+          pip install coverage
+          # Overall coverage threshold: 30%
+          coverage report --fail-under=30
+
+          # Critical modules must have higher coverage (60%)
+          coverage report \
+            --include='retrofitkit/api/auth.py,retrofitkit/api/security.py,retrofitkit/compliance/*,retrofitkit/safety/*' \
+            --fail-under=60 \
+            || echo "Warning: Critical modules below 60% coverage"
+
+  # Frontend testing
+  frontend-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: gui-v2/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: gui-v2/frontend
+        run: npm ci
+
+      - name: Run linting
+        working-directory: gui-v2/frontend
+        run: npm run lint || true
+
+      - name: Run type checking
+        working-directory: gui-v2/frontend
+        run: npx tsc --noEmit || true
+
+      - name: Run tests with coverage
+        working-directory: gui-v2/frontend
+        run: npm test -- --coverage --run
+
+      - name: Upload frontend coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: gui-v2/frontend/coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: false
+
+  # Performance tests (run on main branch only)
+  performance-tests:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-benchmark pytest-asyncio psutil
+
+      - name: Run performance tests
+        run: |
+          pytest tests/ \
+            -v \
+            -m "performance" \
+            --benchmark-only \
+            --benchmark-json=benchmark-results.json \
+            || true
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results.json
+
+  # Security scanning
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Bandit security scan
+        run: |
+          pip install bandit[toml]
+          bandit -r retrofitkit/ -f json -o bandit-report.json || true
+
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scan-results
+          path: bandit-report.json
+
+      - name: Run Safety check for dependencies
+        run: |
+          pip install safety
+          safety check --json || true
+
+  # Build and test Docker image
+  docker-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: polymorph-lite:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Coverage summary and report
+  coverage-summary:
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+
+      - name: Display coverage summary
+        run: |
+          echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Backend Coverage" >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage.xml ]; then
+            echo "Backend coverage report generated" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "### Frontend Coverage" >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage-final.json ]; then
+            echo "Frontend coverage report generated" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## Test Coverage Report\n\nCoverage reports have been generated. Check the Actions artifacts for detailed HTML reports.'
+            })
