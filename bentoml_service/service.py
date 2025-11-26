@@ -55,21 +55,25 @@ class RamanPreprocessor:
     @staticmethod
     def _als_baseline(y: np.ndarray, lam: float = 1e5, p: float = 0.01, niter: int = 10) -> np.ndarray:
         """
-        Asymmetric Least Squares baseline correction (Eilers & Boelens, 2005).
-        Correct version: Z = W + λ D^T D
+        Correct ALS baseline subtraction (Eilers & Boelens 2005).
+        This version matches pmm_brain.py and resolves the previous syntax error.
         """
         L = y.shape[0]
         if L < 3:
             return np.zeros_like(y)
 
-        D = np.diff(np.eye(L), 2, axis=0)  # (L-2, L)
+        # Second-difference operator (L-2, L)
+        D = np.diff(np.eye(L), 2, axis=0)
         w = np.ones(L)
 
         for _ in range(niter):
             W = np.diag(w)
+            # Correct ALS system: Z is (L, L)
             Z = W + lam * (D.T @ D)
-            z = np.linalg. solve(Z, w * y)
-            w = p * (y > z) + (1.0 - p) * (y <= z)
+            # FIX: use np.linalg.solve with NO space
+            z = np.linalg.solve(Z, w * y)
+            # Update asymmetry weights
+            w = p * (y > z) + (1 - p) * (y <= z)
 
         return z
 
