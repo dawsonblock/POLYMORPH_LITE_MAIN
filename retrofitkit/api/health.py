@@ -82,10 +82,25 @@ async def readiness_check():
             raise HTTPException(status_code=503, detail="Application not initialized")
             
         # Check database connection
-        # TODO: Add database connectivity check
+        try:
+            from retrofitkit.compliance.audit import Audit
+            audit = Audit()
+            # Simple connectivity test: try to query audit log
+            conn = audit._get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            conn.close()
+        except Exception as db_error:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Database connectivity check failed: {str(db_error)}"
+            )
         
-        return {"status": "ready", "timestamp": datetime.utcnow()}
+        return {"status": "ready", "timestamp": datetime.utcnow(), "database": "connected"}
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"System not ready: {str(e)}")
 

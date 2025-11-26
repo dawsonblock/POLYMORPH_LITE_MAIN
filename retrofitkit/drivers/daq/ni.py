@@ -64,3 +64,9 @@ class NIDAQ(ProductionHardwareDriver, DAQBase):
                 t.do_channels.add_do_chan(f"{self.dev}/{self.do_watchdog}", line_grouping=LineGrouping.CHAN_PER_LINE)
                 t.write(bool(v))
         await self._run_blocking(_toggle, timeout=0.5)
+
+# Backwards-compatible alias (tests and legacy code may import NI_DAQ)
+NI_DAQ = NIDAQ
+
+# Backwards-compatible alias (tests and legacy code may import NI_DAQ)
+NI_DAQ = NIDAQ
