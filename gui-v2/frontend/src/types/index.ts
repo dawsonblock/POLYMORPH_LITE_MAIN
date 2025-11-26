@@ -15,6 +15,10 @@ export interface SystemStatus {
     safety: ComponentStatus
     pumps: ComponentStatus
     valves: ComponentStatus
+    ai: ComponentStatus & {
+      circuit_open?: boolean
+      failures?: number
+    }
   }
   uptime: number
   lastUpdate: Date

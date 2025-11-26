@@ -5,12 +5,12 @@ from retrofitkit.drivers.raman.factory import make_raman
 from retrofitkit.metrics.exporter import Metrics
 
 class RamanStreamer:
-    def __init__(self, ctx: AppContext, bus: EventBus):
+    def __init__(self, ctx: AppContext, bus: EventBus, device=None):
         self.ctx = ctx
         self.bus = bus
         self._task = None
         self._stop = asyncio.Event()
-        self.raman = make_raman(ctx.config)
+        self.raman = device if device else make_raman(ctx.config)
         self.mx = Metrics.get()
 
     async def start(self):

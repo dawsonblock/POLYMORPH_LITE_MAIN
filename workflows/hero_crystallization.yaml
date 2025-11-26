@@ -1,0 +1,35 @@
+name: "Hero Crystallization Demo"
+description: "Golden Run: Real-time crystallization monitoring with AI gating"
+version: "2.0"
+author: "admin@polymorph.com"
+
+steps:
+  - name: "System Initialization"
+    type: "action"
+    driver: "ocean_optics"
+    action: "acquire_spectrum"
+    params:
+      integration_time_ms: 100
+
+  - name: "Start Reaction (Simulated)"
+    type: "action"
+    driver: "ni_daq"
+    action: "set_voltage"
+    params:
+      volts: 5.0
+
+  - name: "Monitor Crystallization"
+    type: "wait"
+    check: "raman_peak"
+    params:
+      peak_nm: 1000.0       # Target crystalline peak
+      threshold: 800.0      # Intensity threshold
+      timeout_s: 60.0       # Run for 60s max
+      poll_interval_s: 0.5
+
+  - name: "Reaction Complete"
+    type: "action"
+    driver: "ni_daq"
+    action: "set_voltage"
+    params:
+      volts: 0.0

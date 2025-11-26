@@ -9,7 +9,7 @@ from typing import Dict, List, Any
 
 from retrofitkit.core.app import AppContext
 from retrofitkit.api.auth import router as auth_router
-from retrofitkit.api.routes import router as api_router
+from retrofitkit.api.routes import router as api_router, orc  # Import global orchestrator
 from retrofitkit.core.raman_stream import RamanStreamer
 from retrofitkit.core.events import EventBus
 from retrofitkit.drivers.raman.factory import make_raman
@@ -63,13 +63,36 @@ async def system_monitor_task():
     """Generate system status updates"""
     while True:
         try:
-            # Mock system status (to be replaced with real Orchestrator data)
+            # Get real status from Orchestrator
+            orc_status = orc.status
+            
+            # Get hardware health
+            daq_health = await orc.daq.health()
+            raman_health = await orc.raman.health()
+            
             system_status = {
-                "overall": "healthy",
+                "overall": "healthy" if not orc_status["ai_circuit_open"] else "warning",
                 "components": {
-                    "daq": {"status": "online", "temperature": 23.5, "lastUpdate": datetime.now().isoformat()},
-                    "raman": {"status": "online", "temperature": 22.1, "lastUpdate": datetime.now().isoformat()},
-                    "safety": {"status": "online", "lastUpdate": datetime.now().isoformat()},
+                    "daq": {
+                        "status": daq_health.get("status", "unknown"),
+                        "temperature": 23.5, # Placeholder until driver supports temp
+                        "lastUpdate": datetime.now().isoformat()
+                    },
+                    "raman": {
+                        "status": raman_health.get("status", "unknown"),
+                        "temperature": 22.1,
+                        "lastUpdate": datetime.now().isoformat()
+                    },
+                    "ai": {
+                        "status": "offline" if orc_status["ai_circuit_open"] else "online",
+                        "circuit_open": orc_status["ai_circuit_open"],
+                        "failures": orc_status["ai_failures"],
+                        "lastUpdate": datetime.now().isoformat()
+                    },
+                    "safety": {
+                        "status": "online",
+                        "lastUpdate": datetime.now().isoformat()
+                    }
                 },
                 "uptime": int(time.time() - _start_time),
                 "lastUpdate": datetime.now().isoformat()
@@ -77,24 +100,48 @@ async def system_monitor_task():
             
             await sio.emit('system_status', system_status)
             await manager.broadcast({"type": "system_status", "data": system_status})
-            await asyncio.sleep(5)
+            await asyncio.sleep(2) # Faster updates for responsiveness
         except Exception as e:
             print(f"Monitor error: {e}")
             await asyncio.sleep(5)
+
+async def broadcast_spectra_task():
+    """Broadcast Raman spectra to frontend"""
+    async for frame in raman_streamer.frames():
+        try:
+            # Convert to frontend format
+            data = {
+                "t": frame.get("t", 0),
+                "wavelengths": frame.get("wavelengths", []),
+                "intensities": frame.get("intensities", []),
+                "peak_nm": frame.get("peak_nm", 0),
+                "peak_intensity": frame.get("peak_intensity", 0)
+            }
+            
+            # Emit to Socket.IO (efficient binary packing if supported, but JSON for now)
+            await sio.emit('spectral_data', data)
+            # await manager.broadcast({"type": "spectral_data", "data": data}) # WebSocket backup
+        except Exception as e:
+            print(f"Spectra broadcast error: {e}")
 
 async def data_generation_task():
     """Generate process data simulation"""
     while True:
         try:
-            # Mock process data
-            processes = [{
-                "id": "proc-001",
-                "recipeId": "recipe-demo",
-                "recipeName": "Demo Synthesis",
-                "status": "running",
-                "progress": (int(time.time()) % 100),
-                "data": []
-            }]
+            # Get active run from Orchestrator
+            active_run_id = orc.status.get("active_run_id")
+            
+            if active_run_id:
+                processes = [{
+                    "id": str(active_run_id),
+                    "recipeId": "active-recipe",
+                    "recipeName": "Active Run",
+                    "status": "running",
+                    "progress": 50, # TODO: Get real progress
+                    "data": []
+                }]
+            else:
+                processes = []
             
             await sio.emit('processes_update', processes)
             await manager.broadcast({"type": "processes_update", "data": processes})
@@ -111,12 +158,14 @@ async def lifespan(app: FastAPI):
     # Start background tasks
     monitor_task = asyncio.create_task(system_monitor_task())
     data_task = asyncio.create_task(data_generation_task())
+    spectra_task = asyncio.create_task(broadcast_spectra_task())
     
     yield
     
     # Shutdown
     monitor_task.cancel()
     data_task.cancel()
+    spectra_task.cancel()
     await raman_streamer.stop()
 
 # Create FastAPI application
@@ -149,7 +198,7 @@ app.add_middleware(
 
 ctx = AppContext.load()
 bus = EventBus()
-raman_streamer = RamanStreamer(ctx, bus)
+raman_streamer = RamanStreamer(ctx, bus, device=orc.raman)
 _start_time = time.time()
 
 from retrofitkit.api.health import router as health_router
