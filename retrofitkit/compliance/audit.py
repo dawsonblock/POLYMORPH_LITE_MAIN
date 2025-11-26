@@ -37,46 +37,119 @@ Base = declarative_base()
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
 
+class AuditLog(Base):
+    """SQLAlchemy ORM model for audit logs."""
+    __tablename__ = 'audit'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ts = Column(Float, nullable=False)
+    event = Column(String(255), nullable=False)
+    actor = Column(String(255), nullable=False)
+    subject = Column(String(255), nullable=False)
+    details = Column(Text, nullable=True)
+    prev_hash = Column(String(64), nullable=True)
+    hash = Column(String(64), nullable=False)
+    signature = Column(LargeBinary, nullable=True)
+    public_key = Column(LargeBinary, nullable=True)
+    ca_cert = Column(LargeBinary, nullable=True)
+    meaning = Column(Text, nullable=True)
+
+
+# Create tables
+Base.metadata.create_all(engine)
+
+
 class Audit:
+    """
+    Production-ready audit logging with PostgreSQL persistence.
+    
+    Supports both PostgreSQL (production) and SQLite (local dev).
+    """
+    
     def __init__(self):
         self._init()
-
+    
     def _init(self):
-        con = sqlite3.connect(DB)
-        con.execute("CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL, event TEXT, actor TEXT, subject TEXT, details TEXT, prev_hash TEXT, hash TEXT)")
-        # Add columns for signatures if they don't exist
+        """Initialize database tables (already handled by Base.metadata.create_all)."""
+        # Tables are created automatically by SQLAlchemy
+        pass
+    
+    def log(self, event: str, actor: str, subject: str, details: str = "") -> int:
+        """
+        Log an audit event with chain-of-custody hash.
+        
+        Args:
+            event: Event type (e.g., "RECIPE_START", "USER_LOGIN")
+            actor: Who performed the action
+            subject: What was affected
+            details: Additional context (JSON string)
+            
+        Returns:
+            Audit log entry ID
+        """
+        session = SessionLocal()
         try:
-            con.execute("ALTER TABLE audit ADD COLUMN signature BLOB")
-            con.execute("ALTER TABLE audit ADD COLUMN public_key BLOB")
-            con.execute("ALTER TABLE audit ADD COLUMN ca_cert BLOB")
-            con.execute("ALTER TABLE audit ADD COLUMN meaning TEXT")
-        except sqlite3.OperationalError:
-            pass # Columns likely exist
-        con.commit()
-        con.close()
-
-    def _last_hash(self):
-        con = sqlite3.connect(DB)
-        cur = con.execute("SELECT hash FROM audit ORDER BY id DESC LIMIT 1")
-        row = cur.fetchone()
-        con.close()
-        return row[0] if row else ""
-
-    def record(self, event: str, actor: str, subject: str, details: Dict[str, Any]):
-        prev = self._last_hash()
-        payload = json.dumps({"event": event, "actor": actor, "subject": subject, "details": details}, sort_keys=True)
-        h = hashlib.sha256((prev + payload).encode()).hexdigest()
-        con = sqlite3.connect(DB)
-        con.execute("INSERT INTO audit(ts,event,actor,subject,details,prev_hash,hash) VALUES(?,?,?,?,?,?,?)", (time.time(), event, actor, subject, payload, prev, h))
-        con.commit()
-        con.close()
-
-    def list_records(self, limit=200):
-        con = sqlite3.connect(DB)
-        cur = con.execute("SELECT id,ts,event,actor,subject,details,prev_hash,hash FROM audit ORDER BY id DESC LIMIT ?", (limit,))
-        rows = [{"id": r[0], "ts": r[1], "event": r[2], "actor": r[3], "subject": r[4], "details": r[5], "prev_hash": r[6], "hash": r[7]} for r in cur.fetchall()]
-        con.close()
-        return rows
+            ts = time.time()
+            
+            # Get previous hash for chain-of-custody
+            prev_entry = session.query(AuditLog).order_by(AuditLog.id.desc()).first()
+            prev_hash = prev_entry.hash if prev_entry else "GENESIS"
+            
+            # Compute current hash
+            data = f"{ts}{event}{actor}{subject}{details}{prev_hash}"
+            current_hash = hashlib.sha256(data.encode()).hexdigest()
+            
+            # Create new entry
+            entry = AuditLog(
+                ts=ts,
+                event=event,
+                actor=actor,
+                subject=subject,
+                details=details,
+                prev_hash=prev_hash,
+                hash=current_hash
+            )
+            
+            session.add(entry)
+            session.commit()
+            return entry.id
+            
+        finally:
+            session.close()
+    
+    def get_logs(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """
+        Retrieve audit logs.
+        
+        Args:
+            limit: Maximum number of entries to return
+            offset: Number of entries to skip
+            
+        Returns:
+            List of audit log entries as dictionaries
+        """
+        session = SessionLocal()
+        try:
+            entries = session.query(AuditLog)\
+                .order_by(AuditLog.id.desc())\
+                .limit(limit)\
+                .offset(offset)\
+                .all()
+            
+            return [
+                {
+                    "id": e.id,
+                    "ts": e.ts,
+                    "event": e.event,
+                    "actor": e.actor,
+                    "subject": e.subject,
+                    "details": e.details,
+                    "hash": e.hash,
+                }
+                for e in entries
+            ]
+        finally:
+            session.close()
 
 class CompliantAuditTrail(Audit):
     def __init__(self, ca_key: Optional[rsa.RSAPrivateKey] = None, ca_cert: Optional[x509.Certificate] = None):
