@@ -34,7 +34,12 @@ async def test_ai_integration(tmp_path):
         
         print(f"AI Result: {result}")
         
-        assert result is not None
-        assert "active_modes" in result
-        assert "polymorphs_found" in result
-        assert result["status"] in ["stable", "crystallizing"]
+      # Verify response structure
+    assert "status" in result
+    assert "active_modes" in result
+    assert "polymorphs_found" in result
+    assert "predicted_finish_sec" in result
+    assert "timestamp" in result
+    
+    # Status can be stable, crystallizing, or degrading (slope-based)
+    assert result["status"] in ["stable", "crystallizing", "degrading"]

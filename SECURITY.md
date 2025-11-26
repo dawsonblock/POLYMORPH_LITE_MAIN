@@ -51,17 +51,17 @@ Please include:
 POLYMORPH-4 Lite implements:
 
 #### Authentication & Authorization
-- JWT-based authentication
-- Multi-factor authentication (MFA)
-- Role-based access control (RBAC)
+- JWT-based authentication (HS256)
+- Multi-factor authentication (MFA via TOTP)
+- Role-based access control (RBAC) 
 - Session management
-- Account lockout protection
+- Password strength requirements
 
 #### Data Protection
-- Encrypted communications (TLS/SSL)
-- Secure password storage (Argon2)
-- Audit trail encryption
-- Database encryption at rest
+- Encrypted communications (TLS/SSL in production)
+- Secure password storage (bcrypt, Argon2 dependency ready for upgrade)
+- Audit trail integrity (SHA-256 hash chains + RSA signatures)
+- Database integrity checks (not encrypted at rest)
 
 #### API Security
 - Rate limiting (per IP, per user)
@@ -78,9 +78,9 @@ POLYMORPH-4 Lite implements:
 
 #### Compliance
 - 21 CFR Part 11 controls
-- Audit trails (immutable, cryptographically signed)
-- Electronic signatures (RSA)
-- Data integrity checks
+- Audit trails (immutable via hash chains, cryptographically signed with RSA)
+- Electronic signatures (RSA, 2048-bit minimum)
+- Data integrity validation
 
 ### Security Updates
 
@@ -98,6 +98,9 @@ We currently do not have a bug bounty program. However, we deeply appreciate res
 1. **Validation**: While system includes 21 CFR Part 11 mechanisms, formal validation (IQ/OQ/PQ) is the operator's responsibility
 2. **Deployment**: Default configurations are for development; production deployments must follow security hardening guides
 3. **Dependencies**: Regular updates required; monitor security advisories
+4. **Database Storage**: SQLite databases store data unencrypted on disk; integrity is protected via hash chains and signatures
+5. **Password Hashing**: Current implementation uses bcrypt; Argon2 dependency is included for future upgrade
+6. **Single-Node Optimized**: Rate limiting and session management are in-process; multi-node deployments require Redis backend
 
 ### Security Best Practices
 

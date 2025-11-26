@@ -6,76 +6,11 @@ import numpy as np
 import scipy.signal
 import hashlib
 from datetime import datetime, timedelta
-from pmm_brain import StaticPseudoModeMemory
-from scipy.signal import savgol_filter
+from pmm_brain import StaticPseudoModeMemory, RamanPreprocessor  # Import shared preprocessor
 from bentoml.io import JSON
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 
-class RamanPreprocessor:
-    """Production Raman preprocessing pipeline — identical across training/inference"""
-    
-    @staticmethod
-    def preprocess(x: list) -> torch.Tensor:
-        x = np.array(x, dtype=np.float32)
-        
-        # Validate input length
-        if len(x) < 10:
-            return torch.zeros(1024, dtype=torch.float32)
-
-        # 1. Denoise
-        x = scipy.signal.medfilt(x, kernel_size=5)
-        
-        # 2. Baseline correction (asymmetric least squares)
-        x = RamanPreprocessor._als_baseline(x)
-        
-        
-        # 3. Savitzky-Golay smoothing
-        if len(x) >= 15:
-            x = savgol_filter(x, window_length=15, polyorder=3, mode='nearest')
-        
-        # 4. Normalization (area under curve)
-        area = np.trapz(x, dx=1.0)
-        if area > 1e-6:
-            x = x / area
-        
-        # 5. Range selection (500–1800 cm⁻¹ typical for organics)
-        if len(x) > 900:
-             x = x[100:900]
-        
-        # 6. Pad/truncate to fixed size
-        target_len = 1024
-        if len(x) < target_len:
-            x = np.pad(x, (0, target_len - len(x)), mode='constant')
-        else:
-            x = x[:target_len]
-            
-        return torch.tensor(x, dtype=torch.float32)
-
-    @staticmethod
-    def _als_baseline(y: np.ndarray, lam: float = 1e5, p: float = 0.01, niter: int = 10) -> np.ndarray:
-        """
-        Correct ALS baseline subtraction (Eilers & Boelens 2005).
-        This version matches pmm_brain.py and resolves the previous syntax error.
-        """
-        L = y.shape[0]
-        if L < 3:
-            return np.zeros_like(y)
-
-        # Second-difference operator (L-2, L)
-        D = np.diff(np.eye(L), 2, axis=0)
-        w = np.ones(L)
-
-        for _ in range(niter):
-            W = np.diag(w)
-            # Correct ALS system: Z is (L, L)
-            Z = W + lam * (D.T @ D)
-            # FIX: use np.linalg.solve with NO space
-            z = np.linalg.solve(Z, w * y)
-            # Update asymmetry weights
-            w = p * (y > z) + (1 - p) * (y <= z)
-
-        return z
 
 @bentoml.service(
     name="polymorph-crystallization-ai",
