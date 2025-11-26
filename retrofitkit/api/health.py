@@ -116,21 +116,28 @@ async def liveness_check():
 
 
 @router.get("/diagnostics", response_model=SystemDiagnostics)
-async def system_diagnostics():
+async def get_diagnostics():
     """
     Comprehensive system diagnostics.
-    Returns detailed system information and component status.
+    Returns detailed health information about the system.
     """
+    # Import platform and sys modules for system info
+    import platform
+    import sys
+    
+    vm = psutil.virtual_memory()
+    du = psutil.disk_usage("/")
+    
     try:
         # System information
         system_info = {
-            "hostname": psutil.os.uname().nodename,
-            "platform": psutil.platform.system(),
-            "architecture": psutil.platform.architecture()[0],
-            "python_version": psutil.sys.version.split()[0],
+            "hostname": os.uname().nodename if hasattr(os, "uname") else platform.node(),
+            "platform": platform.system(),
+            "architecture": platform.architecture()[0],
+            "python_version": sys.version.split()[0],
             "cpu_count": psutil.cpu_count(),
-            "total_memory_gb": round(psutil.virtual_memory().total / (1024**3), 2),
-            "disk_space_gb": round(psutil.disk_usage('/').total / (1024**3), 2)
+            "total_memory_gb": round(vm.total / (1024**3), 2),
+            "disk_space_gb": round(du.total / (1024**3), 2)
         }
         
         # Performance metrics
