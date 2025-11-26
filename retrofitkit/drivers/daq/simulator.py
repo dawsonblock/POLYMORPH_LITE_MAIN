@@ -118,4 +118,3 @@ SimulatorDAQ = SimDAQ
 # Register with DeviceRegistry
 registry.register("sim_daq", SimDAQ)
 registry.register("daq_simulator", SimDAQ)  # Alternative name
-```
