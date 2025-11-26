@@ -45,6 +45,20 @@
 - **DAQ Module**: Gamry potentiostat or National Instruments DAQ
 - **Sensors**: Temperature (thermocouple), Pressure, Flow meters
 
+### Hardware Driver Setup
+
+#### National Instruments DAQ (NI-DAQmx)
+To use real NI hardware, you must install the NI-DAQmx Runtime.
+
+- **What you need**: The NI-DAQmx Runtime (Drivers).
+- **Where to get it**: [NI.com/drivers](https://www.ni.com/en-us/support/downloads/drivers/products/ni-daqmx.html). It is free (requires account).
+- **Install**: Install the runtime on your host machine (Windows/Linux).
+- **Code**: The Python bindings are installed via pip:
+  ```bash
+  pip install nidaqmx
+  ```
+  *Note: The `retrofitkit/drivers/daq/ni.py` driver will automatically detect the runtime and switch from simulation to hardware mode.*
+
 ---
 
 ## Quick Start

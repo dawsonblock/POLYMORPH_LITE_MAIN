@@ -20,7 +20,11 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
     """
     National Instruments DAQ driver.
     
-    Requires nidaqmx SDK. Falls back to simulation when unavailable.
+    Requires nidaqmx SDK and Runtime. Falls back to simulation when unavailable.
+    
+    Setup:
+    1. Install NI-DAQmx Runtime from ni.com/drivers
+    2. Install python bindings: `pip install nidaqmx`
     """
     
     # Class-level capabilities for DeviceRegistry
