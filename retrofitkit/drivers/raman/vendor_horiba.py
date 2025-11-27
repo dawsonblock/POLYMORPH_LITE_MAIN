@@ -1,7 +1,7 @@
 # retrofitkit/drivers/raman/vendor_horiba.py
 
 import time
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from retrofitkit.core.data_models import Spectrum
 from retrofitkit.drivers.base import DeviceKind, DeviceCapabilities
@@ -17,7 +17,7 @@ class HoribaRaman(ProductionHardwareDriver):
     KIND = DeviceKind.SPECTROMETER
     MODEL = "horiba_raman"
     VENDOR = "horiba"
-    
+
     # Required for registry validation
     capabilities = DeviceCapabilities(
         kind=DeviceKind.SPECTROMETER,
@@ -25,15 +25,15 @@ class HoribaRaman(ProductionHardwareDriver):
         model="LabRAM",
         actions=["acquire_spectrum"]
     )
-    
+
     def __init__(self, config):
         super().__init__(config)
         self._t0 = time.time()
 
     async def acquire_spectrum(
-        self, 
-        integration_time_ms: float, 
-        averages: int = 1, 
+        self,
+        integration_time_ms: float,
+        averages: int = 1,
         center_wavelength_nm: Optional[float] = None
     ) -> Spectrum:
         if horiba_sdk is None:
@@ -62,7 +62,7 @@ class HoribaRaman(ProductionHardwareDriver):
         peak_idx = int((532.0 - 500.0) / 0.1)
         if 0 <= peak_idx < 1000:
             intensities[peak_idx] = 1000.0
-            
+
         metadata = {
             "integration_time_ms": integration_time_ms,
             "averages": averages,
@@ -71,7 +71,7 @@ class HoribaRaman(ProductionHardwareDriver):
             "vendor": self.VENDOR,
             "t": t,
         }
-        
+
         return Spectrum(
             t=t,
             wavelengths=wavelengths,

@@ -6,7 +6,6 @@ Monitors software health and toggles a hardware pin to prevent hardware timeouts
 import asyncio
 import logging
 import time
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ class SystemWatchdog:
         """Start the watchdog loop."""
         if self.running:
             return
-        
+
         if not self.config.safety.watchdog_enabled:
             logger.info("Watchdog disabled in config.")
             return
@@ -56,7 +55,7 @@ class SystemWatchdog:
         """Main watchdog loop."""
         toggle = False
         watchdog_line = self.config.daq.ni_do_watchdog_line
-        
+
         while self.running:
             try:
                 # Check if we've been petted recently
@@ -70,10 +69,10 @@ class SystemWatchdog:
                 if self.daq:
                     await self.daq.write_do(watchdog_line, toggle)
                     toggle = not toggle
-                
+
                 # Sleep half the timeout or a fixed fast interval
                 await asyncio.sleep(0.1)
-                
+
             except Exception as e:
                 logger.error(f"Watchdog loop error: {e}")
                 await asyncio.sleep(1.0)

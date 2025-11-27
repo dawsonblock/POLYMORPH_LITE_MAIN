@@ -17,7 +17,7 @@ from retrofitkit.database.models import (
     get_session
 )
 from retrofitkit.compliance.audit import Audit
-from retrofitkit.api.dependencies import get_current_user, require_role
+from retrofitkit.api.dependencies import get_current_user
 from retrofitkit.core.recipe import Recipe, RecipeStep
 
 router = APIRouter(prefix="/api/workflow-builder", tags=["workflow-builder"])
@@ -255,7 +255,7 @@ async def activate_workflow_version(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-        
+
         # Check user roles
         user_roles = [ur.role.name for ur in user_obj.roles] if hasattr(user_obj, 'roles') else []
         if not any(role in ["admin", "compliance", "qa"] for role in user_roles):
@@ -361,7 +361,7 @@ async def approve_workflow_version(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-        
+
         # Check user roles
         user_roles = [ur.role.name for ur in user_obj.roles] if hasattr(user_obj, 'roles') else []
         if not any(role in ["admin", "compliance"] for role in user_roles):
@@ -494,7 +494,7 @@ def _graph_to_recipe(workflow_version: WorkflowVersion, parameters: Dict[str, An
     graph = workflow_version.definition
     nodes = {n["id"]: n for n in graph.get("nodes", [])}
     edges = graph.get("edges", [])
-    
+
     # Find start node
     start_node = next((n for n in graph["nodes"] if n.get("type", "").lower() == "start"), None)
     if not start_node:
@@ -502,24 +502,24 @@ def _graph_to_recipe(workflow_version: WorkflowVersion, parameters: Dict[str, An
         if not graph["nodes"]:
             raise ValueError("Workflow has no nodes")
         start_node = graph["nodes"][0]
-    
+
     # Build execution order by following edges (simple linear for now)
     steps = []
     current_id = start_node["id"]
     visited = set()
-    
+
     while current_id and current_id not in visited:
         visited.add(current_id)
         node = nodes.get(current_id)
         if not node:
             break
-        
+
         node_type = node.get("type", "").lower()
         node_data = node.get("data", {})
-        
+
         # Merge runtime parameters
         merged_params = {**node_data, **parameters.get(node["id"], {})}
-        
+
         # Convert to recipe step based on type
         if node_type == "acquire":
             steps.append(RecipeStep(
@@ -543,11 +543,11 @@ def _graph_to_recipe(workflow_version: WorkflowVersion, parameters: Dict[str, An
                 params={"seconds": float(merged_params.get("seconds", 1.0))}
             ))
         # Skip Start/End nodes - they're just UI markers
-        
+
         # Find next node
         next_edge = next((e for e in edges if e.get("source") == current_id), None)
         current_id = next_edge.get("target") if next_edge else None
-    
+
     return Recipe(
         name=workflow_version.workflow_name,
         steps=steps,
@@ -633,7 +633,7 @@ async def execute_workflow(
         # Convert visual graph to executable recipe
         try:
             recipe = _graph_to_recipe(workflow, execution.parameters)
-            
+
             # NOTE: Full orchestrator execution requires AppContext singleton from server.py
             # For now, we mark as 'ready' and document the recipe was built
             new_execution.status = "ready"
@@ -644,12 +644,12 @@ async def execute_workflow(
                 "note": "Recipe generated successfully. Orchestrator execution requires AppContext integration."
             }
             session.commit()
-            
+
             # TODO: When AppContext available, execute via:
             # from retrofitkit.api.server import app_context
             # result = app_context.orchestrator.execute_recipe(recipe, run_id)
             # Update new_execution.status based on result
-            
+
         except Exception as e:
             # Failed to convert graph to recipe
             new_execution.status = "failed"

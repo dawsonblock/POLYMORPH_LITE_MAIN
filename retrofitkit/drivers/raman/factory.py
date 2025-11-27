@@ -23,17 +23,17 @@ def make_raman(cfg):
         Raman driver instance
     """
     provider = cfg.raman.provider
-    
+
     # Try DeviceRegistry first (Option C path)
     try:
         driver = registry.create(provider, cfg=cfg)
         return driver
     except KeyError:
         pass  # Fall back to legacy path
-    
+
     # Legacy fallback (will be removed once all drivers registered)
     if provider == "simulator":
         return SimRaman(cfg)
-    
+
     # Default to stub for unknown providers
     return VendorRaman(cfg)

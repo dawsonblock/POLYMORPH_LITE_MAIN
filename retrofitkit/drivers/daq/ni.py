@@ -22,7 +22,7 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
     
     Requires nidaqmx SDK. Falls back to simulation when unavailable.
     """
-    
+
     # Class-level capabilities for DeviceRegistry
     capabilities = DeviceCapabilities(
         kind=DeviceKind.DAQ,
@@ -36,7 +36,7 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
             "supports_watchdog": True,
         }
     )
-    
+
     def __init__(self, cfg=None, **kwargs):
         """
         Initialize NI DAQ.
@@ -65,19 +65,19 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
             self.di_lines = kwargs.get("di_lines", ["port0/line0","port0/line1"])
             self.do_watchdog = kwargs.get("do_watchdog_line", "port0/line2")
             self.cfg = None
-        
+
         self._last_v = 0.0
         self._connected = False
-    
+
     async def connect(self) -> None:
         """Connect to NI DAQ (marks as connected)."""
         self._connected = True
-    
+
     async def disconnect(self) -> None:
         """Disconnect from NI DAQ."""
         self._connected = False
         self._last_v = 0.0
-    
+
     async def health(self) -> Dict[str, Any]:
         """Get NI DAQ health status."""
         return {

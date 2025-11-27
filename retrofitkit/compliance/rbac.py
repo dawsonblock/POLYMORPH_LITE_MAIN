@@ -56,7 +56,7 @@ def seed_default_roles(db: Session):
             }
         }
     ]
-    
+
     for role_data in default_roles:
         existing = db.query(Role).filter(Role.role_name == role_data["role_name"]).first()
         if not existing:
@@ -67,7 +67,7 @@ def seed_default_roles(db: Session):
                 permissions=role_data["permissions"]
             )
             db.add(role)
-    
+
     db.commit()
 
 
@@ -87,20 +87,20 @@ def assign_role(db: Session, user_email: str, role_name: str, assigned_by: Optio
     user = db.query(User).filter(User.email == user_email).first()
     if not user:
         return False
-    
+
     role = db.query(Role).filter(Role.role_name == role_name).first()
     if not role:
         return False
-    
+
     # Check if already assigned
     existing = db.query(UserRole).filter(
         UserRole.user_email == user_email,
         UserRole.role_id == role.id
     ).first()
-    
+
     if existing:
         return False  # Already assigned
-    
+
     user_role = UserRole(
         user_email=user_email,
         role_id=role.id,
@@ -124,10 +124,10 @@ def get_user_roles(db: Session, user_email: str) -> Set[str]:
     """
     user_roles = db.query(UserRole).filter(UserRole.user_email == user_email).all()
     role_ids = [ur.role_id for ur in user_roles]
-    
+
     if not role_ids:
         return set()
-    
+
     roles =db.query(Role).filter(Role.id.in_(role_ids)).all()
     return {role.role_name for role in roles}
 

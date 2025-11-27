@@ -13,7 +13,7 @@ from retrofitkit.database.models import (
     InventoryItem, StockLot, Vendor, get_session
 )
 from retrofitkit.compliance.audit import Audit
-from retrofitkit.api.dependencies import get_current_user, require_role
+from retrofitkit.api.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 

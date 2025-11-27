@@ -25,14 +25,14 @@ def make_daq(cfg):
         DAQ driver instance
     """
     backend = cfg.daq.backend
-    
+
     # Try Dev iceRegistry first (Option C path)
     try:
         driver = registry.create(backend, cfg=cfg)
         return driver
     except KeyError:
         pass  # Fall back to legacy path
-    
+
     # Legacy fallback (will be removed once all drivers registered)
     if backend == "simulator":
         return SimDAQ(cfg)
@@ -42,6 +42,6 @@ def make_daq(cfg):
         return NIDAQ(cfg)
     if backend == "gamry":
         return GamryPotentiostat(cfg)
-    
+
     # Default to simulator for unknown backends
     return SimDAQ(cfg)

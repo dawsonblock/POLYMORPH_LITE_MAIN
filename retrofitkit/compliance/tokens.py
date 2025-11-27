@@ -3,10 +3,9 @@ JWT token creation and validation for authentication.
 """
 
 import jwt
-import os
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
-from jose import JWTError, jwt
+from typing import Dict, Any
+from jose import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -68,7 +67,7 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         payload = decode_token(token)
         email: str = payload.get("sub")
@@ -76,11 +75,11 @@ def get_current_user(
             raise credentials_exception
     except HTTPException:
         raise
-    
+
     user = db.query(User).filter(User.email == email).first()
     if user is None:
         raise credentials_exception
-    
+
     # Return dict for compatibility with existing code
     return {
         "email": user.email,

@@ -9,11 +9,10 @@ Provides 21 CFR Part 11 compliance features:
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
-from pydantic import BaseModel, Field, UUID4, ConfigDict
+from pydantic import BaseModel, UUID4, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 import hashlib
-import json
 import uuid
 from io import BytesIO
 
@@ -480,9 +479,9 @@ async def create_config_snapshot(
         from sqlalchemy import text
         import hashlib
         import json
-        
+
         app_context = AppContext.load()
-        
+
         # Get Alembic revision from database
         # We use text() to execute raw SQL safely
         try:
@@ -490,7 +489,7 @@ async def create_config_snapshot(
             alembic_revision = result.scalar()
         except Exception:
             alembic_revision = "unknown"
-        
+
         # Build complete config snapshot
         config_data = {
             # System configuration
@@ -522,12 +521,12 @@ async def create_config_snapshot(
                 "captured_by": current_user["email"],
             }
         }
-        
+
         # Generate deterministic hash
         # We use sort_keys=True to ensure consistent JSON serialization
         config_json = json.dumps(config_data, sort_keys=True, default=str)
         config_hash = hashlib.sha256(config_json.encode()).hexdigest()
-        
+
         # Create snapshot record
         snapshot = ConfigSnapshot(
             snapshot_id=str(uuid.uuid4()),

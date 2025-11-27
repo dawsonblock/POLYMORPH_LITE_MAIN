@@ -3,7 +3,7 @@ Device models for hardware tracking and status.
 """
 
 import uuid
-from datetime import datetime, date
+from datetime import datetime
 from sqlalchemy import Column, String, Float, Date, DateTime, JSON
 from sqlalchemy.dialects.postgresql import UUID
 

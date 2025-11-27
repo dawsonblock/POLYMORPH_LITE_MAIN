@@ -2,7 +2,6 @@
 User model for authentication and user management.
 """
 
-import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, LargeBinary, Integer, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship

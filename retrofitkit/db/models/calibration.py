@@ -3,7 +3,7 @@ Calibration tracking models for instruments.
 """
 
 import uuid
-from datetime import datetime, date
+from datetime import datetime
 from sqlalchemy import Column, String, Date, DateTime, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 

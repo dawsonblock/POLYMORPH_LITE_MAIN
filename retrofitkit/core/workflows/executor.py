@@ -9,13 +9,12 @@ Integrates:
 """
 import asyncio
 import logging
-import time
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 
 from retrofitkit.core.recipe import Recipe, Step
 from retrofitkit.core.driver_router import get_router
 from retrofitkit.core.workflows.db_logger import DatabaseLogger
-from retrofitkit.core.safety.interlocks import get_interlocks, SafetyError
+from retrofitkit.core.safety.interlocks import get_interlocks
 
 logger = logging.getLogger(__name__)
 
@@ -43,17 +42,17 @@ class WorkflowExecutor:
         """
         # 1. Initialize Run
         try:
-            # Assuming recipe.id is the version ID or we have it. 
+            # Assuming recipe.id is the version ID or we have it.
             # For now, let's assume recipe object has what we need or we pass version ID.
             # Let's assume recipe.id is the UUID of the version.
             run_id = self.logger.log_run_start(recipe.id, operator_email, run_metadata)
-            
+
             if on_start:
                 if asyncio.iscoroutinefunction(on_start):
                     await on_start(run_id)
                 else:
                     on_start(run_id)
-                    
+
         except Exception as e:
             logger.error(f"Failed to start run: {e}")
             raise
@@ -79,15 +78,15 @@ class WorkflowExecutor:
                     # SAFETY CHECK: Before execution
                     if self.interlocks:
                         self.interlocks.check_safe()
-                    
+
                     result = await self._execute_step(step)
-                    
+
                     # SAFETY CHECK: After execution (and pet watchdog)
                     if self.interlocks:
                         self.interlocks.check_safe()
                         # Pet watchdog if available (assuming interlocks controller has access or we do it separately)
                         # Ideally watchdog is separate, but for now let's assume safety check implies system is healthy enough
-                        pass 
+                        pass
 
                     self.logger.log_step_complete(i, step.type, result)
                 except Exception as step_err:
@@ -114,16 +113,16 @@ class WorkflowExecutor:
 
         handler_name = f"_handle_{step.type}"
         handler = getattr(self, handler_name, None)
-        
+
         if not handler:
             raise ValueError(f"Unknown step type: {step.type}")
-            
+
         result = await handler(step.params)
 
         # SAFETY CHECK: After execution (and pet watchdog)
         if self.interlocks:
             self.interlocks.check_safe()
-            
+
         return result
 
     # --- Step Handlers ---
@@ -142,7 +141,7 @@ class WorkflowExecutor:
         """
         driver = self.router.get_driver("daq", self.config)
         action = params.get("action")
-        
+
         if action == "read_ai":
             val = await driver.read_ai(params.get("channel", 0))
             return {"value": val}
@@ -164,11 +163,11 @@ class WorkflowExecutor:
         Params: exposure_time
         """
         driver = self.router.get_driver("raman", self.config)
-        
+
         # Safety check (redundant if driver has @require_safety, but good practice)
         if self.interlocks:
             self.interlocks.check_safe()
-            
+
         data = await driver.acquire_spectrum(exposure_time=params.get("exposure_time"))
         return data # Contains wavelengths, intensities, metadata
 
@@ -196,7 +195,7 @@ class WorkflowExecutor:
         # Let's just evaluate the condition.
         condition = params.get("condition", "True")
         # Eval is dangerous, in prod use a safe expression evaluator
-        result = bool(eval(condition, {"__builtins__": None}, {})) 
+        result = bool(eval(condition, {"__builtins__": None}, {}))
         return {"result": result, "branch": "true" if result else "false"}
 
     # --- Control ---

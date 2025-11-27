@@ -6,7 +6,6 @@ from retrofitkit.core.app import AppContext
 from retrofitkit.core.orchestrator import Orchestrator
 from retrofitkit.core.recipe import Recipe
 from retrofitkit.compliance.audit import Audit
-from retrofitkit.compliance.signatures import Signer, SignatureRequest
 from retrofitkit.compliance import approvals as Approvals
 from retrofitkit.data.storage import DataStore
 
@@ -34,7 +33,7 @@ from retrofitkit.core.safety.interlocks import get_interlocks
 @router.get("/status")
 def status(user=Depends(get_current_user)):
     """Get current system status (dynamic)."""
-    
+
     # Get safety status
     interlocks = get_interlocks(ctx.config)
     safety_status = "unknown"

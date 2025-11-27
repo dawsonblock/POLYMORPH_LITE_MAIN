@@ -39,7 +39,7 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         payload = jwt.decode(
             token,
@@ -51,11 +51,11 @@ def get_current_user(
             raise credentials_exception
     except jwt.PyJWTError:
         raise credentials_exception
-    
+
     user = db.query(User).filter(User.email == email).first()
     if user is None:
         raise credentials_exception
-    
+
     return user
 
 
@@ -75,18 +75,18 @@ def get_current_active_user(
         HTTPException: If user account is locked
     """
     from datetime import datetime, timezone
-    
+
     # Handle dict from tests (mock users)
     if isinstance(current_user, dict):
         return current_user
-    
+
     # Handle User object
     if current_user.account_locked_until and current_user.account_locked_until > datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is locked"
         )
-    
+
     return current_user
 
 
@@ -119,23 +119,23 @@ def require_role(*allowed_roles: str) -> Callable:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"User must have one of the following roles: {', '.join(allowed_roles)}"
             )
-        
+
         # Handle User object
         user_roles = get_user_roles(db, current_user.email)
-        
+
         # Admin has all permissions
         if "admin" in user_roles:
             return current_user
-        
+
         # Check if user has any of the required roles
         if not any(role in user_roles for role in allowed_roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"User must have one of the following roles: {', '.join(allowed_roles)}"
             )
-        
+
         return current_user
-    
+
     return role_checker
 
 

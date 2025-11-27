@@ -25,7 +25,7 @@ class SimRaman(RamanBase, SpectrometerDevice):
     - Gaussian noise
     - Returns typed Spectrum objects
     """
-    
+
     # Class-level capabilities for DeviceRegistry
     capabilities = DeviceCapabilities(
         kind=DeviceKind.SPECTROMETER,
@@ -38,7 +38,7 @@ class SimRaman(RamanBase, SpectrometerDevice):
             "noise_simulation": True,
         }
     )
-    
+
     def __init__(self, cfg=None, **kwargs):
         """
         Initialize simulator.
@@ -61,22 +61,22 @@ class SimRaman(RamanBase, SpectrometerDevice):
             self.intensity = kwargs.get("base_intensity", 1000.0)
             self.noise = kwargs.get("noise_std", 2.0)
             self.drift = kwargs.get("drift_per_s", 0.5)
-        
+
         self.cfg = cfg
         self.t0 = time.time()
         self._connected = False
-        
+
         # Golden Run Data Playback
         self._playback_data = None
         self._playback_wavelengths = None
         self._playback_index = 0
         self._load_playback_data()
-        
+
     def _load_playback_data(self):
         """Load synthetic data for golden run simulation."""
         import os
         import pandas as pd
-        
+
         csv_path = "data/crystallization_demo.csv"
         if os.path.exists(csv_path):
             try:
@@ -86,15 +86,15 @@ class SimRaman(RamanBase, SpectrometerDevice):
                 print(f"✅ SimRaman: Loaded {len(df)} frames of golden run data")
             except Exception as e:
                 print(f"⚠️ SimRaman: Failed to load demo data: {e}")
-    
+
     async def connect(self) -> None:
         """Connect to simulated device (no-op)."""
         self._connected = True
-    
+
     async def disconnect(self) -> None:
         """Disconnect from simulated device (no-op)."""
         self._connected = False
-    
+
     async def health(self) -> Dict[str, Any]:
         """Get simulator health status."""
         return {
@@ -105,7 +105,7 @@ class SimRaman(RamanBase, SpectrometerDevice):
             "uptime_s": time.time() - self.t0,
             "playback_active": self._playback_data is not None
         }
-    
+
     async def acquire_spectrum(self, **kwargs) -> Spectrum:
         """
         Acquire a simulated spectrum (DeviceRegistry-compatible).
@@ -114,23 +114,23 @@ class SimRaman(RamanBase, SpectrometerDevice):
             Spectrum object with simulated data
         """
         await asyncio.sleep(0.2)  # Simulate acquisition time
-        
+
         # Playback Mode (Golden Run)
         if self._playback_data is not None:
             # Get current frame
             intensities = self._playback_data[self._playback_index]
             wavelengths = self._playback_wavelengths
-            
+
             # Advance frame (loop)
             self._playback_index = (self._playback_index + 1) % len(self._playback_data)
-            
+
             # Add some live noise on top of playback
             noise = np.random.normal(0, self.noise, len(intensities))
             intensities = np.maximum(0, intensities + noise)
-            
+
             # Find peak for metadata
             peak_idx = intensities.argmax()
-            
+
             return Spectrum(
                 wavelengths=wavelengths,
                 intensities=intensities,
@@ -144,11 +144,11 @@ class SimRaman(RamanBase, SpectrometerDevice):
                     "device_id": self.id,
                 }
             )
-            
+
         # Legacy Simulation Mode (Random Noise)
         # Simulate drift
         self.intensity += self.drift + random.gauss(0, self.noise)
-        
+
         # Create spectrum around peak
         wavelengths = np.linspace(400, 1000, 1024)
         # Gaussian peak
@@ -156,7 +156,7 @@ class SimRaman(RamanBase, SpectrometerDevice):
         # Add noise
         intensities += np.random.normal(0, self.noise, len(wavelengths))
         intensities = np.maximum(0, intensities)
-        
+
         return Spectrum(
             wavelengths=wavelengths,
             intensities=intensities,
@@ -169,7 +169,7 @@ class SimRaman(RamanBase, SpectrometerDevice):
                 "device_id": self.id,
             }
         )
-    
+
     async def read_frame(self) -> Dict[str, Any]:
         """
         Legacy dict-based interface for backward compatibility.
@@ -178,7 +178,7 @@ class SimRaman(RamanBase, SpectrometerDevice):
             Dict with wavelengths, intensities, peak info
         """
         spectrum = await self.acquire_spectrum()
-        
+
         return {
             "t": spectrum.meta["t"],
             "wavelengths": spectrum.wavelengths.tolist(),

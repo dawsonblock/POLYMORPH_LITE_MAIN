@@ -1,6 +1,6 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 class HardwareTimeoutError(Exception):
     """Raised when a hardware operation exceeds its timeout."""

@@ -5,24 +5,19 @@ from fastapi.middleware.cors import CORSMiddleware  # type: ignore[import]
 from contextlib import asynccontextmanager
 import asyncio
 import socketio
-from typing import Dict, List, Any
+from typing import Dict
 
 from retrofitkit.core.app import AppContext
-import retrofitkit.drivers # Ensure drivers are registered
 from retrofitkit.api.auth import router as auth_router
 from retrofitkit.api.routes import router as api_router, orc  # Import global orchestrator
 from retrofitkit.core.raman_stream import RamanStreamer
 from retrofitkit.core.events import EventBus
-from retrofitkit.drivers.raman.factory import make_raman
-from retrofitkit.core.app import get_app_instance
-from retrofitkit.core.config import PolymorphConfig
 from retrofitkit.__version__ import __version__
 from retrofitkit.metrics.exporter import Metrics
 from retrofitkit.security.headers import SecurityHeadersMiddleware, RateLimitMiddleware
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
-from retrofitkit.api import auth
 
 # Socket.IO server
 sio = socketio.AsyncServer(
@@ -36,15 +31,15 @@ sio = socketio.AsyncServer(
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
-        
+
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
         self.active_connections[client_id] = websocket
-        
+
     def disconnect(self, client_id: str):
         if client_id in self.active_connections:
             del self.active_connections[client_id]
-            
+
     async def broadcast(self, message: dict):
         """Broadcast message to all connected clients"""
         if self.active_connections:
@@ -66,11 +61,11 @@ async def system_monitor_task():
         try:
             # Get real status from Orchestrator
             orc_status = orc.status
-            
+
             # Get hardware health
             daq_health = await orc.daq.health()
             raman_health = await orc.raman.health()
-            
+
             system_status = {
                 "overall": "healthy" if not orc_status["ai_circuit_open"] else "warning",
                 "components": {
@@ -98,7 +93,7 @@ async def system_monitor_task():
                 "uptime": int(time.time() - _start_time),
                 "lastUpdate": datetime.now().isoformat()
             }
-            
+
             await sio.emit('system_status', system_status)
             await manager.broadcast({"type": "system_status", "data": system_status})
             await asyncio.sleep(2) # Faster updates for responsiveness
@@ -118,7 +113,7 @@ async def broadcast_spectra_task():
                 "peak_nm": frame.get("peak_nm", 0),
                 "peak_intensity": frame.get("peak_intensity", 0)
             }
-            
+
             # Emit to Socket.IO (efficient binary packing if supported, but JSON for now)
             await sio.emit('spectral_data', data)
             # await manager.broadcast({"type": "spectral_data", "data": data}) # WebSocket backup
@@ -131,7 +126,7 @@ async def data_generation_task():
         try:
             # Get active run from Orchestrator
             active_run_id = orc.status.get("active_run_id")
-            
+
             if active_run_id:
                 processes = [{
                     "id": str(active_run_id),
@@ -145,7 +140,7 @@ async def data_generation_task():
                 }]
             else:
                 processes = []
-            
+
             await sio.emit('processes_update', processes)
             await manager.broadcast({"type": "processes_update", "data": processes})
             await asyncio.sleep(2)
@@ -157,14 +152,14 @@ async def data_generation_task():
 async def lifespan(app: FastAPI):
     # Startup
     await raman_streamer.start()
-    
+
     # Start background tasks
     monitor_task = asyncio.create_task(system_monitor_task())
     data_task = asyncio.create_task(data_generation_task())
     spectra_task = asyncio.create_task(broadcast_spectra_task())
-    
+
     yield
-    
+
     # Shutdown
     monitor_task.cancel()
     data_task.cancel()

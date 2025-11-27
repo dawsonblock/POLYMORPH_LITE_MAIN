@@ -6,7 +6,6 @@ Requires gamry_sdk (fictitious). Falls back to simulation when unavailable.
 import time
 import warnings
 from typing import Dict, Any
-from retrofitkit.drivers.production_base import ProductionHardwareDriver
 from retrofitkit.drivers.daq.base import DAQBase
 from retrofitkit.drivers.base import DeviceCapabilities, DAQDevice, DeviceKind
 from retrofitkit.core.registry import registry
@@ -23,7 +22,7 @@ class GamryPotentiostat(DAQBase, DAQDevice):
     
     Requires gamry_sdk. Falls back to simulation if unavailable.
     """
-    
+
     # Class-level capabilities
     capabilities = DeviceCapabilities(
         kind=DeviceKind.DAQ,
@@ -36,12 +35,12 @@ class GamryPotentiostat(DAQBase, DAQDevice):
             "electrochemistry": True,
         }
     )
-    
+
     def __init__(self, cfg=None, **kwargs):
         """Initialize Gamry driver with simulation detection."""
         self.cfg = cfg
         self.simulation_mode = (gamry_sdk is None)
-        
+
         if self.simulation_mode:
             warnings.warn(
                 "Gamry SDK not available - running in SIMULATION mode. "
@@ -49,14 +48,14 @@ class GamryPotentiostat(DAQBase, DAQDevice):
                 RuntimeWarning,
                 stacklevel=2
             )
-        
+
         if cfg is not None:
             self.dev = cfg.daq.gamry.get("device_id", "Gamry0")
             self.id = f"gamry_{self.dev}"
         else:
             self.dev = kwargs.get("device_id", "Gamry0")
             self.id = kwargs.get("id", "gamry_0")
-        
+
         self._voltage = 0.0
         self._connected = False
         self.device = None
@@ -74,7 +73,7 @@ class GamryPotentiostat(DAQBase, DAQDevice):
     def _acquire_blocking(self, duration: float) -> Dict[str, Any]:
         if not self._is_connected:
             raise RuntimeError("Device not connected")
-        
+
         if gamry_sdk and self.device:
             return self.device.run_curve(duration)
         else:
@@ -92,12 +91,12 @@ class GamryPotentiostat(DAQBase, DAQDevice):
             # Real SDK initialization would go here
             pass
         self._connected = True
-    
+
     async def disconnect(self) -> None:
         """Disconnect from Gamry device."""
         self._connected = False
         self._voltage = 0.0
-    
+
     async def health(self) -> Dict[str, Any]:
         """Get device health with clear simulation indicator."""
         return {
@@ -131,12 +130,12 @@ class GamryPotentiostat(DAQBase, DAQDevice):
         """
         if self.simulation_mode:
             import numpy as np
-            
+
             # Simulated EIS data
             freqs = np.logspace(np.log10(freq_range[0]), np.log10(freq_range[1]), 50)
             z_real = 100 + 50 * np.random.randn(50)
             z_imag = -80 + 30 * np.random.randn(50)
-            
+
             return {
                 "frequencies_hz": freqs.tolist(),
                 "z_real_ohm": z_real.tolist(),

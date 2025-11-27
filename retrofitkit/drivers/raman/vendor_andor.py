@@ -3,7 +3,7 @@
 import math
 import time
 import numpy as np
-from typing import Optional, Sequence
+from typing import Optional
 
 from retrofitkit.core.data_models import Spectrum
 from retrofitkit.drivers.base import DeviceKind, DeviceCapabilities
@@ -28,7 +28,7 @@ class AndorRaman(ProductionHardwareDriver):
     KIND = DeviceKind.SPECTROMETER
     MODEL = "andor_raman"
     VENDOR = "andor"
-    
+
     capabilities = DeviceCapabilities(
         kind=DeviceKind.SPECTROMETER,
         vendor="Andor",

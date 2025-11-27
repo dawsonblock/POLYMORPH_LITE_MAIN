@@ -32,7 +32,7 @@ class DeviceCapabilities:
     model: Optional[str] = None
     actions: List[str] = field(default_factory=list)
     features: Dict[str, Any] = field(default_factory=dict)
-    
+
     def supports_action(self, action: str) -> bool:
         """Check if device supports a specific action."""
         return action in self.actions
@@ -48,15 +48,15 @@ class DeviceBase(Protocol):
     """
     id: str
     capabilities: DeviceCapabilities
-    
+
     async def connect(self) -> None:
         """Establish connection to hardware device."""
         ...
-    
+
     async def disconnect(self) -> None:
         """Close connection to hardware device."""
         ...
-    
+
     async def health(self) -> Dict[str, Any]:
         """
         Get device health status.
@@ -89,15 +89,15 @@ class DAQDevice(DeviceBase, Protocol):
     async def read_ai(self, channel: int = 0) -> float:
         """Read analog input voltage from channel."""
         ...
-    
+
     async def write_ao(self, channel: int, value: float) -> None:
         """Write analog output voltage to channel."""
         ...
-    
+
     async def read_di(self, line: int) -> bool:
         """Read digital input state."""
         ...
-    
+
     async def write_do(self, line: int, state: bool) -> None:
         """Write digital output state."""
         ...
@@ -113,19 +113,19 @@ class MotionDevice(DeviceBase, Protocol):
     async def move_to(self, position: float, **kwargs) -> None:
         """Move to absolute position."""
         ...
-    
+
     async def move_relative(self, distance: float, **kwargs) -> None:
         """Move relative to current position."""
         ...
-    
+
     async def home(self) -> None:
         """Home the stage to reference position."""
         ...
-    
+
     async def get_position(self) -> float:
         """Get current position."""
         ...
-    
+
     async def stop(self) -> None:
         """Emergency stop."""
         ...
@@ -141,19 +141,19 @@ class LaserDevice(DeviceBase, Protocol):
     async def set_power(self, power_mw: float) -> None:
         """Set laser power in milliwatts."""
         ...
-    
+
     async def get_power(self) -> float:
         """Get current laser power."""
         ...
-    
+
     async def enable(self) -> None:
         """Enable laser output (open shutter)."""
         ...
-    
+
     async def disable(self) -> None:
         """Disable laser output (close shutter)."""
         ...
-    
+
     async def is_enabled(self) -> bool:
         """Check if laser output is enabled."""
         ...
@@ -161,7 +161,7 @@ class LaserDevice(DeviceBase, Protocol):
 # --- Safety Integration ---
 
 from functools import wraps
-from retrofitkit.core.safety.interlocks import get_interlocks, SafetyError
+from retrofitkit.core.safety.interlocks import get_interlocks
 
 def require_safety(func):
     """Decorator to enforce safety checks before hardware actions."""
@@ -180,7 +180,7 @@ class SafetyAwareMixin:
             self.interlocks = get_interlocks(config)
         except Exception:
             self.interlocks = None
-            
+
     async def ensure_safe(self):
         """Explicitly check safety."""
         if self.interlocks:

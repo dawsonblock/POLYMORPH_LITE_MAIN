@@ -1,4 +1,5 @@
-import typer, os, getpass
+import typer
+import getpass
 from retrofitkit.compliance.users import Users
 from retrofitkit.scripts.keygen import ensure_keys
 

@@ -8,14 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, UUID4, field_validator, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
-import uuid
 import re
 
 from retrofitkit.db.models.sample import Project, Batch, Container, Sample, SampleLineage
 from retrofitkit.db.models.workflow import WorkflowSampleAssignment
 from retrofitkit.database.models import get_session
-from retrofitkit.db.session import get_db
-from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user, require_role
 from retrofitkit.api.dependencies import require_role

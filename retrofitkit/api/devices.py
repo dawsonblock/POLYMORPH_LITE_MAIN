@@ -50,7 +50,7 @@ async def list_drivers():
         List of available drivers with capability information
     """
     drivers_caps = registry.list_drivers()
-    
+
     return [
         DeviceDriverResponse(
             name=name,
@@ -109,13 +109,13 @@ async def get_driver_capabilities(driver_name: str):
         404: If driver not found
     """
     drivers = registry.list_drivers()
-    
+
     if driver_name not in drivers:
         raise HTTPException(
             status_code=404,
             detail=f"Driver '{driver_name}' not found"
         )
-    
+
     cap = drivers[driver_name]
     return DeviceCapabilitiesResponse(
         kind=cap.kind.value,
@@ -135,17 +135,17 @@ async def list_instances():
         List of device instances with status
     """
     instances = registry.list_instances()
-    
+
     results = []
     for instance_id, device in instances.items():
         try:
             health = await device.health()
         except Exception as e:
             health = {"status": "error", "error": str(e)}
-        
+
         # Infer driver name from capabilities
         driver_name = device.capabilities.vendor
-        
+
         results.append(
             DeviceInstanceResponse(
                 instance_id=instance_id,
@@ -154,7 +154,7 @@ async def list_instances():
                 health=health,
             )
         )
-    
+
     return results
 
 
@@ -173,20 +173,20 @@ async def get_instance(instance_id: str):
         404: If instance not found
     """
     device = registry.get_instance(instance_id)
-    
+
     if device is None:
         raise HTTPException(
             status_code=404,
             detail=f"Instance '{instance_id}' not found"
         )
-    
+
     try:
         health = await device.health()
     except Exception as e:
         health = {"status": "error", "error": str(e)}
-    
+
     driver_name = device.capabilities.vendor
-    
+
     return DeviceInstanceResponse(
         instance_id=instance_id,
         driver_name=driver_name,
@@ -210,21 +210,21 @@ async def remove_instance(instance_id: str):
         404: If instance not found
     """
     device = registry.get_instance(instance_id)
-    
+
     if device is None:
         raise HTTPException(
             status_code=404,
             detail=f"Instance '{instance_id}' not found"
         )
-    
+
     # Disconnect device
     try:
         await device.disconnect()
-    except Exception as e:
+    except Exception:
         # Log but don't fail on disconnect error
         pass
-    
+
     # Remove from registry
     registry.remove_instance(instance_id)
-    
+
     return {"message": f"Instance '{instance_id}' removed"}

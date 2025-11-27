@@ -3,7 +3,7 @@ Inventory management models for stock tracking.
 """
 
 import uuid
-from datetime import datetime, date
+from datetime import datetime
 from sqlalchemy import Column, String, Date, DateTime, ForeignKey, JSON, Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID

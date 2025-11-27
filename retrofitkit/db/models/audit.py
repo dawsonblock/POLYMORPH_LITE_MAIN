@@ -2,7 +2,6 @@
 Audit logging model with cryptographic chain of custody.
 """
 
-from datetime import datetime
 from sqlalchemy import Column, Integer, Float, String, Text, LargeBinary, Index
 from retrofitkit.db.base import Base
 

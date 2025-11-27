@@ -4,7 +4,6 @@ Safety Interlock Controller.
 Monitors critical safety inputs (E-Stop, Door) and enforces safe operation.
 """
 import logging
-import asyncio
 from typing import Callable, List, Optional, Dict
 
 logger = logging.getLogger(__name__)
@@ -55,7 +54,7 @@ class InterlockController:
 
             if self.estop_active or self.door_open:
                 self._trigger_callbacks(unsafe=True)
-            
+
             return {
                 "estop_active": self.estop_active,
                 "door_open": self.door_open
@@ -78,15 +77,15 @@ class InterlockController:
         # we should probably check cached state + freshness, or just check.
         # For now, we check cached state which should be updated by a monitoring loop.
         # If no monitoring loop, we should poll here.
-        
-        # Let's assume we trust the cached state if updated recently, 
+
+        # Let's assume we trust the cached state if updated recently,
         # but for this implementation, we'll just check the flags.
         # In a real system, we'd want `await self.check_status()` but this method is often synchronous
         # in property checks. Let's make it raise if the flags are set.
-        
+
         if self.estop_active:
             raise SafetyError("E-STOP ACTIVE: Operation refused.")
-        
+
         if self.door_open:
             # Some operations might be allowed with door open (e.g. low power alignment)
             # But generally unsafe.

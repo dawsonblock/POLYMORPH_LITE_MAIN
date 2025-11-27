@@ -1,4 +1,7 @@
-import os, sqlite3, time, json
+import os
+import sqlite3
+import time
+import json
 from retrofitkit.metrics.exporter import Metrics
 
 DB_DIR = os.environ.get("P4_DATA_DIR", "/mnt/data/Polymorph4_Retrofit_Kit_v1/data")

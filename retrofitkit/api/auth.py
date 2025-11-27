@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 @router.post("/login")
 def login(payload: Login, db: Session = Depends(get_db)):
     user = Users(db=db).authenticate(payload.email, payload.password)
-    
+
     if user and user.get("mfa_required"):
         # In a real implementation, we would return a specific code or structure
         # to prompt for MFA. For now, we follow the test expectation of 401
@@ -27,7 +27,7 @@ def login(payload: Login, db: Session = Depends(get_db)):
         )
 
     if not user:
-        # Check if it was due to lockout (optional: could be generic for security, 
+        # Check if it was due to lockout (optional: could be generic for security,
         # but for internal lab OS, specific feedback is helpful)
         # We'll re-query briefly to see if locked, or just return 401.
         # Given the Users().authenticate returns None for both invalid and locked,
@@ -36,7 +36,7 @@ def login(payload: Login, db: Session = Depends(get_db)):
         # To provide 423, we'd need Users().authenticate to raise or return status.
         # For now, we'll stick to 401 to avoid enumeration, unless we want to be friendly.
         # Let's check explicitly for the specific error case.
-        
+
         from retrofitkit.database.models import User
         from datetime import datetime, timezone
         # Reuse session
@@ -46,14 +46,14 @@ def login(payload: Login, db: Session = Depends(get_db)):
                  status_code=status.HTTP_423_LOCKED,
                  detail=f"Account locked until {db_user.account_locked_until.isoformat()}"
              )
-        
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
         )
     token = create_access_token({"sub": user["email"], "role": user["role"]})
     return {
-        "access_token": token, 
+        "access_token": token,
         "token_type": "bearer",
         "user": {
             "id": "1",  # Mock ID since we use email as PK

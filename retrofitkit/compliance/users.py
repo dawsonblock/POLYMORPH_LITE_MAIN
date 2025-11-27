@@ -6,7 +6,6 @@ Migrated from direct SQLite operations to use the unified database layer.
 
 import bcrypt
 import pyotp
-import time
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
@@ -52,7 +51,7 @@ def create_user(
         Created User object
     """
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
-    
+
     user = User(
         email=email,
         name=full_name,
@@ -62,11 +61,11 @@ def create_user(
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc)
     )
-    
+
     db.add(user)
     db.commit()
     db.refresh(user)
-    
+
     # Write audit event
     write_audit_event(
         db=db,
@@ -76,7 +75,7 @@ def create_user(
         entity_id=email,
         payload={"role": user.role, "name": full_name}
     )
-    
+
     return user
 
 
@@ -99,7 +98,7 @@ def authenticate_user(
         User info dict if authenticated, None if failed, or dict with mfa_required=True
     """
     user = get_user_by_email(db, email)
-    
+
     if not user:
         write_audit_event(
             db=db,
@@ -110,7 +109,7 @@ def authenticate_user(
             payload={"reason": "user_not_found"}
         )
         return None
-    
+
     # Check account lock
     if user.account_locked_until:
         if user.account_locked_until > datetime.now(timezone.utc):
@@ -134,10 +133,10 @@ def authenticate_user(
         if not bcrypt.checkpw(password.encode(), user.password_hash):
             # Increment failed attempts
             user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
-            
+
             import logging
             logging.warning(f"DEBUG: User {email} failed login. Attempts: {user.failed_login_attempts}")
-            
+
             # Check if should lock
             if user.failed_login_attempts >= 5:
                 user.account_locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
@@ -159,7 +158,7 @@ def authenticate_user(
                     entity_id=email,
                     payload={"reason": "invalid_password", "attempts": user.failed_login_attempts}
                 )
-            
+
             db.commit()
             return None
     except Exception:
@@ -188,7 +187,7 @@ def authenticate_user(
             payload={"reason": "invalid_password", "attempts": user.failed_login_attempts}
         )
         return None
-    
+
     # Check MFA if enabled
     if user.mfa_secret:
         if not mfa_token:
@@ -201,7 +200,7 @@ def authenticate_user(
                 payload={}
             )
             return {"mfa_required": True}
-        
+
         totp = pyotp.TOTP(user.mfa_secret)
         if not totp.verify(mfa_token):
             write_audit_event(
@@ -213,12 +212,12 @@ def authenticate_user(
                 payload={"reason": "invalid_mfa"}
             )
             return None
-    
+
     # Reset failed login attempts
     user.failed_login_attempts = 0
     user.account_locked_until = None
     db.commit()
-    
+
     write_audit_event(
         db=db,
         actor_id=email,
@@ -227,7 +226,7 @@ def authenticate_user(
         entity_id=email,
         payload={"role": user.role}
     )
-    
+
     return {
         "email": user.email,
         "name": user.name,
@@ -249,11 +248,11 @@ def enable_mfa(db: Session, email: str) -> Optional[str]:
     user = get_user_by_email(db, email)
     if not user:
         return None
-    
+
     secret = pyotp.random_base32()
     user.mfa_secret = secret
     db.commit()
-    
+
     write_audit_event(
         db=db,
         actor_id=email,
@@ -262,28 +261,28 @@ def enable_mfa(db: Session, email: str) -> Optional[str]:
         entity_id=email,
         payload={}
     )
-    
+
     return secret
 
 
 # Legacy class wrapper for backwards compatibility
 class Users:
     """Legacy wrapper for backwards compatibility with existing code."""
-    
+
     def __init__(self, db: Optional[Session] = None):
         self.db = db
-    
+
     def create(self, email: str, name: str, role: str, password: str):
         """Create user - legacy interface."""
         if self.db:
             create_user(self.db, email, password, name, role)
-    
+
     def enable_mfa(self, email: str) -> str:
         """Enable MFA - legacy interface."""
         if self.db:
             return enable_mfa(self.db, email) or ""
         return ""
-    
+
     def authenticate(self, email: str, password: str, mfa_token: Optional[str] = None):
         """Authenticate - legacy interface."""
         if self.db:

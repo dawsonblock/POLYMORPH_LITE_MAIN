@@ -9,11 +9,9 @@ import time
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
-from retrofitkit.db.models.workflow import WorkflowExecution, WorkflowVersion
+from retrofitkit.db.models.workflow import WorkflowExecution
 from retrofitkit.db.models.audit import AuditEvent
-from retrofitkit.db.models.user import User
 # from retrofitkit.compliance.audit import AuditLogger # Removed: not implemented yet
-from retrofitkit.api.compliance import get_session # Or similar session factory
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +25,9 @@ class DatabaseLogger:
         self.run_id: Optional[str] = None
         self.operator_email: Optional[str] = None
 
-    def log_run_start(self, 
-                      workflow_version_id: uuid.UUID, 
-                      operator_email: str, 
+    def log_run_start(self,
+                      workflow_version_id: uuid.UUID,
+                      operator_email: str,
                       run_metadata: Dict[str, Any] = None) -> str:
         """
         Create a new WorkflowExecution record.
@@ -39,7 +37,7 @@ class DatabaseLogger:
         """
         self.operator_email = operator_email
         self.run_id = f"RUN-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
-        
+
         session = self.session_factory()
         try:
             execution = WorkflowExecution(
@@ -54,7 +52,7 @@ class DatabaseLogger:
             session.commit()
             session.refresh(execution)
             self.execution_id = execution.id
-            
+
             logger.info(f"Started run {self.run_id} for workflow {workflow_version_id}")
             return self.run_id
         except Exception as e:
@@ -83,7 +81,7 @@ class DatabaseLogger:
                 current_results[f"step_{step_index}_{step_name}"] = result
                 execution.results = current_results
                 session.commit()
-                
+
                 # Secure Audit Log
                 try:
                     from retrofitkit.compliance.audit import write_audit_event
@@ -113,7 +111,7 @@ class DatabaseLogger:
                 if error:
                     execution.error_message = error
                 session.commit()
-                
+
                 # Secure Audit Log
                 try:
                     from retrofitkit.compliance.audit import write_audit_event
@@ -137,9 +135,9 @@ class DatabaseLogger:
     def log_audit_event(self, event: str, details: str):
         """Log a secure audit event linked to this run."""
         # This should ideally use the centralized AuditLogger to ensure chain of custody
-        # For now, we'll do a direct insert if AuditLogger isn't easily injectable, 
+        # For now, we'll do a direct insert if AuditLogger isn't easily injectable,
         # but let's try to use the model directly for simplicity in this phase.
-        
+
         session = self.session_factory()
         try:
             audit = AuditEvent(

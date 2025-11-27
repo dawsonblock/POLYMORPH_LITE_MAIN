@@ -1,4 +1,4 @@
-import asyncio, time
+import asyncio
 from retrofitkit.drivers.daq.factory import make_daq
 
 class Watchdog:
@@ -11,7 +11,7 @@ class Watchdog:
         self.ctx = ctx
         self.daq = make_daq(ctx.config)
         self._stop = asyncio.Event()
-        
+
     async def run(self):
         v = False
         while not self._stop.is_set():
@@ -22,6 +22,6 @@ class Watchdog:
             except Exception as e:
                 print(f"Watchdog toggle failed: {e}")
             await asyncio.sleep(1.0)
-            
+
     def stop(self):
         self._stop.set()

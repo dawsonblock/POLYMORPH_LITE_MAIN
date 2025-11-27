@@ -1,8 +1,10 @@
-import os, json, base64, time
-from dataclasses import dataclass
-from typing import Dict, Any, Tuple
+import os
+import json
+import base64
+import time
+from typing import Any, Tuple
 from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.asymmetric import padding
 from pydantic import BaseModel
 
 # FIX: Use environment variable or relative path, never absolute hardcoded /mnt
@@ -31,7 +33,7 @@ class Signer:
     def _load_keys(self) -> Tuple[Any, Any]:
         if not os.path.exists(PRIV_KEY_PATH):
             raise FileNotFoundError(f"Private key not found: {PRIV_KEY_PATH}")
-            
+
         with open(PRIV_KEY_PATH, "rb") as f:
             priv = serialization.load_pem_private_key(f.read(), password=None)
         with open(PUB_KEY_PATH, "rb") as f:
@@ -45,7 +47,7 @@ class Signer:
             "signer": signer_email,
             "ts": time.time()
         }, sort_keys=True).encode()
-        
+
         priv, pub = self._load_keys()
         sig = priv.sign(payload, padding.PKCS1v15(), hashes.SHA256())
         b64sig = base64.b64encode(sig).decode()

@@ -10,10 +10,9 @@ Responsible for loading, merging, and resolving configuration from multiple sour
 import os
 import yaml
 from typing import Dict, Any, Optional
-from pathlib import Path
 import logging
 
-from retrofitkit.core.config import PolymorphConfig, SystemConfig, SecurityConfig, DAQConfig, RamanConfig, SafetyConfig, DatabaseConfig, MonitoringConfig, AIConfig
+from retrofitkit.core.config import PolymorphConfig
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +52,13 @@ class ConfigLoader:
             f"config/profiles/{profile_name}",
             profile_name # Allow absolute path
         ]
-        
+
         profile_path = None
         for path in candidates:
             if os.path.exists(path):
                 profile_path = path
                 break
-        
+
         if not profile_path:
             logger.error(f"Hardware profile '{profile_name}' not found.")
             raise FileNotFoundError(f"Hardware profile '{profile_name}' not found.")
@@ -69,7 +68,7 @@ class ConfigLoader:
             self._merge(profile_data)
             self.loaded_files.append(profile_path)
             logger.info(f"Applied hardware profile from {profile_path}")
-            
+
         return self
 
     def apply_overlay(self, overlay_path: str) -> "ConfigLoader":
@@ -83,7 +82,7 @@ class ConfigLoader:
             self._merge(overlay_data)
             self.loaded_files.append(overlay_path)
             logger.info(f"Applied overlay from {overlay_path}")
-            
+
         return self
 
     def _merge(self, source: Dict[str, Any]):
@@ -114,10 +113,10 @@ class ConfigLoader:
         # We pass None to avoid loading the default config file again logic inside __init__
         # We will manually update it.
         config = PolymorphConfig(config_file=None)
-        
+
         # We need to bypass the _load_yaml_config logic in PolymorphConfig.__init__
         # and instead inject our merged data.
-        
+
         # Helper to update a Pydantic model from a dict
         def update_model(model, data):
             for k, v in data.items():
@@ -128,14 +127,14 @@ class ConfigLoader:
                     # In Pydantic v2 this is different, but for now assuming v1 style or compatible
                     # Actually, PolymorphConfig._update_config logic is good to reuse if possible,
                     # but it's instance method.
-                    
+
                     # Let's use the same logic as PolymorphConfig._update_config
                     # "Only update if environment variable is not set"
-                    
+
                     # Check if env var exists
                     if env_var and os.environ.get(env_var) is not None:
                         continue
-                        
+
                     setattr(model, k, v)
 
         # Apply merged data to the config sections
@@ -155,7 +154,7 @@ class ConfigLoader:
             config._update_config(config.monitoring, self.config_data['monitoring'])
         if 'ai' in self.config_data:
             config._update_config(config.ai, self.config_data['ai'])
-            
+
         return config
 
 # Global loader instance

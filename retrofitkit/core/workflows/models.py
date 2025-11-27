@@ -25,7 +25,7 @@ class WorkflowStep:
     kind: str
     params: Dict[str, Any] = field(default_factory=dict)
     children: List[str] = field(default_factory=list)
-    
+
     def __post_init__(self):
         """Validate step kind."""
         valid_kinds = ["action", "wait", "loop", "condition"]
@@ -53,7 +53,7 @@ class WorkflowDefinition:
     steps: Dict[str, WorkflowStep]
     entry_step: str
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def __post_init__(self):
         """Validate workflow structure."""
         # Check entry step exists
@@ -61,7 +61,7 @@ class WorkflowDefinition:
             raise ValueError(
                 f"Entry step '{self.entry_step}' not found in workflow steps"
             )
-        
+
         # Check all child references are valid
         for step_id, step in self.steps.items():
             for child_id in step.children:
@@ -69,7 +69,7 @@ class WorkflowDefinition:
                     raise ValueError(
                         f"Step '{step_id}' references unknown child '{child_id}'"
                     )
-    
+
     @classmethod
     def from_yaml(cls, yaml_content: str) -> "WorkflowDefinition":
         """
@@ -94,7 +94,7 @@ class WorkflowDefinition:
                 children: []
         """
         data = yaml.safe_load(yaml_content)
-        
+
         # Parse steps
         steps = {}
         for step_id, step_data in data.get("steps", {}).items():
@@ -104,7 +104,7 @@ class WorkflowDefinition:
                 params=step_data.get("params", {}),
                 children=step_data.get("children", []),
             )
-        
+
         return cls(
             id=data["id"],
             name=data["name"],
@@ -112,7 +112,7 @@ class WorkflowDefinition:
             entry_step=data["entry_step"],
             metadata=data.get("metadata", {}),
         )
-    
+
     @classmethod
     def from_file(cls, path: Path) -> "WorkflowDefinition":
         """
@@ -126,7 +126,7 @@ class WorkflowDefinition:
         """
         with open(path, "r") as f:
             return cls.from_yaml(f.read())
-    
+
     def to_yaml(self) -> str:
         """
         Convert workflow to YAML string.
@@ -149,7 +149,7 @@ class WorkflowDefinition:
             },
         }
         return yaml.dump(data, default_flow_style=False, sort_keys=False)
-    
+
     def to_file(self, path: Path) -> None:
         """
         Save workflow to YAML file.

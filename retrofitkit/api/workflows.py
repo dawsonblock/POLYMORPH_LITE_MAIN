@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
-from retrofitkit.core.workflows.models import WorkflowDefinition, WorkflowExecutionResult
+from retrofitkit.core.workflows.models import WorkflowDefinition
 from retrofitkit.core.workflows.engine import WorkflowEngine
 from retrofitkit.core.workflows.safety import SafetyManager, LoggingPolicy
 
@@ -91,10 +91,10 @@ async def upload_workflow(request: WorkflowUploadRequest):
             status_code=400,
             detail=f"Invalid workflow YAML: {str(e)}"
         )
-    
+
     # Store workflow
     _workflows[workflow.id] = workflow
-    
+
     return {
         "id": workflow.id,
         "name": workflow.name,
@@ -117,13 +117,13 @@ async def get_workflow(workflow_id: str):
         404: If workflow not found
     """
     workflow = _workflows.get(workflow_id)
-    
+
     if workflow is None:
         raise HTTPException(
             status_code=404,
             detail=f"Workflow '{workflow_id}' not found"
         )
-    
+
     return {
         "id": workflow.id,
         "name": workflow.name,
@@ -159,16 +159,16 @@ async def execute_workflow(
         404: If workflow not found
     """
     workflow = _workflows.get(workflow_id)
-    
+
     if workflow is None:
         raise HTTPException(
             status_code=404,
             detail=f"Workflow '{workflow_id}' not found"
         )
-    
+
     # Execute workflow
     result = await _workflow_engine.run(workflow, context)
-    
+
     return WorkflowExecuteResponse(
         workflow_id=result.workflow_id,
         success=result.success,
@@ -198,9 +198,9 @@ async def delete_workflow(workflow_id: str):
             status_code=404,
             detail=f"Workflow '{workflow_id}' not found"
         )
-    
+
     del _workflows[workflow_id]
-    
+
     return {"message": f"Workflow '{workflow_id}' deleted"}
 
 
@@ -229,7 +229,7 @@ async def disable_safety_policy(policy_name: str):
         Success message
     """
     _safety_manager.remove_policy(policy_name)
-    
+
     return {"message": f"Policy '{policy_name}' disabled"}
 
 
@@ -237,10 +237,10 @@ async def disable_safety_policy(policy_name: str):
 def _load_example_workflows():
     """Load example workflows from workflows/ directory."""
     workflows_dir = Path("workflows")
-    
+
     if not workflows_dir.exists():
         return
-    
+
     for yaml_file in workflows_dir.glob("*.yaml"):
         try:
             workflow = WorkflowDefinition.from_file(yaml_file)

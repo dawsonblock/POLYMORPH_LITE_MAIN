@@ -15,7 +15,7 @@ class PolicyBase(Protocol):
     before execution to prevent unsafe operations.
     """
     name: str
-    
+
     async def before_action(
         self,
         device: DeviceBase,
@@ -43,7 +43,7 @@ class LoggingPolicy:
     Useful for audit trails and debugging.
     """
     name = "logging"
-    
+
     async def before_action(
         self,
         device: DeviceBase,
@@ -61,7 +61,7 @@ class TemperaturePolicy:
     Useful for CCD cameras (Andor) that must be cooled before long exposures.
     """
     name = "temperature_check"
-    
+
     def __init__(self, max_temp_celsius: float = -20.0):
         """
         Initialize temperature policy.
@@ -70,7 +70,7 @@ class TemperaturePolicy:
             max_temp_celsius: Maximum allowed temperature
         """
         self.max_temp_celsius = max_temp_celsius
-    
+
     async def before_action(
         self,
         device: DeviceBase,
@@ -86,16 +86,16 @@ class TemperaturePolicy:
         # Only check for spectrometer acquisitions
         if action != "acquire_spectrum":
             return
-        
+
         # Only check for devices that report temperature
         health = await device.health()
         if "ccd_temp" not in health and "temperature" not in health:
             return
-        
+
         temp = health.get("ccd_temp") or health.get("temperature")
         if temp is None:
             return
-        
+
         if temp > self.max_temp_celsius:
             raise RuntimeError(
                 f"Device {device.id} temperature too high: {temp}°C > "
@@ -110,7 +110,7 @@ class VoltageRangePolicy:
     Prevents damage to sensitive equipment.
     """
     name = "voltage_range"
-    
+
     def __init__(self, min_volts: float = -10.0, max_volts: float = 10.0):
         """
         Initialize voltage range policy.
@@ -121,7 +121,7 @@ class VoltageRangePolicy:
         """
         self.min_volts = min_volts
         self.max_volts = max_volts
-    
+
     async def before_action(
         self,
         device: DeviceBase,
@@ -137,12 +137,12 @@ class VoltageRangePolicy:
         # Only check for voltage write actions
         if action not in ["write_ao", "set_voltage"]:
             return
-        
+
         # Check voltage/volts parameter
         voltage = args.get("value") or args.get("volts") or args.get("voltage")
         if voltage is None:
             return
-        
+
         if voltage < self.min_volts or voltage > self.max_volts:
             raise RuntimeError(
                 f"Voltage {voltage}V out of safe range "
@@ -164,12 +164,12 @@ class SafetyManager:
         
         await safety.check_before_action(device, "acquire_spectrum", {})
     """
-    
+
     def __init__(self):
         """Initialize safety manager with empty policy list."""
         self._policies: List[PolicyBase] = []
         self._enabled = True
-    
+
     def add_policy(self, policy: PolicyBase) -> None:
         """
         Add a safety policy.
@@ -178,7 +178,7 @@ class SafetyManager:
             policy: Policy implementing PolicyBase protocol
         """
         self._policies.append(policy)
-    
+
     def remove_policy(self, policy_name: str) -> None:
         """
         Remove a policy by name.
@@ -187,7 +187,7 @@ class SafetyManager:
             policy_name: Name of policy to remove
         """
         self._policies = [p for p in self._policies if p.name != policy_name]
-    
+
     def list_policies(self) -> List[str]:
         """
         Get names of all active policies.
@@ -196,11 +196,11 @@ class SafetyManager:
             List of policy names
         """
         return [p.name for p in self._policies]
-    
+
     def enable(self) -> None:
         """Enable safety checks."""
         self._enabled = True
-    
+
     def disable(self) -> None:
         """
         Disable safety checks.
@@ -208,7 +208,7 @@ class SafetyManager:
         WARNING: Should only be used for testing or emergency situations.
         """
         self._enabled = False
-    
+
     async def check_before_action(
         self,
         device: DeviceBase,
@@ -228,6 +228,6 @@ class SafetyManager:
         """
         if not self._enabled:
             return
-        
+
         for policy in self._policies:
             await policy.before_action(device, action, args)

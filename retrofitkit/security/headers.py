@@ -22,22 +22,22 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     - Permissions-Policy
     - Referrer-Policy
     """
-    
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         response = await call_next(request)
-        
+
         # Prevent MIME type sniffing
         response.headers["X-Content-Type-Options"] = "nosniff"
-        
+
         # Prevent clickjacking
         response.headers["X-Frame-Options"] = "DENY"
-        
+
         # XSS Protection (legacy browsers)
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        
+
         # HSTS - Force HTTPS for 1 year
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        
+
         # Content Security Policy
         csp_directives = [
             "default-src 'self'",
@@ -51,7 +51,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "form-action 'self'"
         ]
         response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
-        
+
         # Permissions Policy (formerly Feature Policy)
         permissions = [
             "geolocation=()",
@@ -64,14 +64,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "accelerometer=()"
         ]
         response.headers["Permissions-Policy"] = ", ".join(permissions)
-        
+
         # Referrer Policy
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        
+
         # Remove server header for security obscurity
         if "Server" in response.headers:
             del response.headers["Server"]
-        
+
         return response
 
 

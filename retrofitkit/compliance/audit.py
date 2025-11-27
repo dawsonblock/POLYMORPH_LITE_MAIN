@@ -8,7 +8,6 @@ import time
 import hashlib
 import json
 from typing import List, Dict, Any, Optional
-from datetime import datetime
 from sqlalchemy.orm import Session
 
 from retrofitkit.db.models.audit import AuditEvent
@@ -37,19 +36,19 @@ def write_audit_event(
         Created AuditEvent
     """
     ts = time.time()
-    
+
     # Get previous hash for chain-of-custody
     prev_entry = db.query(AuditEvent).order_by(AuditEvent.id.desc()).first()
     prev_hash = prev_entry.hash if prev_entry else "GENESIS"
-    
+
     # Create payload string
     details = json.dumps(payload, sort_keys=True)
     subject = f"{entity_type}:{entity_id}"
-    
+
     # Compute current hash
     data = f"{ts}{event_type}{actor_id}{subject}{details}{prev_hash}"
     current_hash = hashlib.sha256(data.encode()).hexdigest()
-    
+
     # Create new entry
     entry = AuditEvent(
         ts=ts,
@@ -60,11 +59,11 @@ def write_audit_event(
         prev_hash=prev_hash,
         hash=current_hash
     )
-    
+
     db.add(entry)
     db.commit()
     db.refresh(entry)
-    
+
     return entry
 
 
@@ -89,14 +88,14 @@ def get_audit_logs(
         List of audit log entries as dictionaries
     """
     query = db.query(AuditEvent).order_by(AuditEvent.id.desc())
-    
+
     if event_type:
         query = query.filter(AuditEvent.event == event_type)
     if actor:
         query = query.filter(AuditEvent.actor == actor)
-    
+
     entries = query.limit(limit).offset(offset).all()
-    
+
     return [
         {
             "id": e.id,
@@ -125,25 +124,25 @@ def verify_audit_chain(db: Session, start_id: Optional[int] = None, end_id: Opti
         Dict with verification results
     """
     query = db.query(AuditEvent).order_by(AuditEvent.id.asc())
-    
+
     if start_id:
         query = query.filter(AuditEvent.id >= start_id)
     if end_id:
         query = query.filter(AuditEvent.id <= end_id)
-    
+
     entries = query.all()
-    
+
     if not entries:
         return {"valid": True, "message": "No entries to verify"}
-    
+
     errors = []
     prev_hash = "GENESIS"
-    
+
     for entry in entries:
         # Recompute hash
         data = f"{entry.ts}{entry.event}{entry.actor}{entry.subject}{entry.details}{prev_hash}"
         expected_hash = hashlib.sha256(data.encode()).hexdigest()
-        
+
         # Check prev_hash matches
         if entry.prev_hash != prev_hash:
             errors.append({
@@ -152,7 +151,7 @@ def verify_audit_chain(db: Session, start_id: Optional[int] = None, end_id: Opti
                 "expected": prev_hash,
                 "actual": entry.prev_hash
             })
-        
+
         # Check hash matches
         if entry.hash != expected_hash:
             errors.append({
@@ -161,9 +160,9 @@ def verify_audit_chain(db: Session, start_id: Optional[int] = None, end_id: Opti
                 "expected": expected_hash,
                 "actual": entry.hash
             })
-        
+
         prev_hash = entry.hash
-    
+
     return {
         "valid": len(errors) == 0,
         "entries_checked": len(entries),
@@ -176,7 +175,7 @@ from retrofitkit.db.session import SessionLocal
 # Legacy class wrapper for backwards compatibility
 class Audit:
     """Legacy wrapper for backwards compatibility with existing code."""
-    
+
     def __init__(self, db: Optional[Session] = None):
         self.db = db or SessionLocal()
         self._owned = db is None
@@ -184,7 +183,7 @@ class Audit:
     def __del__(self):
         if getattr(self, '_owned', False) and self.db:
             self.db.close()
-    
+
     def log(self, event: str, actor: str, subject: str, details: str = "") -> int:
         """Log an audit event - legacy interface."""
         if self.db:
@@ -192,7 +191,7 @@ class Audit:
                 payload = json.loads(details) if details else {}
             except:
                 payload = {"details": details}
-            
+
             entry = write_audit_event(
                 db=self.db,
                 actor_id=actor,
@@ -203,7 +202,7 @@ class Audit:
             )
             return entry.id
         return 0
-    
+
     def record(self, event: str, actor: str, subject: str, payload: Dict[str, Any]):
         """Record an audit event - legacy interface."""
         if self.db:
@@ -215,7 +214,7 @@ class Audit:
                 entity_id=subject,
                 payload=payload
             )
-    
+
     def get_logs(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """Get audit logs - legacy interface."""
         if self.db:

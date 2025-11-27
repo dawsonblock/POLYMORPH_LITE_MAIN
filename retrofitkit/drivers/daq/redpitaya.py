@@ -5,9 +5,8 @@ Implements control via SCPI (Standard Commands for Programmable Instruments) ove
 """
 import asyncio
 import logging
-import socket
-from typing import Dict, Any, Optional
-from retrofitkit.drivers.base import DAQDevice, DeviceCapabilities, DeviceKind, SafetyAwareMixin, require_safety
+from typing import Dict, Any
+from retrofitkit.drivers.base import DeviceCapabilities, DeviceKind, SafetyAwareMixin, require_safety
 from retrofitkit.core.registry import registry
 
 logger = logging.getLogger(__name__)
@@ -20,13 +19,13 @@ class RedPitayaDAQ(SafetyAwareMixin):
     AI and DI/DO are not fully implemented/validated in this build.
     """
     KIND = DeviceKind.DAQ
-    
+
     # Required for registry validation (class-level default)
     capabilities = DeviceCapabilities(
         kind=DeviceKind.DAQ,
         vendor="Red Pitaya",
         model="STEMlab 125-14",
-        actions=["write_ao"], 
+        actions=["write_ao"],
         features={"channels_ai": 0, "channels_ao": 2, "channels_dio": 0}
     )
 
@@ -47,12 +46,12 @@ class RedPitayaDAQ(SafetyAwareMixin):
             self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
             self.connected = True
             logger.info(f"Connected to Red Pitaya at {self.host}:{self.port}")
-            
+
             # Reset
             await self._send_cmd("RST")
         except Exception as e:
             logger.error(f"Failed to connect to Red Pitaya: {e}")
-            # Fallback to simulation if configured? 
+            # Fallback to simulation if configured?
             # For now, we raise, but in a real app we might want a soft fail.
             raise
 

@@ -10,7 +10,6 @@ import logging
 from typing import Dict, Type, Any, Optional
 
 from retrofitkit.core.config import PolymorphConfig
-from retrofitkit.drivers.base import DeviceBase
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,7 @@ class DriverRouter:
         """
         if device_type not in self._registry:
             self._registry[device_type] = {}
-        
+
         self._registry[device_type][driver_name] = driver_cls
         logger.debug(f"Registered driver: {device_type}/{driver_name} -> {driver_cls.__name__}")
 
@@ -59,7 +58,7 @@ class DriverRouter:
 
         # Determine driver name from config
         driver_name = self._resolve_driver_name(device_type, config)
-        
+
         if not driver_name:
             raise ValueError(f"No driver configured for device type '{device_type}'")
 
@@ -75,14 +74,14 @@ class DriverRouter:
             # For now, we'll pass the whole config and let the driver pick what it needs
             # OR we can pass specific sections. Let's pass the whole config for maximum flexibility
             # but drivers should ideally be loosely coupled.
-            
+
             # Better approach: Pass the specific config section if possible, or the whole thing.
             # Let's pass the whole config for now as drivers might need cross-cutting concerns (safety, logging)
             driver_instance = driver_cls(config)
             self._active_drivers[device_type] = driver_instance
             logger.info(f"Instantiated driver {device_type}/{driver_name}")
             return driver_instance
-            
+
         except Exception as e:
             logger.error(f"Failed to instantiate driver {device_type}/{driver_name}: {e}")
             raise RuntimeError(f"Failed to instantiate driver {device_type}/{driver_name}: {e}")
@@ -100,7 +99,7 @@ class DriverRouter:
         """Initialize all configured drivers."""
         # Pre-load standard drivers
         self._register_standard_drivers()
-        
+
         # Instantiate core devices
         self.get_driver("daq", config)
         self.get_driver("raman", config)
@@ -119,7 +118,7 @@ class DriverRouter:
             self.register_driver("daq", "ni", NIDAQDriver)
         except ImportError:
             logger.warning("Could not import NIDAQDriver")
-            
+
         try:
             from retrofitkit.drivers.daq.redpitaya import RedPitayaDriver
             self.register_driver("daq", "redpitaya", RedPitayaDriver)
@@ -131,7 +130,7 @@ class DriverRouter:
             self.register_driver("raman", "simulator", RamanSimulator)
         except ImportError:
             logger.warning("Could not import RamanSimulator")
-            
+
         try:
             from retrofitkit.drivers.raman.vendor_ocean_optics import OceanOpticsDriver
             self.register_driver("raman", "ocean", OceanOpticsDriver)
@@ -143,7 +142,7 @@ class DriverRouter:
             self.register_driver("raman", "horiba", HoribaDriver)
         except ImportError:
             logger.warning("Could not import HoribaDriver")
-            
+
         try:
             from retrofitkit.drivers.raman.vendor_andor import AndorDriver
             self.register_driver("raman", "andor", AndorDriver)
