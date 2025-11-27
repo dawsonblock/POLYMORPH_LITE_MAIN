@@ -4,9 +4,12 @@ set -e
 echo "🚀 POLYMORPH-LITE Docker Entrypoint"
 echo "===================================="
 
-# Wait for PostgreSQL to be ready
-echo "⏳ Waiting for PostgreSQL..."
-while ! pg_isready -h ${DATABASE_URL##*@} -p 5432 > /dev/null 2>&1; do
+# Simple Postgres wait (docker-compose service name)
+DB_HOST="postgres"
+DB_PORT="5432"
+
+echo "⏳ Waiting for PostgreSQL at $DB_HOST:$DB_PORT..."
+until pg_isready -h "$DB_HOST" -p "$DB_PORT" > /dev/null 2>&1; do
   sleep 1
 done
 echo "✓ PostgreSQL is ready"
