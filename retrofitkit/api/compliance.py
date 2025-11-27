@@ -477,19 +477,59 @@ async def create_config_snapshot(
     try:
         # TODO: Gather actual system configuration
         # For now, use placeholder config
+        # Gather actual system configuration
+        from retrofitkit.core.app import AppContext
+        import hashlib
+        import json
+        
+        app_context = AppContext.load()
+        
+        # Get Alembic revision from database
+        alembic_revision = session.execute(
+            "SELECT version_num FROM alembic_version"
+        ).scalar() if session.bind.dialect.has_table(session.connection(), "alembic_version") else "unknown"
+        
+        # Build complete config snapshot
         config_data = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "snapshot_reason": reason,
-            "created_by": current_user["email"],
-            # Add actual system config here
-            "placeholder": "Implement full config capture"
+            # System configuration
+            "system": {
+                "app_name": app_context.config.get("APP_NAME", "POLYMORPH-LITE"),
+                "environment": app_context.config.get("ENVIRONMENT", "production"),
+                "version": "3.0.0",
+            },
+            # Active hardware overlay
+            "hardware": {
+                "active_overlay": app_context.config.get("ACTIVE_OVERLAY", "default"),
+                "devices": {
+                    "daq": app_context.config.get("DAQ_TYPE", "simulator"),
+                    "raman": app_context.config.get("RAMAN_TYPE", "stub"),
+                }
+            },
+            # Safety configuration
+            "safety": {
+                "interlocks_enabled": app_context.config.get("safety", {}).get("interlocks_enabled", False),
+                "watchdog_enabled": app_context.config.get("safety", {}).get("watchdog_enabled", False),
+            },
+            # Gating rules
+            "gating": app_context.config.get("gating", {}),
+            # Database
+            "database": {
+                "alembic_revision": alembic_revision,
+                "schema_version": "3.0.0",
+            },
+            # Snapshot metadata
+            "snapshot_metadata": {
+                "timestamp": datetime.utcnow().isoformat(),
+                "reason": reason,
+                "captured_by": current_user["email"],
+            }
         }
-
-        # Calculate hash
+        
+        # Generate deterministic hash
         config_json = json.dumps(config_data, sort_keys=True)
         config_hash = hashlib.sha256(config_json.encode()).hexdigest()
-
-        # Create snapshot
+        
+        # Create snapshot record
         snapshot = ConfigSnapshot(
             snapshot_id=str(uuid.uuid4()),
             timestamp=datetime.utcnow(),
