@@ -52,15 +52,36 @@ def create_user(
         Created User object
     """
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
-    
-    user = User(
-        email=email,
-        name=full_name,
-        role=role if not is_superuser else "admin",
-        password_hash=hashed_password,
-        password_history=[hashed_password.hex()],
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        # Validate password strength
+        InputValidator.validate_password_strength(payload.new_password)
+
+        # Verify old password
+        if not self.pwd_context.verify(payload.old_password, user.password_hash):
+            raise ValueError("Invalid old password")
+
+        # Check password history (prevent reuse of last 5)
+        history = user.password_history or []
+        for i, old_hash in enumerate(history[:5]):
+            if self.pwd_context.verify(payload.new_password, old_hash):
+                raise ValueError("Cannot reuse any of your last 5 passwords")
+
+        # Update history
+        # Store current hash in history before updating
+        # We store the hash as a string if it's bytes, for JSON serialization
+        current_hash_str = user.password_hash.decode('utf-8') if isinstance(user.password_hash, bytes) else user.password_hash
+        
+        new_history = [current_hash_str] + history
+        user.password_history = new_history[:10]  # Keep last 10
+
+        # Update password
+        user.password_hash = self.pwd_context.hash(payload.new_password)
+        user.password_changed_at = datetime.utcnow()
+        
+        # Reset lockout counters on password change
+        user.failed_login_attempts = 0
+        user.account_locked_until = None
+        
+        session.commit()ed_at=datetime.utcnow()
     )
     
     db.add(user)
@@ -116,23 +137,69 @@ def authenticate_user(
         write_audit_event(
             db=db,
             actor_id=email,
+    if user.account_locked_until:
+        if user.account_locked_until > datetime.utcnow():
+            write_audit_event(
+                db=db,
+                actor_id=email,
+                event_type="LOGIN_FAILED",
+                entity_type="user",
+                entity_id=email,
+                payload={"reason": "account_locked"}
+            )
+            return None
+        else:
+            # Lock expired, reset
+            user.account_locked_until = None
+            user.failed_login_attempts = 0
+            db.commit()
+
+    # Verify password
+    try:
+        if not bcrypt.checkpw(password.encode(), user.password_hash):
+            # Increment failed attempts
+            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+            
+            # Check if should lock
+            if user.failed_login_attempts >= 5:
+                user.account_locked_until = datetime.utcnow() + timedelta(minutes=30)
+                write_audit_event(
+                    db=db,
+                    actor_id="system",
+                    event_type="ACCOUNT_LOCKED",
+                    entity_type="user",
+                    entity_id=email,
+                    payload={"reason": f"Account locked after {user.failed_login_attempts} failed attempts"}
+                )
+            else:
+                write_audit_event(
+                    db=db,
+                    actor_id=email,
+                    event_type="LOGIN_FAILED",
+                    entity_type="user",
+                    entity_id=email,
+                    payload={"reason": "invalid_password", "attempts": user.failed_login_attempts}
+                )
+            
+            db.commit()
+            return None
+    except Exception:
+        # Handle hashing errors or malformed hashes safely
+        write_audit_event(
+            db=db,
+            actor_id="system",
             event_type="LOGIN_FAILED",
             entity_type="user",
             entity_id=email,
-            payload={"reason": "account_locked"}
+            payload={"reason": "password_verification_error"}
         )
         return None
-    
-    # Verify password
-    if not bcrypt.checkpw(password.encode(), user.password_hash):
-        # Increment failed login attempts
-        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
-        if user.failed_login_attempts >= 5:
-            # Lock account for 30 minutes
-            from datetime import timedelta
-            user.account_locked_until = datetime.utcnow() + timedelta(minutes=30)
+
+    # Success - reset counters if there were previous failed attempts or a lock
+    if user.failed_login_attempts > 0 or user.account_locked_until:
+        user.failed_login_attempts = 0
+        user.account_locked_until = None
         db.commit()
-        
         write_audit_event(
             db=db,
             actor_id=email,
