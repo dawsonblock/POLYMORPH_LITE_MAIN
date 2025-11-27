@@ -1,6 +1,24 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: polymorph-postgres
+    environment:
+      - POSTGRES_USER=polymorph
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-polymorph_pass}
+      - POSTGRES_DB=polymorph_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polymorph"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   redis:
     image: redis:7-alpine
     container_name: polymorph-redis
@@ -29,9 +47,15 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
       - AI_SERVICE_URL=http://ai-service:3000/infer
       - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-${SECRET_KEY}}
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DATABASE_URL=postgresql+psycopg2://polymorph:${POSTGRES_PASSWORD:-polymorph_pass}@postgres:5432/polymorph_db
+      - POLYMORPH_ENV=${POLYMORPH_ENV:-production}
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     volumes:
       - ./data:/mnt/data
       - ./config:/app/config
@@ -68,3 +92,4 @@ services:
 
 volumes:
   redis-data:
+  postgres-data:

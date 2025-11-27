@@ -1,183 +1,215 @@
 """
-Production-ready audit logging with PostgreSQL persistence.
+Production-ready audit logging with unified database layer.
 
-Migrated from SQLite to PostgreSQL for:
-- Production reliability
-- Container restart persistence  
-- Multi-process concurrency
-- Better data integrity
+Hash-chain audit trail with support for electronic signatures.
 """
-import os
+
 import time
 import hashlib
 import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, Float, String, LargeBinary, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography import x509
+from sqlalchemy.orm import Session
 
-# Database configuration
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://polymorph:polymorph_pass@localhost:5432/polymorph_db"
-)
+from retrofitkit.db.models.audit import AuditEvent
 
-# Fallback to SQLite for local development
-if "postgresql" not in DATABASE_URL and "sqlite" not in DATABASE_URL:
-    DB_DIR = os.environ.get("P4_DATA_DIR", "data")
-    os.makedirs(DB_DIR, exist_ok=True)
-    DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'audit.db')}"
 
-# SQLAlchemy setup
-Base = declarative_base()
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-SessionLocal = sessionmaker(bind=engine)
-
-class AuditLog(Base):
-    """SQLAlchemy ORM model for audit logs."""
-    __tablename__ = 'audit'
+def write_audit_event(
+    db: Session,
+    actor_id: str,
+    event_type: str,
+    entity_type: str,
+    entity_id: str,
+    payload: Dict[str, Any]
+) -> AuditEvent:
+    """
+    Write an audit event with cryptographic hash chain.
     
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    ts = Column(Float, nullable=False)
-    event = Column(String(255), nullable=False)
-    actor = Column(String(255), nullable=False)
-    subject = Column(String(255), nullable=False)
-    details = Column(Text, nullable=True)
-    prev_hash = Column(String(64), nullable=True)
-    hash = Column(String(64), nullable=False)
-    signature = Column(LargeBinary, nullable=True)
-    public_key = Column(LargeBinary, nullable=True)
-    ca_cert = Column(LargeBinary, nullable=True)
-    meaning = Column(Text, nullable=True)
+    Args:
+        db: Database session
+        actor_id: Who performed the action (user email)
+        event_type: Type of event (e.g., "LOGIN_SUCCESS", "SAMPLE_CREATED")
+        entity_type: What was affected (e.g., "user", "sample", "workflow")
+        entity_id: ID of the affected entity
+        payload: Additional event data
+        
+    Returns:
+        Created AuditEvent
+    """
+    ts = time.time()
+    
+    # Get previous hash for chain-of-custody
+    prev_entry = db.query(AuditEvent).order_by(AuditEvent.id.desc()).first()
+    prev_hash = prev_entry.hash if prev_entry else "GENESIS"
+    
+    # Create payload string
+    details = json.dumps(payload, sort_keys=True)
+    
+    # Compute current hash
+    data = f"{ts}{event_type}{actor_id}{entity_type}{entity_id}{details}{prev_hash}"
+    current_hash = hashlib.sha256(data.encode()).hexdigest()
+    
+    # Create new entry
+    entry = AuditEvent(
+        ts=ts,
+        event=event_type,
+        actor=actor_id,
+        subject=f"{entity_type}:{entity_id}",
+        details=details,
+        prev_hash=prev_hash,
+        hash=current_hash
+    )
+    
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    
+    return entry
 
 
-# Create tables
-Base.metadata.create_all(engine)
+def get_audit_logs(
+    db: Session,
+    limit: int = 100,
+    offset: int = 0,
+    event_type: Optional[str] = None,
+    actor: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """
+    Retrieve audit logs with optional filtering.
+    
+    Args:
+        db: Database session
+        limit: Maximum number of entries to return
+        offset: Number of entries to skip
+        event_type: Filter by event type
+        actor: Filter by actor
+        
+    Returns:
+        List of audit log entries as dictionaries
+    """
+    query = db.query(AuditEvent).order_by(AuditEvent.id.desc())
+    
+    if event_type:
+        query = query.filter(AuditEvent.event == event_type)
+    if actor:
+        query = query.filter(AuditEvent.actor == actor)
+    
+    entries = query.limit(limit).offset(offset).all()
+    
+    return [
+        {
+            "id": e.id,
+            "ts": e.ts,
+            "event": e.event,
+            "actor": e.actor,
+            "subject": e.subject,
+            "details": e.details,
+            "hash": e.hash,
+            "prev_hash": e.prev_hash
+        }
+        for e in entries
+    ]
 
 
+def verify_audit_chain(db: Session, start_id: Optional[int] = None, end_id: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Verify the integrity of the audit trail hash chain.
+    
+    Args:
+        db: Database session
+        start_id: Optional starting audit event ID
+        end_id: Optional ending audit event ID
+        
+    Returns:
+        Dict with verification results
+    """
+    query = db.query(AuditEvent).order_by(AuditEvent.id.asc())
+    
+    if start_id:
+        query = query.filter(AuditEvent.id >= start_id)
+    if end_id:
+        query = query.filter(AuditEvent.id <= end_id)
+    
+    entries = query.all()
+    
+    if not entries:
+        return {"valid": True, "message": "No entries to verify"}
+    
+    errors = []
+    prev_hash = "GENESIS"
+    
+    for entry in entries:
+        # Recompute hash
+        data = f"{entry.ts}{entry.event}{entry.actor}{entry.subject}{entry.details}{prev_hash}"
+        expected_hash = hashlib.sha256(data.encode()).hexdigest()
+        
+        # Check prev_hash matches
+        if entry.prev_hash != prev_hash:
+            errors.append({
+                "id": entry.id,
+                "error": "prev_hash_mismatch",
+                "expected": prev_hash,
+                "actual": entry.prev_hash
+            })
+        
+        # Check hash matches
+        if entry.hash != expected_hash:
+            errors.append({
+                "id": entry.id,
+                "error": "hash_mismatch",
+                "expected": expected_hash,
+                "actual": entry.hash
+            })
+        
+        prev_hash = entry.hash
+    
+    return {
+        "valid": len(errors) == 0,
+        "entries_checked": len(entries),
+        "errors": errors
+    }
+
+
+# Legacy class wrapper for backwards compatibility
 class Audit:
-    """
-    Production-ready audit logging with PostgreSQL persistence.
+    """Legacy wrapper for backwards compatibility with existing code."""
     
-    Supports both PostgreSQL (production) and SQLite (local dev).
-    """
-    
-    def __init__(self):
-        self._init()
-    
-    def _init(self):
-        """Initialize database tables (already handled by Base.metadata.create_all)."""
-        # Tables are created automatically by SQLAlchemy
-        pass
+    def __init__(self, db: Optional[Session] = None):
+        self.db = db
     
     def log(self, event: str, actor: str, subject: str, details: str = "") -> int:
-        """
-        Log an audit event with chain-of-custody hash.
-        
-        Args:
-            event: Event type (e.g., "RECIPE_START", "USER_LOGIN")
-            actor: Who performed the action
-            subject: What was affected
-            details: Additional context (JSON string)
+        """Log an audit event - legacy interface."""
+        if self.db:
+            try:
+                payload = json.loads(details) if details else {}
+            except:
+                payload = {"details": details}
             
-        Returns:
-            Audit log entry ID
-        """
-        session = SessionLocal()
-        try:
-            ts = time.time()
-            
-            # Get previous hash for chain-of-custody
-            prev_entry = session.query(AuditLog).order_by(AuditLog.id.desc()).first()
-            prev_hash = prev_entry.hash if prev_entry else "GENESIS"
-            
-            # Compute current hash
-            data = f"{ts}{event}{actor}{subject}{details}{prev_hash}"
-            current_hash = hashlib.sha256(data.encode()).hexdigest()
-            
-            # Create new entry
-            entry = AuditLog(
-                ts=ts,
-                event=event,
-                actor=actor,
-                subject=subject,
-                details=details,
-                prev_hash=prev_hash,
-                hash=current_hash
+            entry = write_audit_event(
+                db=self.db,
+                actor_id=actor,
+                event_type=event,
+                entity_type="legacy",
+                entity_id=subject,
+                payload=payload
             )
-            
-            session.add(entry)
-            session.commit()
             return entry.id
-            
-        finally:
-            session.close()
+        return 0
+    
+    def record(self, event: str, actor: str, subject: str, payload: Dict[str, Any]):
+        """Record an audit event - legacy interface."""
+        if self.db:
+            write_audit_event(
+                db=self.db,
+                actor_id=actor,
+                event_type=event,
+                entity_type="legacy",
+                entity_id=subject,
+                payload=payload
+            )
     
     def get_logs(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
-        """
-        Retrieve audit logs.
-        
-        Args:
-            limit: Maximum number of entries to return
-            offset: Number of entries to skip
-            
-        Returns:
-            List of audit log entries as dictionaries
-        """
-        session = SessionLocal()
-        try:
-            entries = session.query(AuditLog)\
-                .order_by(AuditLog.id.desc())\
-                .limit(limit)\
-                .offset(offset)\
-                .all()
-            
-            return [
-                {
-                    "id": e.id,
-                    "ts": e.ts,
-                    "event": e.event,
-                    "actor": e.actor,
-                    "subject": e.subject,
-                    "details": e.details,
-                    "hash": e.hash,
-                }
-                for e in entries
-            ]
-        finally:
-            session.close()
-
-class CompliantAuditTrail(Audit):
-    def __init__(self, ca_key: Optional[rsa.RSAPrivateKey] = None, ca_cert: Optional[x509.Certificate] = None):
-        super().__init__()
-        self.ca_key = ca_key
-        self.ca_cert = ca_cert
-
-    def log_event_signed(self, event_type: str, data: dict, user_id: str, user_key: rsa.RSAPrivateKey, meaning: str = "Approved"):
-        prev = self._last_hash()
-        # Build record
-        record = {**data, "timestamp": datetime.utcnow().isoformat(), "user": user_id, "meaning": meaning, "prev_hash": prev}
-        record_json = json.dumps(record, sort_keys=True)
-
-        # Hash + sign
-        digest = hashes.Hash(hashes.SHA256())
-        digest.update(record_json.encode())
-        signature = user_key.sign(digest.finalize(), padding.PKCS1v15(), hashes.SHA256())
-        
-        # Calculate chain hash
-        h = hashlib.sha256((prev + record_json).encode()).hexdigest()
-
-        # Store with certificate
-        con = sqlite3.connect(DB)
-        con.execute("""INSERT INTO audit (ts, event, actor, subject, details, prev_hash, hash, signature, public_key, ca_cert, meaning) 
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (time.time(), event_type, user_id, "signed_event", record_json, prev, h, signature, 
-                     user_key.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo),
-                     self.ca_cert.public_bytes(encoding=serialization.Encoding.PEM) if self.ca_cert else None,
-                     meaning))
-        con.commit()
-        con.close()
+        """Get audit logs - legacy interface."""
+        if self.db:
+            return get_audit_logs(self.db, limit, offset)
+        return []

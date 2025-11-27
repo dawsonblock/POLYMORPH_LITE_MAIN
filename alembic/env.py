@@ -7,7 +7,7 @@ from sqlalchemy import pool
 from alembic import context
 
 # Import database models for autogenerate support
-from retrofitkit.database.models import Base
+from retrofitkit.db.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
