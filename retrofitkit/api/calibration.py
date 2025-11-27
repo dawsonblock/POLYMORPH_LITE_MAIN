@@ -112,15 +112,27 @@ async def add_calibration_entry(
         session.commit()
         session.refresh(new_entry)
 
-        audit.log(
-            "CALIBRATION_PERFORMED",
-            current_user["email"],
-            calibration.device_id,
-            f"Calibration performed on {calibration.device_id}, status: {calibration.status}"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "CALIBRATION_PERFORMED",
+                current_user["email"],
+                calibration.device_id,
+                f"Calibration performed on {calibration.device_id}, status: {calibration.status}"
+            )
+        except Exception:
+            pass
 
         return new_entry
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding calibration: {str(e)}"
+        )
     finally:
         session.close()
 
@@ -230,18 +242,30 @@ async def attach_certificate(
         calibration.certificate_path = file_path
         session.commit()
 
-        audit.log(
-            "CALIBRATION_CERTIFICATE_ATTACHED",
-            current_user["email"],
-            str(calibration_id),
-            f"Attached certificate {safe_filename} to calibration {calibration_id}"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "CALIBRATION_CERTIFICATE_ATTACHED",
+                current_user["email"],
+                str(calibration_id),
+                f"Attached certificate {safe_filename} to calibration {calibration_id}"
+            )
+        except Exception:
+            pass
 
         return {
             "message": "Certificate attached successfully",
             "file_path": file_path
         }
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error attaching certificate: {str(e)}"
+        )
     finally:
         session.close()
 
@@ -344,17 +368,29 @@ async def update_device_status(
 
         session.commit()
 
-        audit.log(
-            "DEVICE_STATUS_UPDATED",
-            current_user["email"],
-            device_id,
-            f"Device {device_id} status updated to {new_status}"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "DEVICE_STATUS_UPDATED",
+                current_user["email"],
+                device_id,
+                f"Device {device_id} status updated to {new_status}"
+            )
+        except Exception:
+            pass
 
         return {
             "message": f"Device status updated to {new_status}",
             "device_id": device_id
         }
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating device status: {str(e)}"
+        )
     finally:
         session.close()

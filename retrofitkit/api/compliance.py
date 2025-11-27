@@ -342,14 +342,17 @@ async def generate_run_report_pdf(
         buffer.seek(0)
         pdf_bytes = buffer.read()
 
-        # Log report generation
+        # Log report generation (non-blocking)
         audit = Audit()
-        audit.log(
-            "REPORT_GENERATED",
-            current_user["email"],
-            run_id,
-            f"Generated PDF report for run {run_id}"
-        )
+        try:
+            audit.log(
+                "REPORT_GENERATED",
+                current_user["email"],
+                run_id,
+                f"Generated PDF report for run {run_id}"
+            )
+        except Exception:
+            pass
 
         session.close()
 
@@ -361,11 +364,16 @@ async def generate_run_report_pdf(
             }
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating PDF: {str(e)}"
         )
+    finally:
+        if 'session' in locals():
+            session.close()
 
 
 # ============================================================================
@@ -495,16 +503,27 @@ async def create_config_snapshot(
         session.commit()
         session.refresh(snapshot)
 
-        # Audit log
-        audit.log(
-            "CONFIG_SNAPSHOT_CREATED",
-            current_user["email"],
-            snapshot.snapshot_id,
-            f"Created config snapshot: {reason}"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "CONFIG_SNAPSHOT_CREATED",
+                current_user["email"],
+                snapshot.snapshot_id,
+                f"Created config snapshot: {reason}"
+            )
+        except Exception:
+            pass
 
         return snapshot
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating config snapshot: {str(e)}"
+        )
     finally:
         session.close()
 

@@ -144,16 +144,27 @@ async def create_workflow_definition(
         session.commit()
         session.refresh(new_workflow)
 
-        # Audit log
-        audit.log(
-            "WORKFLOW_CREATED",
-            current_user["email"],
-            f"{workflow.workflow_name}:v{next_version}",
-            f"Created workflow {workflow.workflow_name} version {next_version}"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "WORKFLOW_CREATED",
+                current_user["email"],
+                f"{workflow.workflow_name}:v{next_version}",
+                f"Created workflow {workflow.workflow_name} version {next_version}"
+            )
+        except Exception:
+            pass  # Don't fail the request if audit logging fails
 
         return new_workflow
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating workflow: {str(e)}"
+        )
     finally:
         session.close()
 
@@ -264,19 +275,30 @@ async def activate_workflow_version(
 
         session.commit()
 
-        # Audit log
-        audit.log(
-            "WORKFLOW_ACTIVATED",
-            current_user["email"],
-            f"{workflow_name}:v{version}",
-            f"Activated workflow {workflow_name} version {version}"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "WORKFLOW_ACTIVATED",
+                current_user["email"],
+                f"{workflow_name}:v{version}",
+                f"Activated workflow {workflow_name} version {version}"
+            )
+        except Exception:
+            pass
 
         return {
             "message": f"Workflow '{workflow_name}' version {version} activated",
             "workflow_id": str(workflow.id)
         }
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error activating workflow: {str(e)}"
+        )
     finally:
         session.close()
 
@@ -324,13 +346,16 @@ async def approve_workflow_version(
 
         session.commit()
 
-        # Audit log
-        audit.log(
-            "WORKFLOW_APPROVED",
-            current_user["email"],
-            f"{workflow_name}:v{version}",
-            f"Approved workflow {workflow_name} version {version}"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "WORKFLOW_APPROVED",
+                current_user["email"],
+                f"{workflow_name}:v{version}",
+                f"Approved workflow {workflow_name} version {version}"
+            )
+        except Exception:
+            pass
 
         return {
             "message": f"Workflow '{workflow_name}' version {version} approved",
@@ -338,6 +363,14 @@ async def approve_workflow_version(
             "approved_at": workflow.approved_at.isoformat()
         }
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error approving workflow: {str(e)}"
+        )
     finally:
         session.close()
 
@@ -383,16 +416,27 @@ async def delete_workflow_version(
         session.delete(workflow)
         session.commit()
 
-        # Audit log
-        audit.log(
-            "WORKFLOW_DELETED",
-            current_user["email"],
-            f"{workflow_name}:v{version}",
-            f"Deleted workflow {workflow_name} version {version}"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "WORKFLOW_DELETED",
+                current_user["email"],
+                f"{workflow_name}:v{version}",
+                f"Deleted workflow {workflow_name} version {version}"
+            )
+        except Exception:
+            pass
 
         return {"message": f"Workflow '{workflow_name}' version {version} deleted"}
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting workflow: {str(e)}"
+        )
     finally:
         session.close()
 
@@ -473,16 +517,27 @@ async def execute_workflow(
         # and pass to the existing orchestrator
         # orchestrator.execute_visual_workflow(workflow.definition, run_id, execution.parameters)
 
-        # Audit log
-        audit.log(
-            "WORKFLOW_EXECUTED",
-            current_user["email"],
-            run_id,
-            f"Started execution of {execution.workflow_name} (version {workflow.version})"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "WORKFLOW_EXECUTED",
+                current_user["email"],
+                run_id,
+                f"Started execution of {execution.workflow_name} (version {workflow.version})"
+            )
+        except Exception:
+            pass
 
         return new_execution
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error executing workflow: {str(e)}"
+        )
     finally:
         session.close()
 
@@ -576,15 +631,26 @@ async def abort_workflow_execution(
         # TODO: Signal orchestrator to stop execution
         # orchestrator.abort_execution(run_id)
 
-        # Audit log
-        audit.log(
-            "WORKFLOW_ABORTED",
-            current_user["email"],
-            run_id,
-            f"Aborted execution {run_id}"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "WORKFLOW_ABORTED",
+                current_user["email"],
+                run_id,
+                f"Aborted execution {run_id}"
+            )
+        except Exception:
+            pass
 
         return {"message": f"Execution '{run_id}' aborted"}
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error aborting execution: {str(e)}"
+        )
     finally:
         session.close()

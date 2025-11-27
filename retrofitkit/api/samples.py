@@ -5,10 +5,11 @@ Provides CRUD operations for samples, containers, projects, and batches.
 Includes lineage tracking and workflow assignment functionality.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, UUID4
+from pydantic import BaseModel, UUID4, field_validator, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import uuid
+import re
 
 from retrofitkit.database.models import (
     Sample, Container, Project, Batch, SampleLineage,
@@ -24,14 +25,22 @@ router = APIRouter(prefix="/api/samples", tags=["samples"])
 # ============================================================================
 
 class SampleCreate(BaseModel):
-    sample_id: str
-    lot_number: Optional[str] = None
+    sample_id: str = Field(..., min_length=1, max_length=255, description="Unique sample identifier")
+    lot_number: Optional[str] = Field(None, max_length=255)
     project_id: Optional[UUID4] = None
     container_id: Optional[UUID4] = None
     parent_sample_id: Optional[UUID4] = None
     batch_id: Optional[UUID4] = None
-    status: str = 'active'
+    status: str = Field(default='active', pattern='^(active|consumed|disposed|quarantined)$')
     extra_data: Dict[str, Any] = {}
+
+    @field_validator('sample_id')
+    @classmethod
+    def validate_sample_id(cls, v: str) -> str:
+        """Validate sample ID format - alphanumeric, hyphens, underscores only."""
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError('sample_id must contain only letters, numbers, hyphens, and underscores')
+        return v
 
 
 class SampleUpdate(BaseModel):
@@ -158,10 +167,9 @@ async def create_sample(
         )
 
         session.add(new_sample)
-        session.commit()
-        session.refresh(new_sample)
+        session.flush()  # Get the ID without committing
 
-        # Create lineage entry if parent exists
+        # Create lineage entry if parent exists (same transaction)
         if sample.parent_sample_id:
             lineage = SampleLineage(
                 parent_sample_id=sample.parent_sample_id,
@@ -170,18 +178,132 @@ async def create_sample(
                 created_by=current_user["email"]
             )
             session.add(lineage)
-            session.commit()
 
-        # Audit log
-        audit.log(
-            "SAMPLE_CREATED",
-            current_user["email"],
-            sample.sample_id,
-            f"Created sample {sample.sample_id}"
-        )
+        # Commit everything in one transaction
+        session.commit()
+        session.refresh(new_sample)
+
+        # Audit log (outside transaction - non-critical)
+        try:
+            audit.log(
+                "SAMPLE_CREATED",
+                current_user["email"],
+                sample.sample_id,
+                f"Created sample {sample.sample_id}"
+            )
+        except Exception as e:
+            # Log audit failure but don't fail the request
+            print(f"Audit log failed: {e}")
 
         return new_sample
 
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        # Rollback on any other error
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating sample: {str(e)}"
+        )
+    finally:
+        session.close()
+
+
+@router.post("/bulk", response_model=List[SampleResponse], status_code=status.HTTP_201_CREATED)
+async def create_samples_bulk(
+    samples: List[SampleCreate],
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Create multiple samples in a single transaction.
+
+    Maximum 100 samples per request for performance.
+    """
+    session = get_session()
+    audit = Audit()
+
+    # Validate batch size
+    if len(samples) > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 100 samples per bulk creation"
+        )
+
+    if len(samples) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No samples provided"
+        )
+
+    try:
+        created_samples = []
+
+        # Check for duplicates in request
+        sample_ids = [s.sample_id for s in samples]
+        if len(sample_ids) != len(set(sample_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Duplicate sample IDs in request"
+            )
+
+        # Check for existing samples
+        existing = session.query(Sample).filter(
+            Sample.sample_id.in_(sample_ids)
+        ).all()
+
+        if existing:
+            existing_ids = [s.sample_id for s in existing]
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Samples already exist: {', '.join(existing_ids)}"
+            )
+
+        # Create all samples
+        for sample in samples:
+            new_sample = Sample(
+                sample_id=sample.sample_id,
+                lot_number=sample.lot_number,
+                project_id=sample.project_id,
+                container_id=sample.container_id,
+                parent_sample_id=sample.parent_sample_id,
+                batch_id=sample.batch_id,
+                status=sample.status,
+                extra_data=sample.extra_data,
+                created_by=current_user["email"]
+            )
+            session.add(new_sample)
+            created_samples.append(new_sample)
+
+        # Commit all at once
+        session.commit()
+
+        # Refresh all
+        for sample in created_samples:
+            session.refresh(sample)
+
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "SAMPLES_BULK_CREATED",
+                current_user["email"],
+                "bulk_operation",
+                f"Created {len(created_samples)} samples in bulk"
+            )
+        except Exception as e:
+            print(f"Audit log failed: {e}")
+
+        return created_samples
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating samples in bulk: {str(e)}"
+        )
     finally:
         session.close()
 

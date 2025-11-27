@@ -344,18 +344,30 @@ async def consume_stock(
     quantity: int,
     current_user: dict = Depends(get_current_user)
 ):
-    """Consume stock from a lot."""
+    """Consume stock from a lot with pessimistic locking to prevent race conditions."""
     session = get_session()
     audit = Audit()
 
     try:
-        lot = session.query(StockLot).filter(StockLot.lot_number == lot_number).first()
+        # Validate quantity
+        if quantity <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Quantity must be positive"
+            )
+
+        # Use SELECT FOR UPDATE to lock the row and prevent concurrent modifications
+        lot = session.query(StockLot).filter(
+            StockLot.lot_number == lot_number
+        ).with_for_update().first()
+
         if not lot:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Lot '{lot_number}' not found"
             )
 
+        # Check quantity after acquiring lock
         if lot.quantity_remaining < quantity:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -367,25 +379,40 @@ async def consume_stock(
         if lot.quantity_remaining == 0:
             lot.status = 'depleted'
 
-        # Update item stock
-        item = session.query(InventoryItem).filter(InventoryItem.id == lot.item_id).first()
+        # Update item stock (also lock this row)
+        item = session.query(InventoryItem).filter(
+            InventoryItem.id == lot.item_id
+        ).with_for_update().first()
+
         if item:
             item.current_stock -= quantity
 
         session.commit()
 
-        audit.log(
-            "STOCK_CONSUMED",
-            current_user["email"],
-            lot_number,
-            f"Consumed {quantity} units from lot {lot_number}"
-        )
+        # Audit log (non-blocking)
+        try:
+            audit.log(
+                "STOCK_CONSUMED",
+                current_user["email"],
+                lot_number,
+                f"Consumed {quantity} units from lot {lot_number}"
+            )
+        except Exception as e:
+            print(f"Audit log failed: {e}")
 
         return {
             "message": f"Consumed {quantity} units",
             "remaining": lot.quantity_remaining
         }
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error consuming stock: {str(e)}"
+        )
     finally:
         session.close()
 
