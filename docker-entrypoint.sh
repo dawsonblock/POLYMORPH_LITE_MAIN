@@ -20,19 +20,10 @@ echo "📦 Running database migrations..."
 alembic upgrade head
 echo "✓ Migrations complete"
 
-# Seed default roles (idempotent)
+# Seed default roles via separate Python script
 echo ""
 echo "👥 Seeding default roles..."
-python3 -c "
-from retrofitkit.db.session import SessionLocal
-from retrofitkit.compliance.rbac import seed_default_roles
-db = SessionLocal()
-try:
-    seed_default_roles(db)
-    print('✓ Default roles seeded')
-finally:
-    db.close()
-"
+python3 -c "from retrofitkit.db.session import SessionLocal; from retrofitkit.compliance.rbac import seed_default_roles; db = SessionLocal(); seed_default_roles(db); db.close(); print('✓ Default roles seeded')"
 
 # Start the application
 echo ""

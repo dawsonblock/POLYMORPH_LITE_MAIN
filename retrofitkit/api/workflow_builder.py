@@ -12,13 +12,12 @@ import hashlib
 import json
 import uuid
 
-from sqlalchemy.orm import Session
-from retrofitkit.db.session import get_db
-from retrofitkit.db.models.workflow import WorkflowVersion, WorkflowExecution, ConfigSnapshot
-from retrofitkit.db.models.user import User
-from retrofitkit.api.dependencies import get_current_user, require_role
+from retrofitkit.database.models import (
+    WorkflowVersion, WorkflowExecution, ConfigSnapshot,
+    get_session
+)
 from retrofitkit.compliance.audit import Audit
-from retrofitkit.core.recipe import Recipe, RecipeStep
+from retrofitkit.compliance.tokens import get_current_user
 
 router = APIRouter(prefix="/api/workflow-builder", tags=["workflow-builder"])
 
@@ -100,8 +99,7 @@ class WorkflowExecutionResponse(BaseModel):
 @router.post("/workflows", response_model=WorkflowDefinitionResponse, status_code=status.HTTP_201_CREATED)
 async def create_workflow_definition(
     workflow: WorkflowDefinitionCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Create a new workflow definition.
@@ -109,10 +107,12 @@ async def create_workflow_definition(
     The workflow definition includes nodes (blocks) and edges (connections)
     that can be rendered in a visual workflow builder.
     """
+    session = get_session()
     audit = Audit()
 
+    try:
         # Get next version number
-        latest = db.query(WorkflowVersion).filter(
+        latest = session.query(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow.workflow_name
         ).order_by(WorkflowVersion.version.desc()).first()
 
@@ -137,22 +137,22 @@ async def create_workflow_definition(
             definition_hash=definition_hash,
             is_active=False,  # Must be explicitly activated
             is_approved=False,  # Must be approved before execution
-            created_by=current_user.email
+            created_by=current_user["email"]
         )
 
-        db.add(new_workflow)
-        db.commit()
-        db.refresh(new_workflow)
+        session.add(new_workflow)
+        session.commit()
+        session.refresh(new_workflow)
 
         # Audit log (non-blocking)
         try:
             audit.log(
                 "WORKFLOW_CREATED",
-                current_user.email,
+                current_user["email"],
                 f"{workflow.workflow_name}:v{next_version}",
                 f"Created workflow {workflow.workflow_name} version {next_version}"
             )
-    except Exception:
+        except Exception:
             pass  # Don't fail the request if audit logging fails
 
         return new_workflow
@@ -160,30 +160,38 @@ async def create_workflow_definition(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating workflow: {str(e)}"
         )
+    finally:
+        session.close()
 
 
 @router.get("/workflows/{workflow_name}", response_model=List[WorkflowDefinitionResponse])
-async def list_workflow_versions(workflow_name: str, db: Session = Depends(get_db)):
+async def list_workflow_versions(workflow_name: str):
     """List all versions of a workflow."""
+    session = get_session()
 
-        versions = db.query(WorkflowVersion).filter(
+    try:
+        versions = session.query(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name
         ).order_by(WorkflowVersion.version.desc()).all()
 
         return versions
 
+    finally:
+        session.close()
 
 
 @router.get("/workflows/{workflow_name}/v/{version}", response_model=WorkflowDefinitionResponse)
-async def get_workflow_version(workflow_name: str, version: int, db: Session = Depends(get_db)):
+async def get_workflow_version(workflow_name: str, version: int):
     """Get a specific workflow version."""
+    session = get_session()
 
-        workflow = db.query(WorkflowVersion).filter(
+    try:
+        workflow = session.query(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.version == version
         ).first()
@@ -196,13 +204,17 @@ async def get_workflow_version(workflow_name: str, version: int, db: Session = D
 
         return workflow
 
+    finally:
+        session.close()
 
 
 @router.get("/workflows/{workflow_name}/active", response_model=WorkflowDefinitionResponse)
-async def get_active_workflow(workflow_name: str, db: Session = Depends(get_db)):
+async def get_active_workflow(workflow_name: str):
     """Get the currently active version of a workflow."""
+    session = get_session()
 
-        workflow = db.query(WorkflowVersion).filter(
+    try:
+        workflow = session.query(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.is_active == True
         ).first()
@@ -215,15 +227,15 @@ async def get_active_workflow(workflow_name: str, db: Session = Depends(get_db))
 
         return workflow
 
+    finally:
+        session.close()
 
 
 @router.post("/workflows/{workflow_name}/v/{version}/activate")
 async def activate_workflow_version(
     workflow_name: str,
     version: int,
-    ,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Activate a specific workflow version.
@@ -231,9 +243,11 @@ async def activate_workflow_version(
     Deactivates all other versions of the same workflow.
     Requires approval before activation.
     """
+    session = get_session()
     audit = Audit()
 
-        workflow = db.query(WorkflowVersion).filter(
+    try:
+        workflow = session.query(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.version == version
         ).first()
@@ -251,7 +265,7 @@ async def activate_workflow_version(
             )
 
         # Deactivate all other versions
-        db.query(WorkflowVersion).filter(
+        session.query(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.id != workflow.id
         ).update({"is_active": False})
@@ -259,17 +273,17 @@ async def activate_workflow_version(
         # Activate this version
         workflow.is_active = True
 
-        db.commit()
+        session.commit()
 
         # Audit log (non-blocking)
         try:
             audit.log(
                 "WORKFLOW_ACTIVATED",
-                current_user.email,
+                current_user["email"],
                 f"{workflow_name}:v{version}",
                 f"Activated workflow {workflow_name} version {version}"
             )
-    except Exception:
+        except Exception:
             pass
 
         return {
@@ -280,20 +294,20 @@ async def activate_workflow_version(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error activating workflow: {str(e)}"
         )
+    finally:
+        session.close()
 
 
 @router.post("/workflows/{workflow_name}/v/{version}/approve")
 async def approve_workflow_version(
     workflow_name: str,
     version: int,
-    ,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Approve a workflow version for execution.
@@ -301,9 +315,11 @@ async def approve_workflow_version(
     Only approved workflows can be activated.
     Requires QA or Admin role (implement role check as needed).
     """
+    session = get_session()
     audit = Audit()
 
-        workflow = db.query(WorkflowVersion).filter(
+    try:
+        workflow = session.query(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.version == version
         ).first()
@@ -325,54 +341,56 @@ async def approve_workflow_version(
         #     raise HTTPException(403, "Insufficient permissions")
 
         workflow.is_approved = True
-        workflow.approved_by = current_user.email
+        workflow.approved_by = current_user["email"]
         workflow.approved_at = datetime.utcnow()
 
-        db.commit()
+        session.commit()
 
         # Audit log (non-blocking)
         try:
             audit.log(
                 "WORKFLOW_APPROVED",
-                current_user.email,
+                current_user["email"],
                 f"{workflow_name}:v{version}",
                 f"Approved workflow {workflow_name} version {version}"
             )
-    except Exception:
+        except Exception:
             pass
 
         return {
             "message": f"Workflow '{workflow_name}' version {version} approved",
-            "approved_by": current_user.email,
+            "approved_by": current_user["email"],
             "approved_at": workflow.approved_at.isoformat()
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error approving workflow: {str(e)}"
         )
+    finally:
+        session.close()
 
 
 @router.delete("/workflows/{workflow_name}/v/{version}")
 async def delete_workflow_version(
     workflow_name: str,
     version: int,
-    ,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Delete a workflow version.
 
     Cannot delete active or approved workflows.
     """
+    session = get_session()
     audit = Audit()
 
-        workflow = db.query(WorkflowVersion).filter(
+    try:
+        workflow = session.query(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.version == version
         ).first()
@@ -395,18 +413,18 @@ async def delete_workflow_version(
                 detail="Cannot delete approved workflow"
             )
 
-        db.delete(workflow)
-        db.commit()
+        session.delete(workflow)
+        session.commit()
 
         # Audit log (non-blocking)
         try:
             audit.log(
                 "WORKFLOW_DELETED",
-                current_user.email,
+                current_user["email"],
                 f"{workflow_name}:v{version}",
                 f"Deleted workflow {workflow_name} version {version}"
             )
-    except Exception:
+        except Exception:
             pass
 
         return {"message": f"Workflow '{workflow_name}' version {version} deleted"}
@@ -414,109 +432,42 @@ async def delete_workflow_version(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting workflow: {str(e)}"
         )
+    finally:
+        session.close()
 
 
 # ============================================================================
 # WORKFLOW EXECUTION ENDPOINTS
 # ============================================================================
 
-
-
-def _graph_to_recipe(workflow_version: WorkflowVersion) -> Recipe:
-    """
-    Convert visual workflow graph to Recipe object.
-    
-    Supports: Acquire, Measure, Delay node types.
-    Minimal implementation for basic workflows.
-    """
-    graph = workflow_version.definition
-    nodes = {n["id"]: n for n in graph.get("nodes", [])}
-    edges = graph.get("edges", [])
-    
-    # Build execution order (simple linear for now)
-    start_node = next((n for n in graph["nodes"] if n.get("type") == "Start"), None)
-    if not start_node:
-        # If no Start node, use first node
-        if not graph["nodes"]:
-            raise ValueError("Workflow has no nodes")
-        start_node = graph["nodes"][0]
-    
-    # Follow edges to build step list
-    steps = []
-    current_id = start_node["id"]
-    visited = set()
-    
-    while current_id and current_id not in visited:
-        visited.add(current_id)
-        node = nodes.get(current_id)
-        if not node:
-            break
-        
-        # Convert node to recipe step based on type
-        node_type = node.get("type", "")
-        node_data = node.get("data", {})
-        
-        if node_type == "Acquire" or node_type == "acquire":
-            steps.append(RecipeStep(
-                type="bias_set",
-                params={
-                    "volts": float(node_data.get("voltage", 0.0)),
-                    "device": node_data.get("device_id", "daq"),
-                }
-            ))
-        elif node_type == "Measure" or node_type == "measure":
-            steps.append(RecipeStep(
-                type="wait_for_raman",
-                params={
-                    "timeout_s": int(node_data.get("timeout", 120)),
-                    "device": node_data.get("device_id", "raman"),
-                }
-            ))
-        elif node_type == "Delay" or node_type == "delay" or node_type == "hold":
-            steps.append(RecipeStep(
-                type="hold",
-                params={"seconds": float(node_data.get("seconds", 1.0))}
-            ))
-        
-        # Find next node
-        next_edge = next((e for e in edges if e.get("source") == current_id), None)
-        current_id = next_edge.get("target") if next_edge else None
-    
-    return Recipe(
-        name=workflow_version.workflow_name,
-        steps=steps,
-        metadata={"version": workflow_version.version, "workflow_id": str(workflow_version.id)}
-    )
-
-
 @router.post("/execute", response_model=WorkflowExecutionResponse, status_code=status.HTTP_201_CREATED)
 async def execute_workflow(
     execution: WorkflowExecutionCreate,
-    ,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Execute a workflow.
 
     Creates a workflow execution record and triggers the orchestrator.
     """
+    session = get_session()
     audit = Audit()
 
+    try:
         # Get workflow version
         if execution.workflow_version:
-            workflow = db.query(WorkflowVersion).filter(
+            workflow = session.query(WorkflowVersion).filter(
                 WorkflowVersion.workflow_name == execution.workflow_name,
                 WorkflowVersion.version == execution.workflow_version
             ).first()
         else:
             # Use active version
-            workflow = db.query(WorkflowVersion).filter(
+            workflow = session.query(WorkflowVersion).filter(
                 WorkflowVersion.workflow_name == execution.workflow_name,
                 WorkflowVersion.is_active == True
             ).first()
@@ -542,37 +493,26 @@ async def execute_workflow(
             timestamp=datetime.utcnow(),
             config_data={"workflow_parameters": execution.parameters},
             config_hash=hashlib.sha256(json.dumps(execution.parameters, sort_keys=True).encode()).hexdigest(),
-            created_by=current_user.email,
+            created_by=current_user["email"],
             reason=f"Execution of {execution.workflow_name}"
         )
-    db.add(config_snapshot)
-        db.flush()
+        session.add(config_snapshot)
+        session.flush()
 
         # Create execution record
         new_execution = WorkflowExecution(
             run_id=run_id,
             workflow_version_id=workflow.id,
-            operator=current_user.email,
+            operator=current_user["email"],
             status="running",
             config_snapshot_id=config_snapshot.id
         )
 
-        db.add(new_execution)
-        db.commit()
-        db.refresh(new_execution)
+        session.add(new_execution)
+        session.commit()
+        session.refresh(new_execution)
 
-        # Convert graph to recipe and trigger orchestrator
-        try:
-            recipe = _graph_to_recipe(workflow)
-            # Note: Actual orchestrator integration would require AppContext
-            # For now, just mark as pending orchestrator implementation
-            new_execution.status = "pending"  # Would be "running" when orchestrator called
-            db.commit()
-        except Exception as e:
-            new_execution.status = "failed"
-            new_execution.error_message = f"Graph conversion error: {str(e)}"
-            db.commit()
-            # Don't raise - execution record created even if conversion fails
+        # TODO: Trigger orchestrator to execute workflow
         # This would convert the visual workflow definition to executable steps
         # and pass to the existing orchestrator
         # orchestrator.execute_visual_workflow(workflow.definition, run_id, execution.parameters)
@@ -581,11 +521,11 @@ async def execute_workflow(
         try:
             audit.log(
                 "WORKFLOW_EXECUTED",
-                current_user.email,
+                current_user["email"],
                 run_id,
                 f"Started execution of {execution.workflow_name} (version {workflow.version})"
             )
-    except Exception:
+        except Exception:
             pass
 
         return new_execution
@@ -593,18 +533,22 @@ async def execute_workflow(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error executing workflow: {str(e)}"
         )
+    finally:
+        session.close()
 
 
 @router.get("/executions/{run_id}", response_model=WorkflowExecutionResponse)
-async def get_workflow_execution(run_id: str, db: Session = Depends(get_db)):
+async def get_workflow_execution(run_id: str):
     """Get workflow execution details."""
+    session = get_session()
 
-        execution = db.query(WorkflowExecution).filter(
+    try:
+        execution = session.query(WorkflowExecution).filter(
             WorkflowExecution.run_id == run_id
         ).first()
 
@@ -616,6 +560,8 @@ async def get_workflow_execution(run_id: str, db: Session = Depends(get_db)):
 
         return execution
 
+    finally:
+        session.close()
 
 
 @router.get("/executions", response_model=List[WorkflowExecutionResponse])
@@ -626,8 +572,10 @@ async def list_workflow_executions(
     offset: int = 0
 ):
     """List workflow executions with optional filtering."""
+    session = get_session()
 
-        query = db.query(WorkflowExecution)
+    try:
+        query = session.query(WorkflowExecution)
 
         if workflow_name:
             # Join with WorkflowVersion to filter by name
@@ -644,19 +592,21 @@ async def list_workflow_executions(
 
         return executions
 
+    finally:
+        session.close()
 
 
 @router.post("/executions/{run_id}/abort")
 async def abort_workflow_execution(
     run_id: str,
-    ,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Abort a running workflow execution."""
+    session = get_session()
     audit = Audit()
 
-        execution = db.query(WorkflowExecution).filter(
+    try:
+        execution = session.query(WorkflowExecution).filter(
             WorkflowExecution.run_id == run_id
         ).first()
 
@@ -676,7 +626,7 @@ async def abort_workflow_execution(
         execution.completed_at = datetime.utcnow()
         execution.error_message = f"Aborted by {current_user['email']}"
 
-        db.commit()
+        session.commit()
 
         # TODO: Signal orchestrator to stop execution
         # orchestrator.abort_execution(run_id)
@@ -685,11 +635,11 @@ async def abort_workflow_execution(
         try:
             audit.log(
                 "WORKFLOW_ABORTED",
-                current_user.email,
+                current_user["email"],
                 run_id,
                 f"Aborted execution {run_id}"
             )
-    except Exception:
+        except Exception:
             pass
 
         return {"message": f"Execution '{run_id}' aborted"}
@@ -697,8 +647,10 @@ async def abort_workflow_execution(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error aborting execution: {str(e)}"
         )
+    finally:
+        session.close()

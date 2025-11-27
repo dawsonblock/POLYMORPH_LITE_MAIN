@@ -9,12 +9,11 @@ from pydantic import BaseModel, UUID4
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timedelta
 
-from sqlalchemy.orm import Session
-from retrofitkit.db.session import get_db
-from retrofitkit.db.models.inventory import InventoryItem, StockLot, Vendor
-from retrofitkit.db.models.user import User
-from retrofitkit.api.dependencies import get_current_user, require_role
+from retrofitkit.database.models import (
+    InventoryItem, StockLot, Vendor, get_session
+)
 from retrofitkit.compliance.audit import Audit
+from retrofitkit.compliance.tokens import get_current_user
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -95,14 +94,14 @@ class VendorResponse(BaseModel):
 @router.post("/items", response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED)
 async def create_inventory_item(
     item: InventoryItemCreate,
-    
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Create a new inventory item."""
+    session = get_session()
     audit = Audit()
 
-        existing = db.query(InventoryItem).filter(
+    try:
+        existing = session.query(InventoryItem).filter(
             InventoryItem.item_code == item.item_code
         ).first()
         if existing:
@@ -119,22 +118,24 @@ async def create_inventory_item(
             min_stock=item.min_stock,
             reorder_point=item.reorder_point,
             location=item.location,
-            created_by=current_user.email
+            created_by=current_user["email"]
         )
 
-        db.add(new_item)
-        db.commit()
-        db.refresh(new_item)
+        session.add(new_item)
+        session.commit()
+        session.refresh(new_item)
 
         audit.log(
             "INVENTORY_ITEM_CREATED",
-            current_user.email,
+            current_user["email"],
             item.item_code,
             f"Created inventory item {item.item_code}"
         )
 
         return new_item
 
+    finally:
+        session.close()
 
 
 @router.get("/items", response_model=List[InventoryItemResponse])
@@ -145,8 +146,10 @@ async def list_inventory_items(
     offset: int = 0
 ):
     """List inventory items with optional filtering."""
+    session = get_session()
 
-        query = db.query(InventoryItem)
+    try:
+        query = session.query(InventoryItem)
 
         if category:
             query = query.filter(InventoryItem.category == category)
@@ -157,13 +160,17 @@ async def list_inventory_items(
         items = query.order_by(InventoryItem.name).limit(limit).offset(offset).all()
         return items
 
+    finally:
+        session.close()
 
 
 @router.get("/items/{item_code}", response_model=InventoryItemResponse)
-async def get_inventory_item(item_code: str, db: Session = Depends(get_db)):
+async def get_inventory_item(item_code: str):
     """Get inventory item details."""
+    session = get_session()
 
-        item = db.query(InventoryItem).filter(
+    try:
+        item = session.query(InventoryItem).filter(
             InventoryItem.item_code == item_code
         ).first()
         if not item:
@@ -171,15 +178,19 @@ async def get_inventory_item(item_code: str, db: Session = Depends(get_db)):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Item '{item_code}' not found"
             )
-    return item
+        return item
 
+    finally:
+        session.close()
 
 
 @router.get("/alerts/low-stock")
-async def get_low_stock_alerts(, db: Session = Depends(get_db)):
+async def get_low_stock_alerts():
     """Get items below reorder point."""
+    session = get_session()
 
-        low_stock_items = db.query(InventoryItem).filter(
+    try:
+        low_stock_items = session.query(InventoryItem).filter(
             InventoryItem.current_stock < InventoryItem.reorder_point
         ).all()
 
@@ -197,15 +208,19 @@ async def get_low_stock_alerts(, db: Session = Depends(get_db)):
             ]
         }
 
+    finally:
+        session.close()
 
 
 @router.get("/alerts/expiring")
-async def get_expiring_lots(days: int = 30, db: Session = Depends(get_db)):
+async def get_expiring_lots(days: int = 30):
     """Get stock lots expiring within N days."""
+    session = get_session()
 
+    try:
         cutoff_date = date.today() + timedelta(days=days)
 
-        expiring_lots = db.query(StockLot).filter(
+        expiring_lots = session.query(StockLot).filter(
             StockLot.expiration_date <= cutoff_date,
             StockLot.expiration_date >= date.today(),
             StockLot.status == 'active'
@@ -225,6 +240,8 @@ async def get_expiring_lots(days: int = 30, db: Session = Depends(get_db)):
             ]
         }
 
+    finally:
+        session.close()
 
 
 # ============================================================================
@@ -234,15 +251,15 @@ async def get_expiring_lots(days: int = 30, db: Session = Depends(get_db)):
 @router.post("/lots", response_model=StockLotResponse, status_code=status.HTTP_201_CREATED)
 async def create_stock_lot(
     lot: StockLotCreate,
-    
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Add a new stock lot."""
+    session = get_session()
     audit = Audit()
 
+    try:
         # Lookup item
-        item = db.query(InventoryItem).filter(
+        item = session.query(InventoryItem).filter(
             InventoryItem.item_code == lot.item_code
         ).first()
         if not item:
@@ -252,7 +269,7 @@ async def create_stock_lot(
             )
 
         # Check if lot number already exists
-        existing = db.query(StockLot).filter(
+        existing = session.query(StockLot).filter(
             StockLot.lot_number == lot.lot_number
         ).first()
         if existing:
@@ -270,23 +287,25 @@ async def create_stock_lot(
             expiration_date=lot.expiration_date
         )
 
-        db.add(new_lot)
+        session.add(new_lot)
 
         # Update item stock count
         item.current_stock += lot.quantity
 
-        db.commit()
-        db.refresh(new_lot)
+        session.commit()
+        session.refresh(new_lot)
 
         audit.log(
             "STOCK_LOT_RECEIVED",
-            current_user.email,
+            current_user["email"],
             lot.lot_number,
             f"Received lot {lot.lot_number} for item {lot.item_code}, quantity: {lot.quantity}"
         )
 
         return new_lot
 
+    finally:
+        session.close()
 
 
 @router.get("/lots", response_model=List[StockLotResponse])
@@ -297,11 +316,13 @@ async def list_stock_lots(
     offset: int = 0
 ):
     """List stock lots."""
+    session = get_session()
 
-        query = db.query(StockLot)
+    try:
+        query = session.query(StockLot)
 
         if item_code:
-            item = db.query(InventoryItem).filter(
+            item = session.query(InventoryItem).filter(
                 InventoryItem.item_code == item_code
             ).first()
             if item:
@@ -313,19 +334,21 @@ async def list_stock_lots(
         lots = query.order_by(StockLot.received_date.desc()).limit(limit).offset(offset).all()
         return lots
 
+    finally:
+        session.close()
 
 
 @router.post("/lots/{lot_number}/consume")
 async def consume_stock(
     lot_number: str,
     quantity: int,
-    
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Consume stock from a lot with pessimistic locking to prevent race conditions."""
+    session = get_session()
     audit = Audit()
 
+    try:
         # Validate quantity
         if quantity <= 0:
             raise HTTPException(
@@ -334,7 +357,7 @@ async def consume_stock(
             )
 
         # Use SELECT FOR UPDATE to lock the row and prevent concurrent modifications
-        lot = db.query(StockLot).filter(
+        lot = session.query(StockLot).filter(
             StockLot.lot_number == lot_number
         ).with_for_update().first()
 
@@ -357,24 +380,24 @@ async def consume_stock(
             lot.status = 'depleted'
 
         # Update item stock (also lock this row)
-        item = db.query(InventoryItem).filter(
+        item = session.query(InventoryItem).filter(
             InventoryItem.id == lot.item_id
         ).with_for_update().first()
 
         if item:
             item.current_stock -= quantity
 
-        db.commit()
+        session.commit()
 
         # Audit log (non-blocking)
         try:
             audit.log(
                 "STOCK_CONSUMED",
-                current_user.email,
+                current_user["email"],
                 lot_number,
                 f"Consumed {quantity} units from lot {lot_number}"
             )
-    except Exception as e:
+        except Exception as e:
             print(f"Audit log failed: {e}")
 
         return {
@@ -385,11 +408,13 @@ async def consume_stock(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error consuming stock: {str(e)}"
         )
+    finally:
+        session.close()
 
 
 # ============================================================================
@@ -399,14 +424,14 @@ async def consume_stock(
 @router.post("/vendors", response_model=VendorResponse, status_code=status.HTTP_201_CREATED)
 async def create_vendor(
     vendor: VendorCreate,
-    
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Create a new vendor."""
+    session = get_session()
     audit = Audit()
 
-        existing = db.query(Vendor).filter(Vendor.vendor_id == vendor.vendor_id).first()
+    try:
+        existing = session.query(Vendor).filter(Vendor.vendor_id == vendor.vendor_id).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -419,39 +444,49 @@ async def create_vendor(
             contact_info=vendor.contact_info
         )
 
-        db.add(new_vendor)
-        db.commit()
-        db.refresh(new_vendor)
+        session.add(new_vendor)
+        session.commit()
+        session.refresh(new_vendor)
 
         audit.log(
             "VENDOR_CREATED",
-            current_user.email,
+            current_user["email"],
             vendor.vendor_id,
             f"Created vendor {vendor.vendor_id}"
         )
 
         return new_vendor
 
+    finally:
+        session.close()
 
 
 @router.get("/vendors", response_model=List[VendorResponse])
-async def list_vendors(limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
+async def list_vendors(limit: int = 100, offset: int = 0):
     """List all vendors."""
+    session = get_session()
 
-        vendors = db.query(Vendor).order_by(Vendor.name).limit(limit).offset(offset).all()
+    try:
+        vendors = session.query(Vendor).order_by(Vendor.name).limit(limit).offset(offset).all()
         return vendors
 
+    finally:
+        session.close()
 
 
 @router.get("/vendors/{vendor_id}", response_model=VendorResponse)
-async def get_vendor(vendor_id: str, db: Session = Depends(get_db)):
+async def get_vendor(vendor_id: str):
     """Get vendor details."""
+    session = get_session()
 
-        vendor = db.query(Vendor).filter(Vendor.vendor_id == vendor_id).first()
+    try:
+        vendor = session.query(Vendor).filter(Vendor.vendor_id == vendor_id).first()
         if not vendor:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Vendor '{vendor_id}' not found"
             )
-    return vendor
+        return vendor
 
+    finally:
+        session.close()
