@@ -11,10 +11,10 @@ from datetime import datetime
 import uuid
 import re
 
-from retrofitkit.database.models import (
-    Sample, Container, Project, Batch, SampleLineage,
-    WorkflowSampleAssignment, get_session
-)
+from retrofitkit.db.models.sample import Project, Batch, Container, Sample, SampleLineage
+from retrofitkit.db.models.workflow import WorkflowSampleAssignment
+from retrofitkit.db.session import get_db
+from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.compliance.tokens import get_current_user
 
