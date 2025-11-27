@@ -207,6 +207,8 @@ from retrofitkit.api.workflows import router as workflows_router
 from retrofitkit.api.samples import router as samples_router
 from retrofitkit.api.inventory import router as inventory_router
 from retrofitkit.api.calibration import router as calibration_router
+from retrofitkit.api.workflow_builder import router as workflow_builder_router
+from retrofitkit.api.compliance import router as compliance_router
 
 # Import drivers to trigger registry auto-registration
 from retrofitkit.drivers.raman import vendor_ocean_optics  # noqa: F401
@@ -219,6 +221,8 @@ app.include_router(workflows_router, prefix="/api", tags=["workflows"])
 app.include_router(samples_router, tags=["samples"])  # Prefix already in router definition
 app.include_router(inventory_router, tags=["inventory"])  # Prefix already in router definition
 app.include_router(calibration_router, tags=["calibration"])  # Prefix already in router definition
+app.include_router(workflow_builder_router, tags=["workflow-builder"])  # Prefix already in router definition
+app.include_router(compliance_router, tags=["compliance"])  # Prefix already in router definition
 
 app.mount(
     "/static",
