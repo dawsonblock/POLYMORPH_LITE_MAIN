@@ -6,24 +6,28 @@ import jwt
 import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-from retrofitkit.db.session import get_db, get_settings
+from retrofitkit.database.models import get_session
 from retrofitkit.db.models.user import User
+
+# JWT Configuration
+SECRET = "dev-secret-key-change-in-production"
+ALG = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-# Get settings
-settings = get_settings()
-SECRET_KEY = settings.secret_key
-JWT_SECRET_KEY = settings.jwt_secret_key
-ALG = "HS256"
+# Constants
+SECRET_KEY = SECRET
+JWT_SECRET_KEY = SECRET
 
 
-def create_access_token(data: dict, expires_minutes: int = 480) -> str:
+def create_access_token(data: dict, expires_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
@@ -52,7 +56,7 @@ def decode_token(token: str) -> Dict[str, Any]:
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_session)
 ) -> Dict[str, Any]:
     """
     Get current user from JWT token.

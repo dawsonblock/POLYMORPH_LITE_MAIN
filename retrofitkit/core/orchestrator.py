@@ -59,6 +59,7 @@ class Orchestrator:
             "ai_failures": self._ai_failures,
             "run_state": self.mx.get("polymorph_run_state"),
             "active_run_id": self.mx.get("polymorph_run_active", {}).get("run_id"),
+            "progress": getattr(self, "_progress", {"current": 0, "total": 0}),
         }
     
     def _spectrum_to_dict(self, data: Union[Spectrum, Dict[str, Any]]) -> Dict[str, Any]:
@@ -248,7 +249,10 @@ class Orchestrator:
 
         try:
             steps = recipe.steps
+            self._progress = {"current": 0, "total": len(steps)}
+            
             for idx, step in enumerate(steps):
+                self._progress["current"] = idx
                 if idx < start_idx:
                     continue
 

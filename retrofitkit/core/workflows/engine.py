@@ -31,6 +31,8 @@ class WorkflowEngine:
         """
         self._safety = safety
         self._device_instances: Dict[str, Any] = {}
+        self.current_step_index = 0
+        self.total_steps = 0
     
     async def run(
         self,
@@ -54,8 +56,15 @@ class WorkflowEngine:
         
         try:
             current_id = workflow.entry_step
+            total_steps = len(workflow.steps)
+            step_index = 0
             
             while current_id:
+                step_index += 1
+                # Update progress
+                self.current_step_index = step_index
+                self.total_steps = total_steps
+                
                 step = workflow.steps[current_id]
                 steps_executed.append(current_id)
                 

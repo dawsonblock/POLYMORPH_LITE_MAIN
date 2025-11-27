@@ -18,7 +18,7 @@ import uuid
 from io import BytesIO
 
 from retrofitkit.database.models import (
-    AuditLog, ConfigSnapshot, WorkflowExecution, Sample,
+    AuditEvent as AuditLog, ConfigSnapshot, WorkflowExecution, Sample,
     WorkflowVersion, get_session
 )
 from retrofitkit.compliance.audit import Audit
@@ -475,47 +475,46 @@ async def create_config_snapshot(
     audit = Audit()
 
     try:
-        # TODO: Gather actual system configuration
-        # For now, use placeholder config
         # Gather actual system configuration
         from retrofitkit.core.app import AppContext
+        from retrofitkit import __version__ as app_version
+        from sqlalchemy import text
         import hashlib
         import json
         
         app_context = AppContext.load()
         
         # Get Alembic revision from database
-        alembic_revision = session.execute(
-            "SELECT version_num FROM alembic_version"
-        ).scalar() if session.bind.dialect.has_table(session.connection(), "alembic_version") else "unknown"
+        # We use text() to execute raw SQL safely
+        try:
+            result = session.execute(text("SELECT version_num FROM alembic_version"))
+            alembic_revision = result.scalar()
+        except Exception:
+            alembic_revision = "unknown"
         
         # Build complete config snapshot
         config_data = {
             # System configuration
             "system": {
-                "app_name": app_context.config.get("APP_NAME", "POLYMORPH-LITE"),
-                "environment": app_context.config.get("ENVIRONMENT", "production"),
-                "version": "3.0.0",
+                "app_name": app_context.config.system.name,
+                "environment": app_context.config.system.mode,
+                "version": app_version,
             },
             # Active hardware overlay
             "hardware": {
-                "active_overlay": app_context.config.get("ACTIVE_OVERLAY", "default"),
-                "devices": {
-                    "daq": app_context.config.get("DAQ_TYPE", "simulator"),
-                    "raman": app_context.config.get("RAMAN_TYPE", "stub"),
-                }
+                "daq_backend": app_context.config.daq.backend,
+                "raman_provider": app_context.config.raman.provider,
             },
             # Safety configuration
             "safety": {
-                "interlocks_enabled": app_context.config.get("safety", {}).get("interlocks_enabled", False),
-                "watchdog_enabled": app_context.config.get("safety", {}).get("watchdog_enabled", False),
+                "interlocks_enabled": app_context.config.safety.interlocks.get("enabled", False),
+                "watchdog_seconds": app_context.config.safety.watchdog_seconds,
             },
             # Gating rules
-            "gating": app_context.config.get("gating", {}),
+            "gating": [rule for rule in app_context.config.gating.rules],
             # Database
             "database": {
                 "alembic_revision": alembic_revision,
-                "schema_version": "3.0.0",
             },
             # Snapshot metadata
             "snapshot_metadata": {
@@ -526,7 +525,8 @@ async def create_config_snapshot(
         }
         
         # Generate deterministic hash
-        config_json = json.dumps(config_data, sort_keys=True)
+        # We use sort_keys=True to ensure consistent JSON serialization
+        config_json = json.dumps(config_data, sort_keys=True, default=str)
         config_hash = hashlib.sha256(config_json.encode()).hexdigest()
         
         # Create snapshot record

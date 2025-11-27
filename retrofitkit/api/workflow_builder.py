@@ -243,11 +243,29 @@ async def activate_workflow_version(
 
     Deactivates all other versions of the same workflow.
     Requires approval before activation.
+    Requires QA or Admin role.
     """
     session = get_session()
     audit = Audit()
 
     try:
+        # Enforce role check: QA or Admin only
+        from retrofitkit.db.models.user import User as UserModel
+        user_obj = session.query(UserModel).filter(UserModel.email == current_user["email"]).first()
+        if not user_obj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Check user roles
+        user_roles = [ur.role.name for ur in user_obj.roles] if hasattr(user_obj, 'roles') else []
+        if not any(role in ["admin", "compliance", "qa"] for role in user_roles):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions. Only admin, compliance, or QA roles can activate workflows."
+            )
+
         workflow = session.query(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.version == version

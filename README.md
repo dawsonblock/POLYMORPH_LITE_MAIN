@@ -81,6 +81,12 @@ POLYMORPH-LITE transforms legacy analytical instruments into intelligent, AI-pow
 - **Sample Lineage**: Parent-child tracking for traceability
 - **Inventory Control**: Stock management with expiration tracking
 
+### 3. Workflow Engine
+- **Linear Execution**: Supports sequential execution of steps (Action, Wait, Hold).
+- **Note**: As of v3.0.0, the workflow engine supports linear sequences only. Loops and conditional branching are planned for future releases.
+- **Visual Builder**: Drag-and-drop interface for creating recipes.
+- **Safety Integration**: Pre-execution safety checks and runtime monitoring.
+
 ### 🤖 AI Integration
 - **BentoML Inference**: Optimized AI model serving
 - **Circuit Breaker**: Resilient failure handling

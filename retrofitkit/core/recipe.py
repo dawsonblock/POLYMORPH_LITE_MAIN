@@ -6,6 +6,8 @@ class Step(BaseModel):
     type: str
     params: Dict[str, Any] = {}
 
+RecipeStep = Step
+
 class Recipe(BaseModel):
     name: str
     version: str = "1.0"

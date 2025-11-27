@@ -13,7 +13,7 @@ from retrofitkit.api.routes import router as api_router, orc  # Import global or
 from retrofitkit.core.raman_stream import RamanStreamer
 from retrofitkit.core.events import EventBus
 from retrofitkit.drivers.raman.factory import make_raman
-from retrofitkit.core.app import get_app_instance, create_app_instance
+from retrofitkit.core.app import get_app_instance
 from retrofitkit.core.config import PolymorphConfig
 from retrofitkit.__version__ import __version__
 from retrofitkit.metrics.exporter import Metrics
@@ -21,7 +21,7 @@ from retrofitkit.security.headers import SecurityHeadersMiddleware, RateLimitMid
 import time
 from datetime import datetime, timezone
 
-from retrofitkit.api import auth, system
+from retrofitkit.api import auth
 
 # Socket.IO server
 sio = socketio.AsyncServer(
@@ -137,7 +137,9 @@ async def data_generation_task():
                     "recipeId": "active-recipe",
                     "recipeName": "Active Run",
                     "status": "running",
-                    "progress": 50, # TODO: Get real progress
+                    "recipeName": "Active Run",
+                    "status": "running",
+                    "progress": int(100 * orc.status["progress"]["current"] / max(orc.status["progress"]["total"], 1)),
                     "data": []
                 }]
             else:
@@ -184,7 +186,7 @@ app.mount("/socket.io", socket_app)
 
 # Add security middleware (order matters!)
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
+app.add_middleware(RateLimitMiddleware, requests=100)
 
 # CORS configuration
 app.add_middleware(

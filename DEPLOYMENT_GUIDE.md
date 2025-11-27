@@ -51,7 +51,7 @@ git clone https://github.com/dawsonblock/POLYMORPH_LITE_MAIN.git
 cd POLYMORPH_LITE_MAIN
 
 # 2. Copy environment file
-cp .env.development .env
+cp .env.example .env
 
 # 3. Start all services
 docker-compose up -d
@@ -81,7 +81,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # 4. Set up environment
-cp .env.development .env
+cp .env.example .env
 
 # 5. Initialize database
 alembic upgrade head
