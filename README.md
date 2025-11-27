@@ -1,124 +1,70 @@
 <div align="center">
 
-# 🔬 POLYMORPH-LITE v3.0.0
+![POLYMORPH-LITE](https://img.shields.io/badge/POLYMORPH--LITE-v3.0.0-blue?style=for-the-badge)
 
-### AI-Powered Laboratory OS with Unified Database & LIMS
-### PostgreSQL | RBAC | 21 CFR Part 11 | Production Ready
+# 🔬 POLYMORPH-LITE
 
-[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+### AI-Powered Laboratory Operating System
+**Enterprise-Grade | PostgreSQL | RBAC | 21 CFR Part 11 Compliant**
+
+[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN/releases)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-green.svg)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue.svg)](https://www.postgresql.org/)
-[![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://reactjs.org/)
-[![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](https://www.docker.com/)
-[![Production Ready](https://img.shields.io/badge/production-ready-brightgreen.svg)](#)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Production](https://img.shields.io/badge/production-ready-brightgreen.svg)](#)
 
-**[Quick Start](#-quick-start)** • **[What's New](#-whats-new-in-v30)** • **[Features](#-key-features)** • **[Deploy](#-deployment)**
+[🚀 Quick Start](#-quick-start) • [✨ Features](#-key-features) • [📖 Documentation](#-documentation) • [🏗️ Architecture](#-architecture) • [🤝 Contributing](#-contributing)
 
 ---
 
 </div>
 
-## 🎯 What is POLYMORPH-LITE?
+## 🎯 Overview
 
-POLYMORPH-LITE is a **production-ready laboratory OS** that transforms analytical instruments into intelligent, AI-powered systems. Built for pharmaceutical R&D, quality control, and production with enterprise-grade database architecture.
+POLYMORPH-LITE transforms legacy analytical instruments into intelligent, AI-powered laboratory systems. Built for pharmaceutical R&D, quality control, and GMP environments with enterprise-grade database architecture and full regulatory compliance.
 
-### 💡 Value Proposition
-
-- **🚀 Deploy in Minutes**: Docker auto-deployment with migrations
-- **🗄️  Unified Database**: PostgreSQL with 27 tables, Alembic migrations
-- **🤖 AI-Powered**: Real-time analysis with circuit-breaker resilience
-- **🔒 Compliance Ready**: 21 CFR Part 11 (audit trails, RBAC, e-signatures)
-- **📊 LIMS Features**: Sample tracking, inventory, calibration management
-- **🎨 Premium UI**: Modern glassmorphism design with real-time monitoring
-
----
-
-## 🆕 What's New in v3.0?
-
-### Major Architectural Upgrade
-
-| Feature | v2.0 | v3.0 |
-|---------|------|------|
-| **Database** | Scattered SQLite files | Unified PostgreSQL |
-| **ORM** | Duplicate models (split-brain) | Single source of truth |
-| **Migrations** | Manual | Alembic auto-migrations |
-| **LIMS** | Not available | Full sample + inventory tracking |
-| **RBAC** | Basic roles | Granular permissions (4 roles) |
-| **Audit** | Basic logging | Cryptographic hash-chain |
-| **Deployment** | Manual steps | Fully automated (Docker) |
-
-### New Features
-
-✅ **Unified Database Layer**
-- 27 tables with proper relationships
-- PostgreSQL-first with SQLite fallback
-- Automatic migrations on startup
-
-✅ **LIMS Functionality**
-- Sample tracking with lineage
-- Inventory management with expiration
-- Calibration logging  
-- Project/batch organization
-
-✅ **Enhanced Security**
-- Role-Based Access Control (RBAC)
-- JWT authentication
-- API route protection
-- Hash-chain audit trail
-
-✅ **Production Tools**
-- Health check script (`scripts/check_db_health.py`)
-- Database backup utility (`scripts/backup_database.py`)
-- Admin user setup (`scripts/create_admin_user.py`)
-
----
-
-## ✨ Key Features
+### 🆕 What's New in v3.0
 
 <table>
 <tr>
 <td width="50%">
 
-### 🗄️ Database & LIMS
-- **PostgreSQL Database**: 27 tables with full relations
-- **Sample Tracking**: Lineage, batches, containers
-- **Inventory Management**: Stock lots, expiration tracking
-- **Calibration Logs**: Instrument calibration history
-- **Alembic Migrations**: Version-controlled schema
+**💾 Unified Database**
+- PostgreSQL with 27 normalized tables
+- Alembic auto-migrations
+- Eliminated split-brain architecture
+- Production-grade data integrity
 
 </td>
 <td width="50%">
 
-### 🤖 AI Integration
-- **BentoML Service**: Optimized AI inference
-- **Circuit Breaker**: Resilient failure handling
-- **Real-time Analysis**: <50ms inference latency
-- **Auto-detection**: Crystallization events
+**🔐 Enhanced Security**
+- Role-Based Access Control (RBAC)
+- JWT authentication
+- Cryptographic audit trail
+- Password history & account locking
 
 </td>
 </tr>
 <tr>
 <td>
 
-### 🔒 Compliance & Security
-- **21 CFR Part 11**: Full compliance
-- **Electronic Signatures**: RSA-based
-- **Audit Trails**: Immutable hash-chain
-- **RBAC**: 4 roles (admin, scientist, technician, compliance)
-- **MFA**: Multi-factor authentication
-- **Password History**: Prevent reuse
+**🧪 LIMS Features**
+- Sample tracking with lineage
+- Inventory management
+- Calibration logging
+- Project/batch organization
 
 </td>
 <td>
 
-### 🎨 Modern Interface
-- **Scientific Dark Mode**: Eye-friendly design
-- **Glassmorphism UI**: Premium aesthetics
-- **Real-time Dashboard**: Live spectral data
-- **WebSocket Updates**: Instant notifications
-- **Sample Explorer**: LIMS interface
+**🚀 DevOps Ready**
+- One-command Docker deployment
+- Auto-migrations on startup
+- Health monitoring scripts
+- Database backup utilities
 
 </td>
 </tr>
@@ -126,14 +72,39 @@ POLYMORPH-LITE is a **production-ready laboratory OS** that transforms analytica
 
 ---
 
+## ✨ Key Features
+
+### 🗄️ Database & Data Management
+- **27-Table Schema**: Comprehensive data model for lab operations
+- **PostgreSQL-First**: Enterprise database with ACID compliance
+- **Alembic Migrations**: Version-controlled schema evolution
+- **Sample Lineage**: Parent-child tracking for traceability
+- **Inventory Control**: Stock management with expiration tracking
+
+### 🤖 AI Integration
+- **BentoML Inference**: Optimized AI model serving
+- **Circuit Breaker**: Resilient failure handling
+- **Real-Time Analysis**: <50ms inference latency
+- **Auto-Detection**: Crystallization event recognition
+
+### 🔒 Compliance & Audit
+- **21 CFR Part 11**: Full regulatory compliance
+- **Hash-Chain Audit**: Immutable audit trail with cryptographic verification
+- **Electronic Signatures**: RSA-based signing
+- **RBAC**: 4 roles with granular permissions (admin, scientist, technician, compliance)
+- **MFA Support**: Multi-factor authentication ready
+
+### 🎨 Modern Interface
+- **React 18**: Fast, responsive UI
+- **Real-Time Updates**: WebSocket-based live data
+- **Scientific Dark Mode**: Eye-friendly design
+- **Glassmorphism**: Premium visual aesthetics
+
+---
+
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker & Docker Compose
-- Python 3.11+ (for local development)
-- PostgreSQL 15+ (for local dev without Docker)
-
-### ⚡ One-Command Deploy
+### One-Command Deployment
 
 ```bash
 # Clone repository
@@ -154,9 +125,9 @@ docker-compose exec backend python scripts/create_admin_user.py
 open http://localhost
 ```
 
-**Login**: `admin@polymorph.local` / `admin123` (change immediately!)
+**Default Login**: `admin@polymorph.local` / `admin123` ⚠️ Change immediately!
 
-### 🧪 Verify Installation
+### Verification
 
 ```bash
 # Check database health
@@ -165,233 +136,250 @@ docker-compose exec backend python scripts/check_db_health.py
 # View logs
 docker-compose logs -f backend
 
-# Check API
+# API health check
 curl http://localhost:8001/health
 ```
 
 ---
 
-## 📊 Database Schema
+## 📊 Architecture
 
-### 27 Tables Organized by Domain
+```mermaid
+graph TD
+    A[Frontend React] -->|REST API| B[FastAPI Backend]
+    B -->|ORM| C[PostgreSQL 27 Tables]
+    B -->|Inference| D[BentoML AI Service]
+    B -->|Cache| E[Redis]
+    B -->|Control| F[Hardware Drivers]
+    F -->|USB/Serial| G[Lab Instruments]
+    
+    C -->|Migrations| H[Alembic]
+    B -->|Audit| I[Hash-Chain Trail]
+    B -->|Auth| J[RBAC + JWT]
+```
+
+### Database Schema (27 Tables)
 
 | Domain | Tables | Purpose |
 |--------|--------|---------|
-| **Auth & RBAC** | users, roles, user_roles | Authentication, permissions |
-| **Audit** | audit | Hash-chain audit trail |
-| **Devices** | devices, device_status | Instrument tracking |
-| **LIMS** | projects, containers, batches, samples, sample_lineage | Sample management |
-| **Inventory** | vendors, inventory_items, stock_lots | Stock tracking |
-| **Calibration** | calibration_entries | Instrument calibration |
-| **Workflows** | workflow_versions, workflow_executions, workflow_sample_assignments, config_snapshots | Workflow management |
 | **Multi-Site** | organizations, labs, nodes, device_hubs | Enterprise deployment |
-
-### RBAC Roles (Auto-Seeded)
-
-| Role | Permissions | Use Case |
-|------|-------------|----------|
-| **admin** | All resources (full CRUD) | System administrators |
-| **scientist** | Workflows, samples, runs (create/read/update) | Research scientists |
-| **technician** | Runs, inventory, calibration (create/read) | Lab technicians |
-| **compliance** | Audit, runs, samples (read-only) | Compliance officers |
+| **Auth & RBAC** | users, roles, user_roles | Authentication & permissions |
+| **Audit** | audit | Immutable audit trail |
+| **Devices** | devices, device_status | Instrument management |
+| **LIMS** | projects, batches, containers, samples, sample_lineage | Sample tracking |
+| **Inventory** | vendors, inventory_items, stock_lots | Stock management |
+| **Calibration** | calibration_entries | Instrument calibration |
+| **Workflows** | workflow_versions, executions, assignments, config_snapshots | Workflow management |
 
 ---
 
-## 🔧 Production Scripts
+## 🔐 RBAC & Permissions
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/create_admin_user.py` | Create initial admin account |
-| `scripts/check_db_health.py` | Verify database integrity |
-| `scripts/backup_database.py` | Backup PostgreSQL database |
-
-### Health Check Example
-
-```bash
-python scripts/check_db_health.py
-
-# Output:
-# ✅ Database Connection
-# ✅ All 27 tables exist
-# ✅ All default roles present
-# ✅ Audit chain valid (0 entries)
-# 🎉 Database is healthy and ready!
-```
+| Role | Create | Read | Update | Delete | Use Case |
+|------|--------|------|--------|--------|----------|
+| **admin** | ✅ All | ✅ All | ✅ All | ✅ All | System administrators |
+| **scientist** | ✅ Workflows, Samples | ✅ All | ✅ Own data | ❌ | Research scientists |
+| **technician** | ✅ Runs, Inventory | ✅ Workflows, Samples | ✅ Inventory | ❌ | Lab technicians |
+| **compliance** | ❌ | ✅ Audit, Runs | ❌ | ❌ | QA/QC officers |
 
 ---
 
 ## 📝 API Examples
 
 ### Authentication
-
 ```bash
-# Login
 curl -X POST http://localhost:8001/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@polymorph.local","password":"admin123"}'
-
-# Returns: {"access_token": "eyJ...", "token_type": "bearer"}
 ```
 
-### Sample Management (LIMS)
-
+### Create Sample (LIMS)
 ```bash
-# Create sample (requires admin or scientist role)
 curl -X POST http://localhost:8001/api/samples \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "sample_id": "SAMPLE-001",
     "status": "active",
     "extra_data": {"concentration": "10mg/mL"}
   }'
-
-# List samples
-curl http://localhost:8001/api/samples?limit=10
-
-# Sample lineage (parent-child tracking)
-curl http://localhost:8001/api/samples/SAMPLE-001
 ```
 
-### Inventory Management
-
+### Check Low Stock (Inventory)
 ```bash
-# Create inventory item
-curl -X POST http://localhost:8001/api/inventory/items \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "item_code": "REAGENT-001",
-    "name": "Acetonitrile HPLC Grade",
-    "category": "reagent",
-    "min_stock": 5
-  }'
-
-# Check low stock
-curl http://localhost:8001/api/inventory/low-stock
+curl http://localhost:8001/api/inventory/low-stock \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
 
-## 🏗️ Architecture
+## 🔧 Production Tools
 
-```
-POLYMORPH-LITE v3.0
-├── PostgreSQL (Unified Database)
-│   ├── 27 tables with relationships
-│   ├── Alembic migrations
-│   └── Connection pooling
-│
-├── Backend (FastAPI)
-│   ├── retrofitkit/db/ (Unified ORM)
-│   ├── retrofitkit/api/ (REST endpoints)
-│   ├── retrofitkit/compliance/ (RBAC, audit)
-│   └── retrofitkit/core/ (Orchestrator)
-│
-├── AI Service (BentoML)
-│   ├── Model inference
-│   └── Circuit breaker
-│
-└── Frontend (React + Vite)
-    ├── Dashboard
-    ├── Sample Explorer
-    ├── Analytics
-    └── Settings
+### Database Management
+```bash
+# Health check
+python scripts/check_db_health.py
+
+# Backup database
+python scripts/backup_database.py
+
+# Create admin user
+python scripts/create_admin_user.py --email admin@lab.com
+
+# Generate cryptographic keys
+python scripts/generate_keys.py
 ```
 
----
-
-## 🔄 Migration from v2.0
-
-> **⚠️ BREAKING CHANGES**: v3.0 uses PostgreSQL instead of SQLite
-
-### Migration Steps
-
-1. **Backup v2.0 data** (if needed)
-2. **Deploy v3.0** with `docker-compose up -d`
-3. **Recreate users** - SQLite data is not automatically migrated
-4. **Import historical data** (optional) via API
-
-### What's Different
-
-- ❌ SQLite `system.db` → ✅ PostgreSQL `polymorph_db`
-- ❌ Manual schema → ✅ Alembic migrations
-- ❌ Scattered models → ✅ Unified `retrofitkit/db/`
-- ❌ Basic auth → ✅ RBAC + JWT
+### Monitoring
+- **Health Endpoint**: `/health`
+- **API Documentation**: `/docs` (Swagger UI)
+- **Metrics**: Prometheus-compatible (optional)
 
 ---
 
-## 📚 Documentation
+## 📖 Documentation
 
-- **API Documentation**: http://localhost:8001/docs (Swagger UI)
-- **Health Endpoint**: http://localhost:8001/health
-- **Database Schema**: See `alembic/versions/001_unified_schema.py`
-- **Walkthrough**: See artifacts for complete deployment guide
+| Document | Description |
+|----------|-------------|
+| [README.md](README.md) | This file - overview and quick start |
+| [RELEASE_NOTES.md](RELEASE_NOTES.md) | Version history and breaking changes |
+| [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) | Production deployment instructions |
+| [STRUCTURE.md](STRUCTURE.md) | Repository organization guide |
+| [SECURITY.md](SECURITY.md) | Security policies and reporting |
+| [TESTING.md](TESTING.md) | Testing guide and coverage |
+| [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) | Complete API reference |
+| [docs/USER_MANUAL.md](docs/USER_MANUAL.md) | End-user guide |
 
 ---
 
-## 🧪 Supported Instruments
+## 🏗️ Technology Stack
 
-- **NI DAQ**: Data acquisition
-- **Ocean Optics**: Spectroscopy
-- **Horiba Raman**: Raman spectroscopy
-- **Red Pitaya**: Signal processing
-- **Custom Devices**: Modular driver architecture
+### Backend
+- **FastAPI** - High-performance async API framework
+- **PostgreSQL 15** - Enterprise-grade database
+- **SQLAlchemy 2.0** - Modern ORM with type hints
+- **Alembic** - Database migration management
+- **Pydantic v2** - Data validation
+- **BentoML** - AI model serving
+
+### Frontend
+- **React 18** - UI library
+- **Vite** - Fast build tool
+- **TypeScript** - Type-safe JavaScript
+- **Socket.IO** - Real-time communication
+
+### DevOps
+- **Docker & Docker Compose** - Containerization
+- **Nginx** - Reverse proxy
+- **Redis** - Caching and pub/sub
+
+---
+
+## 🧪 Supported Hardware
+
+- **NI DAQ** - National Instruments data acquisition
+- **Ocean Optics** - Spectrometers
+- **Horiba Raman** - Raman spectroscopy
+- **Red Pitaya** - Signal processing
+- **Custom Devices** - Modular driver architecture
 
 ---
 
 ## 📦 Requirements
 
-### Production
-```
-fastapi==0.115.0
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9
-alembic==1.13.0
-pydantic==2.5.0
-uvicorn==0.24.0
-python-jose[cryptography]==3.3.0
-bcrypt==4.1.1
-```
+### Minimum System Requirements
+- **OS**: Linux, macOS, Windows (WSL2)
+- **RAM**: 4GB minimum, 8GB recommended
+- **Storage**: 10GB available space
+- **Docker**: 20.10+
+- **Docker Compose**: 2.0+
 
-### Development
-```
-pytest==7.4.3
-black==23.11.0
-ruff==0.1.6
-```
+### For Development
+- **Python**: 3.11+
+- **Node.js**: 18+
+- **PostgreSQL**: 15+ (if not using Docker)
+
+---
+
+## 🛣️ Roadmap
+
+### ✅ v3.0 (Current)
+- Unified PostgreSQL database
+- Complete LIMS functionality
+- RBAC with 4 roles
+- Production deployment tools
+
+### 🔄 v3.1 (Next)
+- [ ] Frontend LIMS UI pages
+- [ ] Workflow builder → orchestrator integration
+- [ ] Advanced analytics dashboards
+- [ ] Multi-tenant organization features
+
+### 🔮 Future
+- [ ] SSO integration (SAML, OAuth)
+- [ ] Mobile app for lab monitoring
+- [ ] Advanced AI models
+- [ ] Cloud deployment guides (AWS, Azure, GCP)
 
 ---
 
 ## 🤝 Contributing
 
-Contributions welcome! Please:
+Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### Development Setup
+```bash
+# Clone repository
+git clone https://github.com/dawsonblock/POLYMORPH_LITE_MAIN.git
+cd POLYMORPH_LITE_MAIN
+
+# Install dependencies
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+
+# Start PostgreSQL
+docker-compose up -d postgres
+
+# Run migrations
+alembic upgrade head
+
+# Start development server
+uvicorn retrofitkit.api.server:app --reload
+```
 
 ---
 
 ## 📄 License
 
-MIT License - see LICENSE file for details
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
 ## 🙏 Acknowledgments
 
-- Built with FastAPI, React, PostgreSQL, and BentoML
-- Inspired by pharmaceutical quality control needs
-- Community contributions and feedback
+- Built with ❤️ for the pharmaceutical and research community
+- Powered by FastAPI, React, PostgreSQL, and BentoML
+- Inspired by real-world lab automation challenges
+
+---
+
+## 📧 Support
+
+- **Issues**: [GitHub Issues](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN/discussions)
+- **Security**: See [SECURITY.md](SECURITY.md)
 
 ---
 
 <div align="center">
 
-**Made with ❤️ for the pharmaceutical and research community**
+**⭐ Star this repo if you find it useful!**
 
-[Report Bug](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN/issues) • [Request Feature](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN/issues)
+[![GitHub stars](https://img.shields.io/github/stars/dawsonblock/POLYMORPH_LITE_MAIN?style=social)](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN)
+[![GitHub forks](https://img.shields.io/github/forks/dawsonblock/POLYMORPH_LITE_MAIN?style=social)](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN)
+
+Made with 💙 for better labs everywhere
+
+[⬆ Back to Top](#-polymorph-lite)
 
 </div>
