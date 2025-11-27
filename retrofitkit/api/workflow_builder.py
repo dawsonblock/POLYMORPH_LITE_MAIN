@@ -2,7 +2,7 @@
 Visual Workflow Builder API endpoints.
 
 Provides workflow definition management, versioning, and execution.
-Supports visual drag-and-drop workflow design.
+Supports visual drag-and-drop workflow design with orchestrator integration.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, UUID4
@@ -18,6 +18,7 @@ from retrofitkit.database.models import (
 )
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user, require_role
+from retrofitkit.core.recipe import Recipe, RecipeStep
 
 router = APIRouter(prefix="/api/workflow-builder", tags=["workflow-builder"])
 
@@ -442,6 +443,94 @@ async def delete_workflow_version(
 
 
 # ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def _graph_to_recipe(workflow_version: WorkflowVersion, parameters: Dict[str, Any]) -> Recipe:
+    """
+    Convert visual workflow graph to executable Recipe.
+    
+    Supports basic node types:
+    - Acquire: Sets voltage/bias (→ bias_set step)
+    - Measure: Waits for measurement (→ wait_for_raman step)
+    - Delay/Hold: Time delay (→ hold step)
+    
+    Args:
+        workflow_version: The workflow definition
+        parameters: Runtime parameters to merge with node configs
+    
+    Returns:
+        Recipe object ready for orchestrator execution
+    """
+    graph = workflow_version.definition
+    nodes = {n["id"]: n for n in graph.get("nodes", [])}
+    edges = graph.get("edges", [])
+    
+    # Find start node
+    start_node = next((n for n in graph["nodes"] if n.get("type", "").lower() == "start"), None)
+    if not start_node:
+        # Use first node if no explicit Start
+        if not graph["nodes"]:
+            raise ValueError("Workflow has no nodes")
+        start_node = graph["nodes"][0]
+    
+    # Build execution order by following edges (simple linear for now)
+    steps = []
+    current_id = start_node["id"]
+    visited = set()
+    
+    while current_id and current_id not in visited:
+        visited.add(current_id)
+        node = nodes.get(current_id)
+        if not node:
+            break
+        
+        node_type = node.get("type", "").lower()
+        node_data = node.get("data", {})
+        
+        # Merge runtime parameters
+        merged_params = {**node_data, **parameters.get(node["id"], {})}
+        
+        # Convert to recipe step based on type
+        if node_type == "acquire":
+            steps.append(RecipeStep(
+                type="bias_set",
+                params={
+                    "volts": float(merged_params.get("voltage", 0.0)),
+                    "device": merged_params.get("device_id", "daq"),
+                }
+            ))
+        elif node_type == "measure":
+            steps.append(RecipeStep(
+                type="wait_for_raman",
+                params={
+                    "timeout_s": int(merged_params.get("timeout", 120)),
+                    "device": merged_params.get("device_id", "raman"),
+                }
+            ))
+        elif node_type in ["delay", "hold", "wait"]:
+            steps.append(RecipeStep(
+                type="hold",
+                params={"seconds": float(merged_params.get("seconds", 1.0))}
+            ))
+        # Skip Start/End nodes - they're just UI markers
+        
+        # Find next node
+        next_edge = next((e for e in edges if e.get("source") == current_id), None)
+        current_id = next_edge.get("target") if next_edge else None
+    
+    return Recipe(
+        name=workflow_version.workflow_name,
+        steps=steps,
+        metadata={
+            "version": workflow_version.version,
+            "workflow_id": str(workflow_version.id),
+            "visual_graph": True
+        }
+    )
+
+
+# ============================================================================
 # WORKFLOW EXECUTION ENDPOINTS
 # ============================================================================
 
@@ -512,10 +601,31 @@ async def execute_workflow(
         session.commit()
         session.refresh(new_execution)
 
-        # TODO: Trigger orchestrator to execute workflow
-        # This would convert the visual workflow definition to executable steps
-        # and pass to the existing orchestrator
-        # orchestrator.execute_visual_workflow(workflow.definition, run_id, execution.parameters)
+        # Convert visual graph to executable recipe
+        try:
+            recipe = _graph_to_recipe(workflow, execution.parameters)
+            
+            # NOTE: Full orchestrator execution requires AppContext singleton from server.py
+            # For now, we mark as 'ready' and document the recipe was built
+            new_execution.status = "ready"
+            new_execution.results = {
+                "recipe_generated": True,
+                "steps_count": len(recipe.steps),
+                "step_types": [step.type for step in recipe.steps],
+                "note": "Recipe generated successfully. Orchestrator execution requires AppContext integration."
+            }
+            session.commit()
+            
+            # TODO: When AppContext available, execute via:
+            # from retrofitkit.api.server import app_context
+            # result = app_context.orchestrator.execute_recipe(recipe, run_id)
+            # Update new_execution.status based on result
+            
+        except Exception as e:
+            # Failed to convert graph to recipe
+            new_execution.status = "failed"
+            new_execution.error_message = f"Graph conversion error: {str(e)}"
+            session.commit()
 
         # Audit log (non-blocking)
         try:
