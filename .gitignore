@@ -61,6 +61,7 @@ gui-v2/frontend/node_modules/
 gui-v2/frontend/dist/
 gui-v2/frontend/.vite/
 gui-v2/backend/node_modules/
+*.tsbuildinfo
 
 # IDEs
 .vscode/
