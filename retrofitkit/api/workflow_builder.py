@@ -100,7 +100,6 @@ class WorkflowExecutionResponse(BaseModel):
 @router.post("/workflows", response_model=WorkflowDefinitionResponse, status_code=status.HTTP_201_CREATED)
 async def create_workflow_definition(
     workflow: WorkflowDefinitionCreate,
-    ,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
