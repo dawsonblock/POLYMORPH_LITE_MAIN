@@ -39,7 +39,7 @@ class SampleCreate(BaseModel):
     @classmethod
     def validate_sample_id(cls, v: str) -> str:
         """Validate sample ID format - alphanumeric, hyphens, underscores only."""
-        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+    if not re.match(r'^[a-zA-Z0-9_-]+$', v):
             raise ValueError('sample_id must contain only letters, numbers, hyphens, and underscores')
         return v
 
@@ -182,7 +182,7 @@ async def create_sample(
                 relationship_type='derived',
                 created_by=current_user.email
             )
-            db.add(lineage)
+        db.add(lineage)
 
         # Commit everything in one transaction
         db.commit()
@@ -196,7 +196,7 @@ async def create_sample(
                 sample.sample_id,
                 f"Created sample {sample.sample_id}"
             )
-        except Exception as e:
+    except Exception as e:
             # Log audit failure but don't fail the request
             print(f"Audit log failed: {e}")
 
@@ -282,7 +282,7 @@ async def create_samples_bulk(
                 extra_data=sample.extra_data,
                 created_by=current_user.email
             )
-            db.add(new_sample)
+        db.add(new_sample)
             created_samples.append(new_sample)
 
         # Commit all at once
@@ -300,7 +300,7 @@ async def create_samples_bulk(
                 "bulk_operation",
                 f"Created {len(created_samples)} samples in bulk"
             )
-        except Exception as e:
+    except Exception as e:
             print(f"Audit log failed: {e}")
 
         return created_samples
@@ -501,7 +501,7 @@ async def split_sample(
                 extra_data={'derived_from': sample_id},
                 created_by=current_user.email
             )
-            db.add(child)
+        db.add(child)
             db.flush()
 
             # Create lineage
@@ -511,7 +511,7 @@ async def split_sample(
                 relationship_type='split',
                 created_by=current_user.email
             )
-            db.add(lineage)
+        db.add(lineage)
 
             created_samples.append(child)
 
@@ -653,7 +653,7 @@ async def get_container(container_id: str):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Container '{container_id}' not found"
             )
-        return container
+    return container
 
 
 

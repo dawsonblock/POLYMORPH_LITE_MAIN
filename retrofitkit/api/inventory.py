@@ -171,7 +171,7 @@ async def get_inventory_item(item_code: str, db: Session = Depends(get_db)):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Item '{item_code}' not found"
             )
-        return item
+    return item
 
 
 
@@ -374,7 +374,7 @@ async def consume_stock(
                 lot_number,
                 f"Consumed {quantity} units from lot {lot_number}"
             )
-        except Exception as e:
+    except Exception as e:
             print(f"Audit log failed: {e}")
 
         return {
@@ -453,5 +453,5 @@ async def get_vendor(vendor_id: str, db: Session = Depends(get_db)):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Vendor '{vendor_id}' not found"
             )
-        return vendor
+    return vendor
 

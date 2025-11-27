@@ -152,7 +152,7 @@ async def create_workflow_definition(
                 f"{workflow.workflow_name}:v{next_version}",
                 f"Created workflow {workflow.workflow_name} version {next_version}"
             )
-        except Exception:
+    except Exception:
             pass  # Don't fail the request if audit logging fails
 
         return new_workflow
@@ -269,7 +269,7 @@ async def activate_workflow_version(
                 f"{workflow_name}:v{version}",
                 f"Activated workflow {workflow_name} version {version}"
             )
-        except Exception:
+    except Exception:
             pass
 
         return {
@@ -338,7 +338,7 @@ async def approve_workflow_version(
                 f"{workflow_name}:v{version}",
                 f"Approved workflow {workflow_name} version {version}"
             )
-        except Exception:
+    except Exception:
             pass
 
         return {
@@ -406,7 +406,7 @@ async def delete_workflow_version(
                 f"{workflow_name}:v{version}",
                 f"Deleted workflow {workflow_name} version {version}"
             )
-        except Exception:
+    except Exception:
             pass
 
         return {"message": f"Workflow '{workflow_name}' version {version} deleted"}
@@ -545,7 +545,7 @@ async def execute_workflow(
             created_by=current_user.email,
             reason=f"Execution of {execution.workflow_name}"
         )
-        db.add(config_snapshot)
+    db.add(config_snapshot)
         db.flush()
 
         # Create execution record
@@ -585,7 +585,7 @@ async def execute_workflow(
                 run_id,
                 f"Started execution of {execution.workflow_name} (version {workflow.version})"
             )
-        except Exception:
+    except Exception:
             pass
 
         return new_execution
@@ -689,7 +689,7 @@ async def abort_workflow_execution(
                 run_id,
                 f"Aborted execution {run_id}"
             )
-        except Exception:
+    except Exception:
             pass
 
         return {"message": f"Execution '{run_id}' aborted"}

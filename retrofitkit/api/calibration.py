@@ -110,7 +110,7 @@ async def add_calibration_entry(
                 next_calibration_due=calibration.next_due_date,
                 status='operational' if calibration.status == 'valid' else 'maintenance'
             )
-            db.add(device_status)
+        db.add(device_status)
 
         db.commit()
         db.refresh(new_entry)
@@ -122,7 +122,7 @@ async def add_calibration_entry(
                 calibration.device_id,
                 f"Calibration performed on {calibration.device_id}, status: {calibration.status}"
             )
-        except Exception:
+    except Exception:
             pass
 
         return new_entry
@@ -236,7 +236,7 @@ async def attach_certificate(
                 str(calibration_id),
                 f"Attached certificate {safe_filename} to calibration {calibration_id}"
             )
-        except Exception:
+    except Exception:
             pass
 
         return {
@@ -266,7 +266,7 @@ async def get_calibration_entry(calibration_id: UUID4, db: Session = Depends(get
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Calibration entry {calibration_id} not found"
             )
-        return calibration
+    return calibration
 
 
 
@@ -286,7 +286,7 @@ async def get_device_status(device_id: str, db: Session = Depends(get_db)):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No status found for device '{device_id}'"
             )
-        return device_status
+    return device_status
 
 
 
@@ -330,7 +330,7 @@ async def update_device_status(
                 status=new_status,
                 health_score=health_score
             )
-            db.add(device_status)
+        db.add(device_status)
         else:
             device_status.status = new_status
             if health_score is not None:
@@ -346,7 +346,7 @@ async def update_device_status(
                 device_id,
                 f"Device {device_id} status updated to {new_status}"
             )
-        except Exception:
+    except Exception:
             pass
 
         return {
