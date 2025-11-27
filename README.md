@@ -5,7 +5,7 @@
 # 🔬 POLYMORPH-LITE
 
 ### AI-Powered Laboratory Operating System
-**Enterprise-Grade | PostgreSQL | RBAC | 21 CFR Part 11 Compliant**
+**Enterprise-Grade | PostgreSQL | RBAC | 21 CFR Part 11–Aligned Architecture**
 
 [![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN/releases)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -88,11 +88,21 @@ POLYMORPH-LITE transforms legacy analytical instruments into intelligent, AI-pow
 - **Auto-Detection**: Crystallization event recognition
 
 ### 🔒 Compliance & Audit
-- **21 CFR Part 11**: Full regulatory compliance
-- **Hash-Chain Audit**: Immutable audit trail with cryptographic verification
-- **Electronic Signatures**: RSA-based signing
-- **RBAC**: 4 roles with granular permissions (admin, scientist, technician, compliance)
-- **MFA Support**: Multi-factor authentication ready
+
+**Architecture Designed for 21 CFR Part 11 Compliance**
+
+POLYMORPH-LITE provides technical features that support 21 CFR Part 11 requirements:
+- ✅ **Hash-Chain Audit Trail**: Immutable, cryptographically verified audit logs
+- ✅ **Unique User Logins**: Individual accounts with MFA support
+- ✅ **Role-Based Access Control**: Granular permissions (admin, scientist, technician, compliance)
+- ✅ **Electronic Signatures**: RSA-based cryptographic signatures
+- ✅ **Workflow Approval & Versioning**: Locked, approved workflow definitions  
+- ✅ **Password Security**: History tracking, complexity requirements, account locking
+
+> **Note on Compliance**: Final 21 CFR Part 11 compliance requires lab-specific validation 
+> (IQ/OQ/PQ), written SOPs, organizational policies, and procedures. This software provides 
+> the technical foundation to support compliant operations when properly validated and deployed  
+> according to your organization's quality system.
 
 ### 🎨 Modern Interface
 - **React 18**: Fast, responsive UI
