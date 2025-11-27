@@ -23,7 +23,7 @@
 
 ## 🎯 Overview
 
-POLYMORPH-LITE transforms legacy analytical instruments into intelligent, AI-powered laboratory systems. Built for pharmaceutical R&D, quality control, and GMP environments with enterprise-grade database architecture and full regulatory compliance.
+POLYMORPH-LITE transforms legacy analytical instruments into intelligent, AI-powered laboratory systems. Built for pharmaceutical R&D, quality control, and GMP environments with enterprise-grade database architecture and 21 CFR Part 11–aligned compliance features.
 
 ### 🆕 What's New in v3.0
 

@@ -16,7 +16,7 @@ from retrofitkit.db.models.workflow import WorkflowSampleAssignment
 from retrofitkit.db.session import get_db
 from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
-from retrofitkit.compliance.tokens import get_current_user
+from retrofitkit.api.dependencies import get_current_user, require_role
 from retrofitkit.api.dependencies import require_role
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
