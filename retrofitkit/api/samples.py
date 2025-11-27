@@ -316,294 +316,6 @@ async def create_samples_bulk(
         session.close()
 
 
-@router.get("/{sample_id}", response_model=SampleWithLineage)
-async def get_sample(sample_id: str):
-    """Get sample details with lineage."""
-    session = get_session()
-
-    try:
-        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
-        if not sample:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Sample '{sample_id}' not found"
-            )
-
-        # Get lineage
-        parent_lineages = session.query(SampleLineage).filter(
-            SampleLineage.child_sample_id == sample.id
-        ).all()
-        child_lineages = session.query(SampleLineage).filter(
-            SampleLineage.parent_sample_id == sample.id
-        ).all()
-
-        parent_samples = [
-            session.query(Sample).filter(Sample.id == lineage.parent_sample_id).first()
-            for lineage in parent_lineages
-        ]
-        child_samples = [
-            session.query(Sample).filter(Sample.id == lineage.child_sample_id).first()
-            for lineage in child_lineages
-        ]
-
-        return {
-            **SampleResponse.from_orm(sample).dict(),
-            "parent_samples": [SampleResponse.from_orm(p) for p in parent_samples if p],
-            "child_samples": [SampleResponse.from_orm(c) for c in child_samples if c]
-        }
-
-    finally:
-        session.close()
-
-
-@router.get("/", response_model=List[SampleResponse])
-async def list_samples(
-    status: Optional[str] = None,
-    project_id: Optional[str] = None,
-    container_id: Optional[str] = None,
-    limit: int = 100,
-    offset: int = 0
-):
-    """List samples with optional filtering."""
-    session = get_session()
-
-    try:
-        query = session.query(Sample)
-
-        if status:
-            query = query.filter(Sample.status == status)
-        if project_id:
-            # Look up project UUID from project_id string
-            project = session.query(Project).filter(Project.project_id == project_id).first()
-            if project:
-                query = query.filter(Sample.project_id == project.id)
-        if container_id:
-            container = session.query(Container).filter(Container.container_id == container_id).first()
-            if container:
-                query = query.filter(Sample.container_id == container.id)
-
-        samples = query.order_by(Sample.created_at.desc()).limit(limit).offset(offset).all()
-        return samples
-
-    finally:
-        session.close()
-
-
-@router.put("/{sample_id}", response_model=SampleResponse)
-async def update_sample(
-    sample_id: str,
-    update: SampleUpdate,
-    current_user: dict = Depends(get_current_user)
-):
-    """Update sample properties."""
-    session = get_session()
-    audit = Audit()
-
-    try:
-        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
-        if not sample:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Sample '{sample_id}' not found"
-            )
-
-        # Update fields
-        if update.status is not None:
-            sample.status = update.status
-        if update.container_id is not None:
-            sample.container_id = update.container_id
-        if update.lot_number is not None:
-            sample.lot_number = update.lot_number
-        if update.extra_data is not None:
-            sample.extra_data = {**sample.extra_data, **update.extra_data}
-
-        sample.updated_by = current_user["email"]
-        sample.updated_at = datetime.now(timezone.utc)
-
-        session.commit()
-        session.refresh(sample)
-
-        # Audit log
-        audit.log(
-            "SAMPLE_UPDATED",
-            current_user["email"],
-            sample_id,
-            f"Updated sample {sample_id}: {update.dict(exclude_none=True)}"
-        )
-
-        return sample
-
-    finally:
-        session.close()
-
-
-@router.delete(
-    "/{sample_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_role("admin"))]
-)
-async def delete_sample(
-    sample_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Delete (soft delete) a sample."""
-    session = get_session()
-    audit = Audit()
-
-    try:
-        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
-        if not sample:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Sample '{sample_id}' not found"
-            )
-
-        # Soft delete - mark as disposed
-        sample.status = 'disposed'
-        sample.updated_by = current_user["email"]
-        sample.updated_at = datetime.now(timezone.utc)
-
-        session.commit()
-
-        # Audit log
-        audit.log(
-            "SAMPLE_DELETED",
-            current_user["email"],
-            sample_id,
-            f"Soft deleted sample {sample_id}"
-        )
-
-    finally:
-        session.close()
-
-
-@router.post("/{sample_id}/split")
-async def split_sample(
-    sample_id: str,
-    child_sample_ids: List[str],
-    current_user: dict = Depends(get_current_user)
-):
-    """Create child samples from a parent sample (aliquoting)."""
-    session = get_session()
-    audit = Audit()
-
-    try:
-        parent = session.query(Sample).filter(Sample.sample_id == sample_id).first()
-        if not parent:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Parent sample '{sample_id}' not found"
-            )
-
-        created_samples = []
-
-        for child_id in child_sample_ids:
-            # Create child sample
-            child = Sample(
-                sample_id=child_id,
-                lot_number=parent.lot_number,
-                project_id=parent.project_id,
-                parent_sample_id=parent.id,
-                batch_id=parent.batch_id,
-                status='active',
-                extra_data={'derived_from': sample_id},
-                created_by=current_user["email"]
-            )
-            session.add(child)
-            session.flush()
-
-            # Create lineage
-            lineage = SampleLineage(
-                parent_sample_id=parent.id,
-                child_sample_id=child.id,
-                relationship_type='split',
-                created_by=current_user["email"]
-            )
-            session.add(lineage)
-
-            created_samples.append(child)
-
-        session.commit()
-
-        # Audit log
-        audit.log(
-            "SAMPLE_SPLIT",
-            current_user["email"],
-            sample_id,
-            f"Split sample {sample_id} into {len(child_sample_ids)} aliquots"
-        )
-
-        return {
-            "message": f"Created {len(created_samples)} child samples",
-            "child_samples": [SampleResponse.from_orm(s) for s in created_samples]
-        }
-
-    finally:
-        session.close()
-
-
-@router.post("/{sample_id}/assign-workflow")
-async def assign_sample_to_workflow(
-    sample_id: str,
-    workflow_execution_id: UUID4,
-    current_user: dict = Depends(get_current_user)
-):
-    """Assign sample to a workflow execution."""
-    session = get_session()
-    audit = Audit()
-
-    try:
-        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
-        if not sample:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Sample '{sample_id}' not found"
-            )
-
-        assignment = WorkflowSampleAssignment(
-            workflow_execution_id=workflow_execution_id,
-            sample_id=sample.id,
-            assigned_by=current_user["email"]
-        )
-
-        session.add(assignment)
-        session.commit()
-
-        # Audit log
-        audit.log(
-            "SAMPLE_WORKFLOW_ASSIGNED",
-            current_user["email"],
-            sample_id,
-            f"Assigned sample {sample_id} to workflow {workflow_execution_id}"
-        )
-
-        return {"message": "Sample assigned to workflow successfully"}
-
-    finally:
-        session.close()
-
-
-@router.get("/{sample_id}/history")
-async def get_sample_history(sample_id: str):
-    """Get audit history for a sample."""
-    audit = Audit()
-
-    # Get all audit logs for this sample
-    logs = audit.get_logs(limit=1000)
-
-    # Filter logs related to this sample
-    sample_logs = [
-        log for log in logs
-        if log.get('subject') == sample_id or sample_id in log.get('details', '')
-    ]
-
-    return sample_logs
-
-
-# ============================================================================
-# CONTAINER ENDPOINTS
-# ============================================================================
-
 @router.post("/containers", response_model=ContainerResponse, status_code=status.HTTP_201_CREATED)
 async def create_container(
     container: ContainerCreate,
@@ -796,3 +508,291 @@ async def list_batches(limit: int = 100, offset: int = 0):
         return batches
     finally:
         session.close()
+@router.get("/{sample_id}", response_model=SampleWithLineage)
+async def get_sample(sample_id: str):
+    """Get sample details with lineage."""
+    session = get_session()
+
+    try:
+        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
+        if not sample:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Sample '{sample_id}' not found"
+            )
+
+        # Get lineage
+        parent_lineages = session.query(SampleLineage).filter(
+            SampleLineage.child_sample_id == sample.id
+        ).all()
+        child_lineages = session.query(SampleLineage).filter(
+            SampleLineage.parent_sample_id == sample.id
+        ).all()
+
+        parent_samples = [
+            session.query(Sample).filter(Sample.id == lineage.parent_sample_id).first()
+            for lineage in parent_lineages
+        ]
+        child_samples = [
+            session.query(Sample).filter(Sample.id == lineage.child_sample_id).first()
+            for lineage in child_lineages
+        ]
+
+        return {
+            **SampleResponse.model_validate(sample).model_dump(),
+            "parent_samples": [SampleResponse.model_validate(p) for p in parent_samples if p],
+            "child_samples": [SampleResponse.model_validate(c) for c in child_samples if c]
+        }
+
+    finally:
+        session.close()
+
+
+@router.get("/", response_model=List[SampleResponse])
+async def list_samples(
+    status: Optional[str] = None,
+    project_id: Optional[str] = None,
+    container_id: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """List samples with optional filtering."""
+    session = get_session()
+
+    try:
+        query = session.query(Sample)
+
+        if status:
+            query = query.filter(Sample.status == status)
+        if project_id:
+            # Look up project UUID from project_id string
+            project = session.query(Project).filter(Project.project_id == project_id).first()
+            if project:
+                query = query.filter(Sample.project_id == project.id)
+        if container_id:
+            container = session.query(Container).filter(Container.container_id == container_id).first()
+            if container:
+                query = query.filter(Sample.container_id == container.id)
+
+        samples = query.order_by(Sample.created_at.desc()).limit(limit).offset(offset).all()
+        return samples
+
+    finally:
+        session.close()
+
+
+@router.put("/{sample_id}", response_model=SampleResponse)
+async def update_sample(
+    sample_id: str,
+    update: SampleUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update sample properties."""
+    session = get_session()
+    audit = Audit()
+
+    try:
+        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
+        if not sample:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Sample '{sample_id}' not found"
+            )
+
+        # Update fields
+        if update.status is not None:
+            sample.status = update.status
+        if update.container_id is not None:
+            sample.container_id = update.container_id
+        if update.lot_number is not None:
+            sample.lot_number = update.lot_number
+        if update.extra_data is not None:
+            sample.extra_data = {**sample.extra_data, **update.extra_data}
+
+        sample.updated_by = current_user["email"]
+        sample.updated_at = datetime.now(timezone.utc)
+
+        session.commit()
+        session.refresh(sample)
+
+        # Audit log
+        audit.log(
+            "SAMPLE_UPDATED",
+            current_user["email"],
+            sample_id,
+            f"Updated sample {sample_id}: {update.model_dump(exclude_none=True)}"
+        )
+
+        return sample
+
+    finally:
+        session.close()
+
+
+@router.delete(
+    "/{sample_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_role("admin"))]
+)
+async def delete_sample(
+    sample_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete (soft delete) a sample."""
+    session = get_session()
+    audit = Audit()
+
+    try:
+        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
+        if not sample:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Sample '{sample_id}' not found"
+            )
+
+        # Soft delete - mark as disposed
+        sample.status = 'disposed'
+        sample.updated_by = current_user["email"]
+        sample.updated_at = datetime.now(timezone.utc)
+
+        session.commit()
+
+        # Audit log
+        audit.log(
+            "SAMPLE_DELETED",
+            current_user["email"],
+            sample_id,
+            f"Soft deleted sample {sample_id}"
+        )
+
+    finally:
+        session.close()
+
+
+@router.post("/{sample_id}/split")
+async def split_sample(
+    sample_id: str,
+    child_sample_ids: List[str],
+    current_user: dict = Depends(get_current_user)
+):
+    """Create child samples from a parent sample (aliquoting)."""
+    session = get_session()
+    audit = Audit()
+
+    try:
+        parent = session.query(Sample).filter(Sample.sample_id == sample_id).first()
+        if not parent:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Parent sample '{sample_id}' not found"
+            )
+
+        created_samples = []
+
+        for child_id in child_sample_ids:
+            # Create child sample
+            child = Sample(
+                sample_id=child_id,
+                lot_number=parent.lot_number,
+                project_id=parent.project_id,
+                parent_sample_id=parent.id,
+                batch_id=parent.batch_id,
+                status='active',
+                extra_data={'derived_from': sample_id},
+                created_by=current_user["email"]
+            )
+            session.add(child)
+            session.flush()
+
+            # Create lineage
+            lineage = SampleLineage(
+                parent_sample_id=parent.id,
+                child_sample_id=child.id,
+                relationship_type='split',
+                created_by=current_user["email"]
+            )
+            session.add(lineage)
+
+            created_samples.append(child)
+
+        session.commit()
+
+        # Audit log
+        audit.log(
+            "SAMPLE_SPLIT",
+            current_user["email"],
+            sample_id,
+            f"Split sample {sample_id} into {len(child_sample_ids)} aliquots"
+        )
+
+        return {
+            "message": f"Created {len(created_samples)} child samples",
+            "child_samples": [SampleResponse.model_validate(s) for s in created_samples]
+        }
+
+    finally:
+        session.close()
+
+
+@router.post("/{sample_id}/assign-workflow")
+async def assign_sample_to_workflow(
+    sample_id: str,
+    workflow_execution_id: UUID4,
+    current_user: dict = Depends(get_current_user)
+):
+    """Assign sample to a workflow execution."""
+    session = get_session()
+    audit = Audit()
+
+    try:
+        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
+        if not sample:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Sample '{sample_id}' not found"
+            )
+
+        assignment = WorkflowSampleAssignment(
+            workflow_execution_id=workflow_execution_id,
+            sample_id=sample.id,
+            assigned_by=current_user["email"]
+        )
+
+        session.add(assignment)
+        session.commit()
+
+        # Audit log
+        audit.log(
+            "SAMPLE_WORKFLOW_ASSIGNED",
+            current_user["email"],
+            sample_id,
+            f"Assigned sample {sample_id} to workflow {workflow_execution_id}"
+        )
+
+        return {"message": "Sample assigned to workflow successfully"}
+
+    finally:
+        session.close()
+
+
+@router.get("/{sample_id}/history")
+async def get_sample_history(sample_id: str):
+    """Get audit history for a sample."""
+    audit = Audit()
+
+    # Get all audit logs for this sample
+    logs = audit.get_logs(limit=1000)
+
+    # Filter logs related to this sample
+    sample_logs = [
+        log for log in logs
+        if log.get('subject') == sample_id or sample_id in log.get('details', '')
+    ]
+
+    return sample_logs
+
+
+# ============================================================================
+# CONTAINER ENDPOINTS
+# ============================================================================
+

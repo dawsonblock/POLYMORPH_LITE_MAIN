@@ -8,11 +8,16 @@ import uuid
 
 from retrofitkit.api.server import app
 
-client = TestClient(app)
 
 # Mock authentication
 def mock_get_current_user():
     return {"email": "test@example.com", "name": "Test User", "role": "Admin"}
+
+
+@pytest.fixture
+def client():
+    """Create test client."""
+    return TestClient(app)
 
 
 @pytest.fixture
@@ -70,7 +75,7 @@ class TestSampleAPI:
             db_session.add(user)
             db_session.commit()
 
-    def test_create_sample(self, sample_data, auth_headers):
+    def test_create_sample(self, client, sample_data, auth_headers):
         """Test creating a new sample."""
         response = client.post(
             "/api/samples/",
@@ -85,7 +90,7 @@ class TestSampleAPI:
         assert data["status"] == "active"
         assert data["created_by"] == "test@example.com"
 
-    def test_list_samples(self, auth_headers):
+    def test_list_samples(self, client, auth_headers):
         """Test listing samples."""
         response = client.get("/api/samples/", headers=auth_headers)
 
@@ -93,13 +98,13 @@ class TestSampleAPI:
         data = response.json()
         assert isinstance(data, list)
 
-    def test_get_sample_not_found(self, auth_headers):
+    def test_get_sample_not_found(self, client, auth_headers):
         """Test getting non-existent sample."""
         response = client.get("/api/samples/NONEXISTENT", headers=auth_headers)
 
         assert response.status_code == 404
 
-    def test_update_sample(self, auth_headers):
+    def test_update_sample(self, client, auth_headers):
         """Test updating sample status."""
         # First create a sample
         sample_data = {
@@ -125,7 +130,7 @@ class TestSampleAPI:
             data = response.json()
             assert data["status"] == "consumed"
 
-    def test_split_sample(self, auth_headers):
+    def test_split_sample(self, client, auth_headers):
         """Test sample splitting (aliquoting)."""
         # Create parent sample
         parent_data = {
@@ -189,7 +194,7 @@ class TestContainerAPI:
             db_session.add(user)
             db_session.commit()
 
-    def test_create_container(self, auth_headers):
+    def test_create_container(self, client, auth_headers):
         """Test creating a container."""
         container_data = {
             "container_id": f"CONTAINER-{uuid.uuid4().hex[:8]}",
@@ -209,7 +214,7 @@ class TestContainerAPI:
         assert data["container_id"] == container_data["container_id"]
         assert data["capacity"] == 100
 
-    def test_list_containers(self, auth_headers):
+    def test_list_containers(self, client, auth_headers):
         """Test listing containers."""
         response = client.get("/api/samples/containers", headers=auth_headers)
 
@@ -254,7 +259,7 @@ class TestProjectAPI:
             db_session.add(user)
             db_session.commit()
 
-    def test_create_project(self, auth_headers):
+    def test_create_project(self, client, auth_headers):
         """Test creating a project."""
         project_data = {
             "project_id": f"PROJ-{uuid.uuid4().hex[:8]}",
@@ -274,7 +279,7 @@ class TestProjectAPI:
         assert data["project_id"] == project_data["project_id"]
         assert data["name"] == "Test Project"
 
-    def test_list_projects(self, auth_headers):
+    def test_list_projects(self, client, auth_headers):
         """Test listing projects."""
         response = client.get("/api/samples/projects", headers=auth_headers)
 
