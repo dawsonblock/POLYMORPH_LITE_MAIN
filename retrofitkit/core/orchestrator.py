@@ -222,119 +222,35 @@ class Orchestrator:
         return await self.execute_recipe(recipe, operator_email, simulation, resume)
 
     async def execute_recipe(self, recipe: Recipe, operator_email: str, simulation: bool=False, resume: bool=True) -> str:
-        recipe_id = f"{recipe.name}_{operator_email}" # Simple ID for checkpointing
-        checkpoint_key = f"checkpoint:{recipe_id}"
+        """
+        Execute recipe using the new WorkflowExecutor.
+        """
+        from retrofitkit.core.workflows.executor import WorkflowExecutor
+        from retrofitkit.core.workflows.db_logger import DatabaseLogger
+        from retrofitkit.api.compliance import get_session
         
-        start_idx = 0
-        rid = None
+        # Initialize new engine components
+        db_logger = DatabaseLogger(get_session)
+        executor = WorkflowExecutor(self.ctx.config, db_logger)
         
-        if resume:
-            try:
-                checkpoint = await self.redis.get(checkpoint_key)
-                if checkpoint:
-                    data = json.loads(checkpoint)
-                    start_idx = data["step"] + 1
-                    rid = data["rid"]
-                    self.audit.record(event="RESUME_FOUND", actor=operator_email, subject=recipe.name, details={"step": start_idx})
-            except Exception as e:
-                print(f"Failed to load checkpoint: {e}")
-
-        if rid is None:
-            rid = self.store.start_run(recipe.name, operator_email, simulation)
-            self.audit.record(event="RUN_START", actor=operator_email, subject=recipe.name, details={"run_id": rid, "simulation": simulation})
-
-        self.mx.set("polymorph_run_active", 1, {"run_id": rid})
+        # Update metrics
         self.mx.set("polymorph_run_state", RUN_STATE["ACTIVE"])
-        gating = GatingEngine(self.ctx.config.gating.rules)
-
+        
         try:
-            steps = recipe.steps
-            self._progress = {"current": 0, "total": len(steps)}
+            # Execute
+            # Note: We are not using the return value of execute() yet, 
+            # but it logs to DB which is the source of truth.
+            # We might want to return the run_id from executor.
             
-            for idx, step in enumerate(steps):
-                self._progress["current"] = idx
-                if idx < start_idx:
-                    continue
-
-                # Checkpoint before step
-                await self.redis.setex(checkpoint_key, 86400, json.dumps({"step": idx, "rid": rid, "ts": time.time()}))
-
-                try:
-                    async with asyncio.timeout(float(step.params.get("timeout", 300))):
-                        if step.type == "bias_set":
-                            v = float(step.params.get("volts", 0.0))
-                            await self.daq.set_voltage(v)
-                            self.mx.set("polymorph_ao_volts", v)
-                            self.mx.set("polymorph_ai_volts", await self.daq.read_ai())
-                            self.audit.record(event="BIAS_SET", actor=operator_email, subject=recipe.name, details={"V": v})
-                        elif step.type == "bias_ramp":
-                            v0 = float(step.params.get("from", 0.0))
-                            v1 = float(step.params.get("to", 1.0))
-                            dt = float(step.params.get("seconds", 5.0))
-                            n = max(2, int(dt * 20))
-                            for i in range(n):
-                                v = v0 + (v1 - v0) * (i / (n - 1))
-                                await self.daq.set_voltage(v)
-                                self.mx.set("polymorph_ao_volts", v)
-                                self.mx.set("polymorph_ai_volts", await self.daq.read_ai())
-                                await asyncio.sleep(dt / n)
-                            self.audit.record(event="BIAS_RAMP", actor=operator_email, subject=recipe.name, details={"from": v0, "to": v1, "seconds": dt})
-                        elif step.type == "hold":
-                            dur = float(step.params.get("seconds", 1.0))
-                            t0 = time.time()
-                            while time.time()-t0 < dur:
-                                self.mx.set("polymorph_ai_volts", await self.daq.read_ai())
-                                await asyncio.sleep(0.2)
-                            self.audit.record(event="HOLD", actor=operator_email, subject=recipe.name, details={"seconds": dur})
-                        elif step.type == "wait_for_raman":
-                            timeout = float(step.params.get("timeout_s", 120.0))
-                            tstart = time.time()
-                            while True:
-                                spec = await self.raman.read_frame()
-                                self.store.append_spectrum(rid, spec)
-                                self.mx.set("polymorph_raman_peak_intensity", spec.get("peak_intensity", 0.0))
-                                
-                                # AI Inference Call
-                                if "intensity" in spec:
-                                    ai_result = await self._call_inference_service(spec["intensity"])
-                                    if ai_result:
-                                        self.mx.set("polymorph_ai_active_modes", ai_result.get("active_modes", 0))
-                                        if ai_result.get("new_polymorph"):
-                                            self.audit.record(event="AI_DISCOVERY", actor="BentoML", subject=recipe.name, details={"polymorph": ai_result["new_polymorph"]})
-                                            print(f"AI DISCOVERY: {ai_result['new_polymorph']}")
-
-                                hit = gating.update(spec)
-                                if hit:
-                                    self.audit.record(event="GATE_TRIGGERED", actor=operator_email, subject=recipe.name, details={"t": spec["t"], "peak": spec["peak_nm"], "intensity": spec["peak_intensity"]})
-                                    break
-                                if time.time() - tstart > timeout:
-                                    self.audit.record(event="GATE_TIMEOUT", actor=operator_email, subject=recipe.name, details={"timeout_s": timeout})
-                                    break
-                        elif step.type == "gate_stop":
-                            await self.daq.set_voltage(0.0)
-                            self.mx.set("polymorph_ao_volts", 0.0)
-                            self.mx.set("polymorph_ai_volts", await self.daq.read_ai())
-                            self.audit.record(event="STOP", actor=operator_email, subject=recipe.name, details={})
-                        else:
-                            self.audit.record(event="UNKNOWN_STEP", actor=operator_email, subject=recipe.name, details={"step": step.type})
-                except asyncio.TimeoutError:
-                    await self._emergency_shutdown()
-                    raise
-
-            self.audit.record(event="RUN_END", actor=operator_email, subject=recipe.name, details={"run_id": rid})
-            # Clear checkpoint on success
-            await self.redis.delete(checkpoint_key)
+            # For now, we wrap in try/except to handle errors and update metrics
+            await executor.execute(recipe, operator_email, {"simulation": simulation})
+            
+            # We don't have the run_id easily available unless we change execute signature or access logger
+            # But the logger has it.
+            return db_logger.run_id
             
         except Exception as e:
-            self.audit.record(event="RUN_ERROR", actor=operator_email, subject=recipe.name, details={"error": str(e)})
             self.mx.set("polymorph_run_state", RUN_STATE["ERROR"])
-            raise
+            raise e
         finally:
-            # Ensure safe state
-            try:
-                await self.daq.set_voltage(0.0)
-            except:
-                pass
-            self.mx.set("polymorph_run_active", 0, {"run_id": rid})
             self.mx.set("polymorph_run_state", RUN_STATE["IDLE"])
-        return rid

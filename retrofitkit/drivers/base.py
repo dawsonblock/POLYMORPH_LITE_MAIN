@@ -157,3 +157,32 @@ class LaserDevice(DeviceBase, Protocol):
     async def is_enabled(self) -> bool:
         """Check if laser output is enabled."""
         ...
+
+# --- Safety Integration ---
+
+from functools import wraps
+from retrofitkit.core.safety.interlocks import get_interlocks, SafetyError
+
+def require_safety(func):
+    """Decorator to enforce safety checks before hardware actions."""
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        if hasattr(self, "interlocks") and self.interlocks:
+            self.interlocks.check_safe()
+        return await func(self, *args, **kwargs)
+    return wrapper
+
+class SafetyAwareMixin:
+    """Mixin for devices that need to respect system interlocks."""
+    def __init__(self, config):
+        self.config = config
+        try:
+            self.interlocks = get_interlocks(config)
+        except Exception:
+            self.interlocks = None
+            
+    async def ensure_safe(self):
+        """Explicitly check safety."""
+        if self.interlocks:
+            self.interlocks.check_safe()
+

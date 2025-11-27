@@ -8,7 +8,10 @@ class Step(BaseModel):
 
 RecipeStep = Step
 
+import uuid
+
 class Recipe(BaseModel):
+    id: Optional[uuid.UUID] = None
     name: str
     version: str = "1.0"
     metadata: Dict[str, Any] = {}
