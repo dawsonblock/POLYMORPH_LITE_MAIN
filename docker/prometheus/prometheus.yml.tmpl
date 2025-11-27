@@ -1,8 +1,0 @@
-global:
-  scrape_interval: 2s
-scrape_configs:
-  - job_name: 'polymorph4'
-    static_configs:
-      - targets: ['${APP_TARGET}']
-        labels:
-          group: 'app'
