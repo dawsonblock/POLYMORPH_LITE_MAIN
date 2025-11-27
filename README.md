@@ -1,36 +1,77 @@
 <div align="center">
 
-# 🔬 POLYMORPH-4 Lite v2.0.0
+# 🔬 POLYMORPH-LITE v3.0.0
 
-### AI-Powered Laboratory Automation Platform
-### Real-time Polymorph Detection | 21 CFR Part 11 Compliance | Production Ready
+### AI-Powered Laboratory OS with Unified Database & LIMS
+### PostgreSQL | RBAC | 21 CFR Part 11 | Production Ready
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-green.svg)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue.svg)](https://www.postgresql.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://reactjs.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](https://www.docker.com/)
 [![Production Ready](https://img.shields.io/badge/production-ready-brightgreen.svg)](#)
 
-**[Quick Start](#-quick-start)** • **[Features](#-key-features)** • **[Documentation](docs/)** • **[Deploy](#-deployment)**
+**[Quick Start](#-quick-start)** • **[What's New](#-whats-new-in-v30)** • **[Features](#-key-features)** • **[Deploy](#-deployment)**
 
 ---
 
 </div>
 
-## 🎯 What is POLYMORPH-4 Lite?
+## 🎯 What is POLYMORPH-LITE?
 
-POLYMORPH-4 Lite is a **production-ready laboratory automation platform** that transforms existing analytical instruments into intelligent, AI-powered systems. Built for pharmaceutical R&D, quality control, and production environments.
+POLYMORPH-LITE is a **production-ready laboratory OS** that transforms analytical instruments into intelligent, AI-powered systems. Built for pharmaceutical R&D, quality control, and production with enterprise-grade database architecture.
 
 ### 💡 Value Proposition
 
-- **🚀 Deploy in Minutes**: One-command Docker deployment
-- **🤖 AI-Powered**: Real-time polymorph detection with deep learning
-- **🔒 Compliance Ready**: Built-in 21 CFR Part 11 features (audit trails, e-signatures)
+- **🚀 Deploy in Minutes**: Docker auto-deployment with migrations
+- **🗄️  Unified Database**: PostgreSQL with 27 tables, Alembic migrations
+- **🤖 AI-Powered**: Real-time analysis with circuit-breaker resilience
+- **🔒 Compliance Ready**: 21 CFR Part 11 (audit trails, RBAC, e-signatures)
+- **📊 LIMS Features**: Sample tracking, inventory, calibration management
 - **🎨 Premium UI**: Modern glassmorphism design with real-time monitoring
-- **📊 Observable**: Prometheus metrics + Grafana dashboards
-- **🔧 Multi-Vendor**: Supports NI, Ocean Optics, Horiba, Red Pitaya, and more
+
+---
+
+## 🆕 What's New in v3.0?
+
+### Major Architectural Upgrade
+
+| Feature | v2.0 | v3.0 |
+|---------|------|------|
+| **Database** | Scattered SQLite files | Unified PostgreSQL |
+| **ORM** | Duplicate models (split-brain) | Single source of truth |
+| **Migrations** | Manual | Alembic auto-migrations |
+| **LIMS** | Not available | Full sample + inventory tracking |
+| **RBAC** | Basic roles | Granular permissions (4 roles) |
+| **Audit** | Basic logging | Cryptographic hash-chain |
+| **Deployment** | Manual steps | Fully automated (Docker) |
+
+### New Features
+
+✅ **Unified Database Layer**
+- 27 tables with proper relationships
+- PostgreSQL-first with SQLite fallback
+- Automatic migrations on startup
+
+✅ **LIMS Functionality**
+- Sample tracking with lineage
+- Inventory management with expiration
+- Calibration logging  
+- Project/batch organization
+
+✅ **Enhanced Security**
+- Role-Based Access Control (RBAC)
+- JWT authentication
+- API route protection
+- Hash-chain audit trail
+
+✅ **Production Tools**
+- Health check script (`scripts/check_db_health.py`)
+- Database backup utility (`scripts/backup_database.py`)
+- Admin user setup (`scripts/create_admin_user.py`)
 
 ---
 
@@ -40,20 +81,21 @@ POLYMORPH-4 Lite is a **production-ready laboratory automation platform** that t
 <tr>
 <td width="50%">
 
+### 🗄️ Database & LIMS
+- **PostgreSQL Database**: 27 tables with full relations
+- **Sample Tracking**: Lineage, batches, containers
+- **Inventory Management**: Stock lots, expiration tracking
+- **Calibration Logs**: Instrument calibration history
+- **Alembic Migrations**: Version-controlled schema
+
+</td>
+<td width="50%">
+
 ### 🤖 AI Integration
 - **BentoML Service**: Optimized AI inference
 - **Circuit Breaker**: Resilient failure handling
 - **Real-time Analysis**: <50ms inference latency
 - **Auto-detection**: Crystallization events
-
-</td>
-<td width="50%">
-
-### 🎨 Modern Interface
-- **Scientific Dark Mode**: Eye-friendly design
-- **Glassmorphism UI**: Premium aesthetics
-- **Real-time Dashboard**: Live spectral data
-- **WebSocket Updates**: Instant notifications
 
 </td>
 </tr>
@@ -63,18 +105,20 @@ POLYMORPH-4 Lite is a **production-ready laboratory automation platform** that t
 ### 🔒 Compliance & Security
 - **21 CFR Part 11**: Full compliance
 - **Electronic Signatures**: RSA-based
-- **Audit Trails**: Immutable logs
-- **RBAC**: Role-based access control
+- **Audit Trails**: Immutable hash-chain
+- **RBAC**: 4 roles (admin, scientist, technician, compliance)
 - **MFA**: Multi-factor authentication
+- **Password History**: Prevent reuse
 
 </td>
 <td>
 
-### 📊 Monitoring & Observability
-- **Health Checks**: Component monitoring
-- **Prometheus Metrics**: System performance
-- **Grafana Dashboards**: Visual analytics
-- **Alert System**: Email notifications
+### 🎨 Modern Interface
+- **Scientific Dark Mode**: Eye-friendly design
+- **Glassmorphism UI**: Premium aesthetics
+- **Real-time Dashboard**: Live spectral data
+- **WebSocket Updates**: Instant notifications
+- **Sample Explorer**: LIMS interface
 
 </td>
 </tr>
@@ -87,7 +131,7 @@ POLYMORPH-4 Lite is a **production-ready laboratory automation platform** that t
 ### Prerequisites
 - Docker & Docker Compose
 - Python 3.11+ (for local development)
-- Node.js 18+ (for frontend development)
+- PostgreSQL 15+ (for local dev without Docker)
 
 ### ⚡ One-Command Deploy
 
@@ -96,370 +140,258 @@ POLYMORPH-4 Lite is a **production-ready laboratory automation platform** that t
 git clone https://github.com/dawsonblock/POLYMORPH_LITE_MAIN.git
 cd POLYMORPH_LITE_MAIN
 
-# Deploy with Docker
-./deploy.sh
-```
+# Configure environment
+cp .env.example .env
+# Edit .env: Set POSTGRES_PASSWORD, SECRET_KEY, JWT_SECRET_KEY
 
-**That's it!** Access the application:
-- 🌐 **Frontend**: http://localhost
-- 📚 **API Docs**: http://localhost:8001/docs
-- 📊 **Metrics**: http://localhost:9090
-- 📈 **Grafana**: http://localhost:3030
-
-### 🎬 What Happens
-1. Builds optimized frontend (React + Vite)
-2. Starts Redis for state persistence
-3. Launches FastAPI backend with health checks
-4. Starts AI service (BentoML)
-5. Deploys NGINX reverse proxy
-6. Verifies all services are healthy
-
----
-
-## 📦 Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    POLYMORPH-4 Lite v2.0                    │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌───────────┐   ┌───────────┐   ┌─────────┐   ┌─────────┐ │
-│  │  Frontend │───│  Backend  │───│   AI    │───│  Redis  │ │
-│  │  (React)  │   │ (FastAPI) │   │(BentoML)│   │ (Cache) │ │
-│  └───────────┘   └───────────┘   └─────────┘   └─────────┘ │
-│       │               │                │                      │
-│  ┌────▼───────────────▼────────────────▼──────────────────┐ │
-│  │         Hardware Abstraction Layer                      │ │
-│  │  ┌──────┐  ┌──────┐  ┌───────┐  ┌────────┐           │ │
-│  │  │  NI  │  │Ocean │  │Horiba │  │  Red   │           │ │
-│  │  │ DAQ  │  │Optics│  │ Raman │  │Pitaya  │           │ │
-│  │  └──────┘  └──────┘  └───────┘  └────────┘           │ │
-│  └──────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Technology Stack
-
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Frontend** | React 18 + Vite + TailwindCSS | Modern, responsive UI |
-| **Backend** | FastAPI + Python 3.11 | High-performance API |
-| **AI Service** | BentoML + PyTorch | ML model serving |
-| **Database** | Redis + SQLite | State & persistence |
-| **Monitoring** | Prometheus + Grafana | Metrics & dashboards |
-| **Deployment** | Docker + NGINX | Containerization |
-
----
-
-## 📸 Screenshots
-
-### 🎨 Modern Dashboard
-> Real-time system overview with glassmorphism design, live spectral data, and component health monitoring
-
-### 📊 Spectral Analysis  
-> AI-powered real-time Raman spectroscopy with automatic peak detection and polymorph classification
-
-### 🔐 Compliance Features
-> Electronic signatures, audit trail viewer, and role-based access control
-
-### 📈 Monitoring Dashboards
-> Grafana dashboards showing system metrics, experiment history, and performance analytics
-
----
-
-## 🎯 Use Cases
-
-### 🔬 Research & Development
-- Automated crystallization monitoring
-- Real-time polymorph screening
-- Data integrity for publications
-- Rapid prototyping with simulation modes
-
-### 🏭 Quality Control
-- Batch release testing with e-records
-- Automated pass/fail criteria
-- Multi-user approval workflows
-- Compliance documentation
-
-### ⚗️ Process Development
-- Scale-up monitoring
-- Process optimization (DOE)
-- Critical parameter tracking
-- Technology transfer docs
-
-### 🏥 Production
-- LIMS/MES integration via REST API
-- Real-time release testing
-- Regulatory compliance (FDA/EMA/ICH)
-- Retrofit existing instruments
-
----
-
-## 🛠️ Installation Options
-
-### Option 1: Docker (Recommended)
-```bash
-./deploy.sh  # One command!
-```
-
-### Option 2: Development Setup
-```bash
-# Backend
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python -m retrofitkit.main
-
-# Frontend
-cd gui-v2/frontend
-npm install
-npm run dev
-```
-
-### Option 3: Manual Docker Compose
-```bash
-cp .env.production.example .env
-# Edit .env with your configuration
+# Deploy (migrations run automatically!)
 docker-compose up -d
+
+# Create admin user
+docker-compose exec backend python scripts/create_admin_user.py
+
+# Access system
+open http://localhost
 ```
+
+**Login**: `admin@polymorph.local` / `admin123` (change immediately!)
+
+### 🧪 Verify Installation
+
+```bash
+# Check database health
+docker-compose exec backend python scripts/check_db_health.py
+
+# View logs
+docker-compose logs -f backend
+
+# Check API
+curl http://localhost:8001/health
+```
+
+---
+
+## 📊 Database Schema
+
+### 27 Tables Organized by Domain
+
+| Domain | Tables | Purpose |
+|--------|--------|---------|
+| **Auth & RBAC** | users, roles, user_roles | Authentication, permissions |
+| **Audit** | audit | Hash-chain audit trail |
+| **Devices** | devices, device_status | Instrument tracking |
+| **LIMS** | projects, containers, batches, samples, sample_lineage | Sample management |
+| **Inventory** | vendors, inventory_items, stock_lots | Stock tracking |
+| **Calibration** | calibration_entries | Instrument calibration |
+| **Workflows** | workflow_versions, workflow_executions, workflow_sample_assignments, config_snapshots | Workflow management |
+| **Multi-Site** | organizations, labs, nodes, device_hubs | Enterprise deployment |
+
+### RBAC Roles (Auto-Seeded)
+
+| Role | Permissions | Use Case |
+|------|-------------|----------|
+| **admin** | All resources (full CRUD) | System administrators |
+| **scientist** | Workflows, samples, runs (create/read/update) | Research scientists |
+| **technician** | Runs, inventory, calibration (create/read) | Lab technicians |
+| **compliance** | Audit, runs, samples (read-only) | Compliance officers |
+
+---
+
+## 🔧 Production Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/create_admin_user.py` | Create initial admin account |
+| `scripts/check_db_health.py` | Verify database integrity |
+| `scripts/backup_database.py` | Backup PostgreSQL database |
+
+### Health Check Example
+
+```bash
+python scripts/check_db_health.py
+
+# Output:
+# ✅ Database Connection
+# ✅ All 27 tables exist
+# ✅ All default roles present
+# ✅ Audit chain valid (0 entries)
+# 🎉 Database is healthy and ready!
+```
+
+---
+
+## 📝 API Examples
+
+### Authentication
+
+```bash
+# Login
+curl -X POST http://localhost:8001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@polymorph.local","password":"admin123"}'
+
+# Returns: {"access_token": "eyJ...", "token_type": "bearer"}
+```
+
+### Sample Management (LIMS)
+
+```bash
+# Create sample (requires admin or scientist role)
+curl -X POST http://localhost:8001/api/samples \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sample_id": "SAMPLE-001",
+    "status": "active",
+    "extra_data": {"concentration": "10mg/mL"}
+  }'
+
+# List samples
+curl http://localhost:8001/api/samples?limit=10
+
+# Sample lineage (parent-child tracking)
+curl http://localhost:8001/api/samples/SAMPLE-001
+```
+
+### Inventory Management
+
+```bash
+# Create inventory item
+curl -X POST http://localhost:8001/api/inventory/items \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "item_code": "REAGENT-001",
+    "name": "Acetonitrile HPLC Grade",
+    "category": "reagent",
+    "min_stock": 5
+  }'
+
+# Check low stock
+curl http://localhost:8001/api/inventory/low-stock
+```
+
+---
+
+## 🏗️ Architecture
+
+```
+POLYMORPH-LITE v3.0
+├── PostgreSQL (Unified Database)
+│   ├── 27 tables with relationships
+│   ├── Alembic migrations
+│   └── Connection pooling
+│
+├── Backend (FastAPI)
+│   ├── retrofitkit/db/ (Unified ORM)
+│   ├── retrofitkit/api/ (REST endpoints)
+│   ├── retrofitkit/compliance/ (RBAC, audit)
+│   └── retrofitkit/core/ (Orchestrator)
+│
+├── AI Service (BentoML)
+│   ├── Model inference
+│   └── Circuit breaker
+│
+└── Frontend (React + Vite)
+    ├── Dashboard
+    ├── Sample Explorer
+    ├── Analytics
+    └── Settings
+```
+
+---
+
+## 🔄 Migration from v2.0
+
+> **⚠️ BREAKING CHANGES**: v3.0 uses PostgreSQL instead of SQLite
+
+### Migration Steps
+
+1. **Backup v2.0 data** (if needed)
+2. **Deploy v3.0** with `docker-compose up -d`
+3. **Recreate users** - SQLite data is not automatically migrated
+4. **Import historical data** (optional) via API
+
+### What's Different
+
+- ❌ SQLite `system.db` → ✅ PostgreSQL `polymorph_db`
+- ❌ Manual schema → ✅ Alembic migrations
+- ❌ Scattered models → ✅ Unified `retrofitkit/db/`
+- ❌ Basic auth → ✅ RBAC + JWT
 
 ---
 
 ## 📚 Documentation
 
-Comprehensive documentation located in `/docs`:
-
-| Document | Description |
-|----------|-------------|
-| **[User Manual](docs/USER_MANUAL.md)** | Complete guide for lab operators |
-| **[API Documentation](docs/API_DOCUMENTATION.md)** | RESTful API reference + SDK examples |
-| **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** | Production deployment instructions |
-| **[Quick Start](docs/QUICKSTART.md)** | Get started in 5 minutes |
-| **[Quick Deploy](DEPLOY_NOW.md)** | Single-page deployment reference |
+- **API Documentation**: http://localhost:8001/docs (Swagger UI)
+- **Health Endpoint**: http://localhost:8001/health
+- **Database Schema**: See `alembic/versions/001_unified_schema.py`
+- **Walkthrough**: See artifacts for complete deployment guide
 
 ---
 
-## 🔧 Hardware Support
+## 🧪 Supported Instruments
 
-### Data Acquisition (DAQ)
-- ✅ National Instruments (USB-6343, PCIe-6363, PXI-6733)
-- ✅ Red Pitaya (network-connected SCPI/TCP)
-- ✅ Gamry Potentiostats
-- ✅ Software Simulator (no hardware required)
-
-### Raman Spectrometers
-- ✅ Ocean Optics (USB via SeaBreeze)
-- ✅ Horiba (vendor SDK)
-- ✅ Andor (camera-based systems)
-- ✅ Software Simulator
-
-### Safety I/O
-- ✅ E-stop integration
-- ✅ Door interlocks
-- ✅ Watchdog timers
-- ✅ Configurable failsafe logic
+- **NI DAQ**: Data acquisition
+- **Ocean Optics**: Spectroscopy
+- **Horiba Raman**: Raman spectroscopy
+- **Red Pitaya**: Signal processing
+- **Custom Devices**: Modular driver architecture
 
 ---
 
-## 🚀 Deployment
+## 📦 Requirements
 
-### Production Checklist
-
-- [ ] Copy `.env.production.example` to `.env`
-- [ ] Update `SECRET_KEY` (generate with: `python -c 'import secrets; print(secrets.token_urlsafe(32))'`)
-- [ ] Set `REDIS_PASSWORD`
-- [ ] Configure SSL certificates
-- [ ] Update `CORS_ORIGINS`
-- [ ] Set up backup strategy
-- [ ] Configure email alerts
-
-### Deploy
-```bash
-./deploy.sh
+### Production
+```
+fastapi==0.115.0
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.13.0
+pydantic==2.5.0
+uvicorn==0.24.0
+python-jose[cryptography]==3.3.0
+bcrypt==4.1.1
 ```
 
-### Verify
-```bash
-curl http://localhost:8001/health
-curl http://localhost:3000/healthz
+### Development
 ```
-
-### Manage
-```bash
-docker-compose logs -f        # View logs
-docker-compose ps             # Check status
-docker-compose restart        # Restart services
-docker-compose down           # Stop all
+pytest==7.4.3
+black==23.11.0
+ruff==0.1.6
 ```
-
----
-
-## 📊 Metrics & Monitoring
-
-### Built-in Metrics
-- System performance (CPU, memory, disk)
-- Experiment execution stats
-- AI inference latency
-- Hardware status
-- User activity logs
-
-### Grafana Dashboards
-Access at `http://localhost:3030` (admin/admin):
-- System Health Overview
-- Experiment History
-- AI Performance Metrics
-- Hardware Status
-
----
-
-## 🔐 Security & Compliance
-
-### 21 CFR Part 11 Features
-- ✅ **Audit Trails**: Cryptographically secured, append-only
-- ✅ **Electronic Signatures**: RSA-based, legally binding
-- ✅ **Access Control**: Role-based (Admin, Operator, QA, Guest)
-- ✅ **Password Policies**: Enforced complexity & expiration
-- ✅ **Two-Person Rule**: Configurable approval workflows
-
-### Security Best Practices
-- ✅ JWT authentication with expiration
-- ✅ MFA support (TOTP)
-- ✅ Rate limiting
-- ✅ CORS protection
-- ✅ SQL injection prevention
-- ✅ XSS protection
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how:
+Contributions welcome! Please:
 
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Development Guidelines
-- Follow PEP 8 for Python code
-- Use ESLint/Prettier for JavaScript/TypeScript
-- Write tests for new features
-- Update documentation
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
-## 🐛 Troubleshooting
+## 📄 License
 
-### Common Issues
-
-**Services won't start**
-```bash
-docker-compose logs backend    # Check backend logs
-docker-compose down -v          # Reset and try again
-```
-
-**Health check fails**
-```bash
-curl -v http://localhost:8001/health  # Detailed health info
-```
-
-**Frontend build errors**
-```bash
-cd gui-v2/frontend
-rm -rf node_modules package-lock.json
-npm install
-npm run build
-```
-
-For more help, see [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) or open an [issue](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN/issues).
+MIT License - see LICENSE file for details
 
 ---
 
-## 📋 System Requirements
+## 🙏 Acknowledgments
 
-### Minimum
-- **CPU**: 4 cores
-- **RAM**: 8 GB
-- **Storage**: 100 GB SSD
-- **OS**: Ubuntu 20.04+, macOS 12+, Windows 11
-
-### Recommended
-- **CPU**: 8+ cores
-- **RAM**: 16 GB
-- **Storage**: 500 GB NVMe SSD
-- **GPU**: NVIDIA GPU for AI acceleration (optional)
-
----
-
-## 📝 Version History
-
-### v2.0.0 (2025-11-25) - Production Ready
-- ✅ Complete GUI modernization (scientific dark mode + glassmorphism)
-- ✅ AI service integration with circuit breaker pattern
-- ✅ Comprehensive documentation (148KB)
-- ✅ Docker Compose infrastructure
-- ✅ Health monitoring & metrics
-- ✅ Production deployment automation
-- ✅ 21 CFR Part 11 compliance features
-
-### v1.0 - Initial Release
-- Core automation platform
-- Multi-vendor hardware support
-- Recipe-based workflows
-
----
-
-## ⚖️ License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-### Compliance Notice
-> ⚠️ **Important**: This software includes 21 CFR Part 11-style controls (audit trails, e-signatures, authority checks). **Validation and certification are the operator's responsibility.** The system provides the mechanisms; formal qualification (IQ/OQ/PQ) must be performed by your organization.
-
----
-
-## 🏆 Acknowledgments
-
-- **FastAPI** community for excellent web framework
-- **React** team for modern UI library
-- **BentoML** for ML serving infrastructure
-- **Scientific Python** ecosystem (NumPy, SciPy, PyTorch)
-- **Hardware vendors** (NI, Ocean Optics, Horiba) for SDK support
-- **Open source community** for tools and libraries
-
----
-
-## 📞 Support & Contact
-
-### Enterprise Support
-For production deployments, validation assistance, and custom integrations:
-- 📧 Email: support@polymorph4.com
-- 🌐 Website: https://polymorph4.com
-
-### Community Support
-- 💬 **GitHub Issues**: [Report bugs](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN/issues)
-- 📚 **Documentation**: Complete guides in `/docs`
-- 🔧 **Deployment Help**: See `DEPLOY_NOW.md`
+- Built with FastAPI, React, PostgreSQL, and BentoML
+- Inspired by pharmaceutical quality control needs
+- Community contributions and feedback
 
 ---
 
 <div align="center">
 
-### 🎯 Ready to Transform Your Laboratory?
+**Made with ❤️ for the pharmaceutical and research community**
 
-```bash
-git clone https://github.com/dawsonblock/POLYMORPH_LITE_MAIN.git
-cd POLYMORPH_LITE_MAIN
-./deploy.sh
-```
-
-**⭐ Star this repo** if POLYMORPH-4 Lite helps your research!
-
----
-
-**Built with ❤️ for the scientific community** | **© 2025 POLYMORPH-4 Research Team**
-
-[Documentation](docs/) • [Quick Start](#-quick-start) • [GitHub](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN)
+[Report Bug](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN/issues) • [Request Feature](https://github.com/dawsonblock/POLYMORPH_LITE_MAIN/issues)
 
 </div>

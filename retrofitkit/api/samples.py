@@ -17,6 +17,7 @@ from retrofitkit.db.session import get_db
 from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.compliance.tokens import get_current_user
+from retrofitkit.api.dependencies import require_role
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 
@@ -135,7 +136,12 @@ class BatchResponse(BaseModel):
 # SAMPLE ENDPOINTS
 # ============================================================================
 
-@router.post("/", response_model=SampleResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=SampleResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role("admin", "scientist"))]
+)
 async def create_sample(
     sample: SampleCreate,
     current_user: dict = Depends(get_current_user)
@@ -211,7 +217,12 @@ async def create_sample(
         session.close()
 
 
-@router.post("/bulk", response_model=List[SampleResponse], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/bulk",
+    response_model=List[SampleResponse],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role("admin", "scientist"))]
+)
 async def create_samples_bulk(
     samples: List[SampleCreate],
     current_user: dict = Depends(get_current_user)
@@ -429,7 +440,11 @@ async def update_sample(
         session.close()
 
 
-@router.delete("/{sample_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{sample_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_role("admin"))]
+)
 async def delete_sample(
     sample_id: str,
     current_user: dict = Depends(get_current_user)
