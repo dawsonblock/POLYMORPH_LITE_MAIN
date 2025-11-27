@@ -1,266 +1,200 @@
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Activity,
-  Thermometer,
-  Gauge,
-  Droplets,
+  Cpu,
+  HardDrive,
+  Clock,
+  Play,
   AlertTriangle,
-  CheckCircle,
-  TrendingUp,
-  Zap
+  CheckCircle2,
+  Thermometer
 } from 'lucide-react'
-
-import { GlassCard, CardContent, CardHeader, CardTitle } from '@/components/ui/glass-card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-
-import useSystemStore from '@/stores/system-store'
-import { formatDuration } from '@/lib/utils'
-import { SpectralView } from '@/components/SpectralView'
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.5,
-      ease: "easeOut"
-    },
-  },
-}
+import { useWebSocket } from '@/hooks/use-websocket'
 
 export function Dashboard() {
-  const { status, activeProcesses, alerts } = useSystemStore()
+  const { lastMessage } = useWebSocket()
+  const [systemStats, setSystemStats] = useState({
+    cpu: 0,
+    memory: 0,
+    disk: 0,
+    uptime: '0h 0m'
+  })
 
-  const recentAlerts = alerts.slice(0, 5)
-  const runningProcesses = activeProcesses.filter(p => p.status === 'running')
+  // Mock data updates (replace with real websocket data later)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSystemStats(prev => ({
+        cpu: Math.floor(Math.random() * 30) + 10,
+        memory: Math.floor(Math.random() * 20) + 40,
+        disk: 45,
+        uptime: '24h 12m'
+      }))
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  }
+
+  const item = {
+    hidden: { y: 20, opacity: 0 },
+    show: { y: 0, opacity: 1 }
+  }
 
   return (
     <motion.div
-      variants={containerVariants}
+      variants={container}
       initial="hidden"
-      animate="visible"
-      className="space-y-8 p-4 md:p-8 pt-6"
+      animate="show"
+      className="space-y-6"
     >
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-cyan-400 to-teal-400 bg-clip-text text-transparent">
-          System Overview
-        </h2>
-        <div className="flex items-center space-x-2">
-          <Badge variant="outline" className="text-cyan-400 border-cyan-400/50">
-            v2.0.0
-          </Badge>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">System overview and control center</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline">View Logs</Button>
+          <Button variant="scientific">
+            <Play className="mr-2 h-4 w-4" />
+            New Run
+          </Button>
         </div>
       </div>
 
-      {/* Status Overview */}
-      <motion.div variants={itemVariants}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <GlassCard>
+      {/* System Health Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <motion.div variants={item}>
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">System Status</CardTitle>
-              <Activity className="h-4 w-4 text-cyan-400" />
+              <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
+              <Cpu className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="flex items-center space-x-2">
-                <Badge
-                  variant={status?.overall === 'healthy' ? 'success' : 'destructive'}
-                  className="capitalize shadow-lg shadow-cyan-500/20"
-                >
-                  {status?.overall || 'Unknown'}
-                </Badge>
-                <span className="text-sm text-muted-foreground font-mono">
-                  {status && formatDuration(status.uptime)}
-                </span>
-              </div>
+              <div className="text-2xl font-bold">{systemStats.cpu}%</div>
+              <p className="text-xs text-muted-foreground">
+                <span className="text-emerald-500">Normal</span> load
+              </p>
             </CardContent>
-          </GlassCard>
+          </Card>
+        </motion.div>
 
-          <GlassCard>
+        <motion.div variants={item}>
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Temperature</CardTitle>
-              <Thermometer className="h-4 w-4 text-rose-400" />
+              <CardTitle className="text-sm font-medium">Memory</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-100">
-                {status?.components.daq.temperature?.toFixed(1) || '--'}°C
-              </div>
-              <Progress value={((status?.components.daq.temperature || 0) / 40) * 100} className="h-1 mt-2 bg-slate-800" />
+              <div className="text-2xl font-bold">{systemStats.memory}%</div>
+              <p className="text-xs text-muted-foreground">
+                8GB / 16GB used
+              </p>
             </CardContent>
-          </GlassCard>
+          </Card>
+        </motion.div>
 
-          <GlassCard>
+        <motion.div variants={item}>
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Pressure</CardTitle>
-              <Gauge className="h-4 w-4 text-amber-400" />
+              <CardTitle className="text-sm font-medium">Disk Space</CardTitle>
+              <HardDrive className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-100">
-                {status?.components.pumps.pressure?.toFixed(2) || '--'} bar
-              </div>
-              <Progress value={((status?.components.pumps.pressure || 0) / 3) * 100} className="h-1 mt-2 bg-slate-800" />
+              <div className="text-2xl font-bold">{systemStats.disk}%</div>
+              <p className="text-xs text-muted-foreground">
+                256GB free
+              </p>
             </CardContent>
-          </GlassCard>
+          </Card>
+        </motion.div>
 
-          <GlassCard>
+        <motion.div variants={item}>
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Flow Rate</CardTitle>
-              <Droplets className="h-4 w-4 text-blue-400" />
+              <CardTitle className="text-sm font-medium">Uptime</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-100">
-                {status?.components.pumps.flowRate?.toFixed(1) || '--'} mL/min
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">Target: 2.0 mL/min</div>
+              <div className="text-2xl font-bold">{systemStats.uptime}</div>
+              <p className="text-xs text-muted-foreground">
+                Since last reboot
+              </p>
             </CardContent>
-          </GlassCard>
-        </div>
-      </motion.div>
-
-      {/* Spectral View */}
-      <motion.div variants={itemVariants}>
-        <GlassCard className="overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Zap className="h-5 w-5 text-yellow-400" />
-              <span>Real-time Spectrum</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <SpectralView />
-          </CardContent>
-        </GlassCard>
-      </motion.div>
+          </Card>
+        </motion.div>
+      </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Active Processes */}
-        <motion.div variants={itemVariants} className="lg:col-span-2">
-          <GlassCard className="h-full">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+
+        {/* Active Run / Status */}
+        <motion.div variants={item} className="col-span-4">
+          <Card className="h-full">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Activity className="h-5 w-5 text-cyan-400" />
-                <span>Active Processes</span>
-                <Badge variant="secondary" className="bg-slate-800">{runningProcesses.length}</Badge>
-              </CardTitle>
+              <CardTitle>Active Workflow</CardTitle>
+              <CardDescription>Current execution status</CardDescription>
             </CardHeader>
             <CardContent>
-              {runningProcesses.length > 0 ? (
-                <div className="space-y-6">
-                  {runningProcesses.map((process) => (
-                    <div key={process.id} className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                          <span className="font-medium text-slate-200">{process.recipeName}</span>
-                        </div>
-                        <span className="text-sm text-muted-foreground font-mono">
-                          Step {process.currentStep}/{process.totalSteps}
-                        </span>
-                      </div>
-                      <Progress value={process.progress} className="h-2 bg-slate-800" />
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Started: {process.startTime.toLocaleTimeString()}</span>
-                        <span>{process.progress.toFixed(1)}%</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <div className="h-16 w-16 rounded-full bg-slate-800/50 flex items-center justify-center mb-4">
-                    <CheckCircle className="h-8 w-8 text-slate-600" />
-                  </div>
-                  <p>No active processes</p>
-                </div>
-              )}
+              <div className="flex flex-col items-center justify-center h-[200px] border-2 border-dashed rounded-lg border-muted">
+                <p className="text-muted-foreground">No active workflow</p>
+                <Button variant="link" className="mt-2">Select a recipe to start</Button>
+              </div>
             </CardContent>
-          </GlassCard>
+          </Card>
         </motion.div>
 
-        {/* Recent Alerts */}
-        <motion.div variants={itemVariants}>
-          <GlassCard className="h-full">
+        {/* Recent Activity / Alerts */}
+        <motion.div variants={item} className="col-span-3">
+          <Card className="h-full">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <AlertTriangle className="h-5 w-5 text-amber-400" />
-                <span>Recent Alerts</span>
-              </CardTitle>
+              <CardTitle>System Alerts</CardTitle>
+              <CardDescription>Recent notifications and warnings</CardDescription>
             </CardHeader>
             <CardContent>
-              {recentAlerts.length > 0 ? (
-                <div className="space-y-4">
-                  {recentAlerts.map((alert) => (
-                    <div key={alert.id} className="relative pl-4 border-l-2 border-slate-800">
-                      <div className="flex items-start justify-between mb-1">
-                        <Badge
-                          variant={
-                            alert.type === 'error' ? 'destructive' :
-                              alert.type === 'warning' ? 'warning' :
-                                alert.type === 'success' ? 'success' : 'secondary'
-                          }
-                          className="text-[10px] px-1.5 py-0 h-5"
-                        >
-                          {alert.type}
-                        </Badge>
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          {alert.timestamp.toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-300 leading-tight">{alert.message}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <div className="h-16 w-16 rounded-full bg-slate-800/50 flex items-center justify-center mb-4">
-                    <CheckCircle className="h-8 w-8 text-green-500/50" />
+              <div className="space-y-4">
+                <div className="flex items-start gap-4 rounded-md border p-3 bg-background/50">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-500" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium leading-none">System Startup</p>
+                    <p className="text-xs text-muted-foreground">All systems initialized successfully.</p>
+                    <p className="text-xs text-muted-foreground mt-1">2 mins ago</p>
                   </div>
-                  <p>All systems normal</p>
                 </div>
-              )}
+
+                <div className="flex items-start gap-4 rounded-md border p-3 bg-background/50">
+                  <Thermometer className="mt-0.5 h-5 w-5 text-sky-500" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium leading-none">Temperature Stabilized</p>
+                    <p className="text-xs text-muted-foreground">Reactor reached setpoint 25.0°C.</p>
+                    <p className="text-xs text-muted-foreground mt-1">15 mins ago</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4 rounded-md border p-3 bg-amber-500/10 border-amber-500/20">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-500" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium leading-none text-amber-500">Calibration Due</p>
+                    <p className="text-xs text-muted-foreground">Raman spectrometer calibration expires in 2 days.</p>
+                    <p className="text-xs text-muted-foreground mt-1">1 hour ago</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
-          </GlassCard>
+          </Card>
         </motion.div>
       </div>
-
-      {/* System Components Status */}
-      <motion.div variants={itemVariants}>
-        <GlassCard>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-purple-400" />
-              <span>Component Health</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {status?.components && Object.entries(status.components).map(([key, component]) => (
-                <div key={key} className="bg-slate-900/40 rounded-lg p-3 text-center border border-slate-800/50 hover:border-cyan-500/30 transition-colors">
-                  <div className="capitalize font-medium text-sm text-slate-300 mb-2">{key}</div>
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className={`h-2 w-2 rounded-full ${component.status === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
-                      component.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
-                      }`} />
-                    <span className="text-xs text-muted-foreground uppercase tracking-wider">{component.status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </GlassCard>
-      </motion.div>
     </motion.div>
   )
 }

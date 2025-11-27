@@ -17,6 +17,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -51,6 +55,23 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        // Scientific Status Colors
+        success: {
+          DEFAULT: '#10b981', // emerald-500
+          foreground: '#ffffff',
+        },
+        warning: {
+          DEFAULT: '#f59e0b', // amber-500
+          foreground: '#ffffff',
+        },
+        error: {
+          DEFAULT: '#ef4444', // red-500
+          foreground: '#ffffff',
+        },
+        info: {
+          DEFAULT: '#3b82f6', // blue-500
+          foreground: '#ffffff',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -74,12 +95,17 @@ export default {
           '0%': { transform: 'translateX(-100%)' },
           '100%': { transform: 'translateX(0)' },
         },
+        'pulse-glow': {
+          '0%, 100%': { opacity: '1', boxShadow: '0 0 10px currentColor' },
+          '50%': { opacity: '0.7', boxShadow: '0 0 20px currentColor' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'fade-in': 'fade-in 0.5s ease-out',
         'slide-in': 'slide-in 0.3s ease-out',
+        'pulse-glow': 'pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
     },
   },

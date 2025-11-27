@@ -52,36 +52,15 @@ def create_user(
         Created User object
     """
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
-        # Validate password strength
-        InputValidator.validate_password_strength(payload.new_password)
-
-        # Verify old password
-        if not self.pwd_context.verify(payload.old_password, user.password_hash):
-            raise ValueError("Invalid old password")
-
-        # Check password history (prevent reuse of last 5)
-        history = user.password_history or []
-        for i, old_hash in enumerate(history[:5]):
-            if self.pwd_context.verify(payload.new_password, old_hash):
-                raise ValueError("Cannot reuse any of your last 5 passwords")
-
-        # Update history
-        # Store current hash in history before updating
-        # We store the hash as a string if it's bytes, for JSON serialization
-        current_hash_str = user.password_hash.decode('utf-8') if isinstance(user.password_hash, bytes) else user.password_hash
-        
-        new_history = [current_hash_str] + history
-        user.password_history = new_history[:10]  # Keep last 10
-
-        # Update password
-        user.password_hash = self.pwd_context.hash(payload.new_password)
-        user.password_changed_at = datetime.utcnow()
-        
-        # Reset lockout counters on password change
-        user.failed_login_attempts = 0
-        user.account_locked_until = None
-        
-        session.commit()ed_at=datetime.utcnow()
+    
+    user = User(
+        email=email,
+        name=full_name,
+        role=role if not is_superuser else "admin",
+        password_hash=hashed_password,
+        password_history=[hashed_password.hex()],
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
     )
     
     db.add(user)
@@ -133,10 +112,6 @@ def authenticate_user(
         return None
     
     # Check account lock
-    if user.account_locked_until and user.account_locked_until > datetime.utcnow():
-        write_audit_event(
-            db=db,
-            actor_id=email,
     if user.account_locked_until:
         if user.account_locked_until > datetime.utcnow():
             write_audit_event(
