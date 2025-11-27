@@ -73,8 +73,9 @@ class TestSimDAQ:
         assert interlocks["door"] is True
 
 
+@pytest.mark.hardware
 class TestNI_DAQ:
-    """Test National Instruments DAQ driver."""
+    """Test National Instruments DAQ driver (requires physical hardware)."""
     
     def test_init(self, mock_ni_daq):
         """Test NI DAQ initialization."""
@@ -202,8 +203,9 @@ class TestOceanRaman:
         raman = OceanRaman(config)
         assert raman._device is None  # No hardware detected
     
+    @pytest.mark.hardware
     def test_init_with_hardware(self, mock_ocean_raman):
-        """Test Ocean Raman initialization with mocked hardware.""" 
+        """Test Ocean Raman initialization with mocked hardware (requires physical hardware).""" 
         config = {}
         raman = OceanRaman(config)
         
@@ -234,8 +236,9 @@ class TestOceanRaman:
         assert frame["peak_nm"] == 532.0
     
     @pytest.mark.asyncio
+    @pytest.mark.hardware
     async def test_read_frame_with_hardware(self, mock_ocean_raman):
-        """Test reading with mocked hardware."""
+        """Test reading with mocked hardware (requires physical hardware)."""
         config = {}
         raman = OceanRaman(config)
         
