@@ -10,11 +10,15 @@ from datetime import datetime, date, timedelta
 import os
 import shutil
 
-from retrofitkit.database.models import (
+from sqlalchemy.orm import Session
+from retrofitkit.db.session import get_db
+from retrofitkit.db.models.calibration import CalibrationEntry
+from retrofitkit.db.models.device import Device, DeviceStatus
+from retrofitkit.db.models.user import User
+from retrofitkit.api.dependencies import get_current_user, require_role
     CalibrationEntry, DeviceStatus, get_session
 )
 from retrofitkit.compliance.audit import Audit
-from retrofitkit.compliance.tokens import get_current_user
 
 router = APIRouter(prefix="/api/calibration", tags=["calibration"])
 
@@ -68,30 +72,29 @@ class DeviceStatusResponse(BaseModel):
 
 @router.post("/", response_model=CalibrationResponse, status_code=status.HTTP_201_CREATED)
 async def add_calibration_entry(
-    calibration: CalibrationCreate,
-    current_user: dict = Depends(get_current_user)
+    calibration: CalibrationCreate,,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Add a new calibration record."""
-    session = get_session()
     audit = Audit()
 
-    try:
         # Default calibration date to now if not provided
         calib_date = calibration.calibration_date or datetime.utcnow()
 
         new_entry = CalibrationEntry(
             device_id=calibration.device_id,
             calibration_date=calib_date,
-            performed_by=current_user["email"],
+            performed_by=current_user.email,
             next_due_date=calibration.next_due_date,
             status=calibration.status,
             results=calibration.results
         )
 
-        session.add(new_entry)
+        db.add(new_entry)
 
         # Update or create device status
-        device_status = session.query(DeviceStatus).filter(
+        device_status = db.query(DeviceStatus).filter(
             DeviceStatus.device_id == calibration.device_id
         ).first()
 
@@ -107,16 +110,15 @@ async def add_calibration_entry(
                 next_calibration_due=calibration.next_due_date,
                 status='operational' if calibration.status == 'valid' else 'maintenance'
             )
-            session.add(device_status)
+            db.add(device_status)
 
-        session.commit()
-        session.refresh(new_entry)
+        db.commit()
+        db.refresh(new_entry)
 
         # Audit log (non-blocking)
-        try:
-            audit.log(
+                audit.log(
                 "CALIBRATION_PERFORMED",
-                current_user["email"],
+                current_user.email,
                 calibration.device_id,
                 f"Calibration performed on {calibration.device_id}, status: {calibration.status}"
             )
@@ -133,35 +135,27 @@ async def add_calibration_entry(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error adding calibration: {str(e)}"
         )
-    finally:
-        session.close()
 
 
 @router.get("/device/{device_id}", response_model=List[CalibrationResponse])
-async def get_device_calibration_history(device_id: str):
+async def get_device_calibration_history(device_id: str, db: Session = Depends(get_db)):
     """Get calibration history for a specific device."""
-    session = get_session()
 
-    try:
-        calibrations = session.query(CalibrationEntry).filter(
+        calibrations = db.query(CalibrationEntry).filter(
             CalibrationEntry.device_id == device_id
         ).order_by(CalibrationEntry.calibration_date.desc()).all()
 
         return calibrations
 
-    finally:
-        session.close()
 
 
 @router.get("/upcoming", response_model=List[Dict])
-async def get_upcoming_calibrations(days: int = 30):
+async def get_upcoming_calibrations(days: int = 30, db: Session = Depends(get_db)):
     """Get devices due for calibration within N days."""
-    session = get_session()
 
-    try:
         cutoff_date = date.today() + timedelta(days=days)
 
-        upcoming = session.query(DeviceStatus).filter(
+        upcoming = db.query(DeviceStatus).filter(
             DeviceStatus.next_calibration_due <= cutoff_date,
             DeviceStatus.next_calibration_due >= date.today()
         ).all()
@@ -177,17 +171,13 @@ async def get_upcoming_calibrations(days: int = 30):
             for device in upcoming
         ]
 
-    finally:
-        session.close()
 
 
 @router.get("/overdue")
-async def get_overdue_calibrations():
+async def get_overdue_calibrations(, db: Session = Depends(get_db)):
     """Get devices with overdue calibrations."""
-    session = get_session()
 
-    try:
-        overdue = session.query(DeviceStatus).filter(
+        overdue = db.query(DeviceStatus).filter(
             DeviceStatus.next_calibration_due < date.today()
         ).all()
 
@@ -205,23 +195,20 @@ async def get_overdue_calibrations():
             ]
         }
 
-    finally:
-        session.close()
 
 
 @router.post("/{calibration_id}/attach-certificate")
 async def attach_certificate(
     calibration_id: UUID4,
-    file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    file: UploadFile = File(...),,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Upload calibration certificate (PDF or image)."""
-    session = get_session()
     audit = Audit()
 
-    try:
         # Verify calibration entry exists
-        calibration = session.query(CalibrationEntry).filter(
+        calibration = db.query(CalibrationEntry).filter(
             CalibrationEntry.id == calibration_id
         ).first()
         if not calibration:
@@ -240,13 +227,12 @@ async def attach_certificate(
 
         # Update calibration entry
         calibration.certificate_path = file_path
-        session.commit()
+        db.commit()
 
         # Audit log (non-blocking)
-        try:
-            audit.log(
+                audit.log(
                 "CALIBRATION_CERTIFICATE_ATTACHED",
-                current_user["email"],
+                current_user.email,
                 str(calibration_id),
                 f"Attached certificate {safe_filename} to calibration {calibration_id}"
             )
@@ -266,17 +252,13 @@ async def attach_certificate(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error attaching certificate: {str(e)}"
         )
-    finally:
-        session.close()
 
 
 @router.get("/{calibration_id}", response_model=CalibrationResponse)
-async def get_calibration_entry(calibration_id: UUID4):
+async def get_calibration_entry(calibration_id: UUID4, db: Session = Depends(get_db)):
     """Get specific calibration entry details."""
-    session = get_session()
 
-    try:
-        calibration = session.query(CalibrationEntry).filter(
+        calibration = db.query(CalibrationEntry).filter(
             CalibrationEntry.id == calibration_id
         ).first()
         if not calibration:
@@ -286,8 +268,6 @@ async def get_calibration_entry(calibration_id: UUID4):
             )
         return calibration
 
-    finally:
-        session.close()
 
 
 # ============================================================================
@@ -295,12 +275,10 @@ async def get_calibration_entry(calibration_id: UUID4):
 # ============================================================================
 
 @router.get("/status/{device_id}", response_model=DeviceStatusResponse)
-async def get_device_status(device_id: str):
+async def get_device_status(device_id: str, db: Session = Depends(get_db)):
     """Get current status of a device."""
-    session = get_session()
 
-    try:
-        device_status = session.query(DeviceStatus).filter(
+        device_status = db.query(DeviceStatus).filter(
             DeviceStatus.device_id == device_id
         ).first()
         if not device_status:
@@ -310,8 +288,6 @@ async def get_device_status(device_id: str):
             )
         return device_status
 
-    finally:
-        session.close()
 
 
 @router.get("/status", response_model=List[DeviceStatusResponse])
@@ -321,10 +297,8 @@ async def list_device_statuses(
     offset: int = 0
 ):
     """List all device statuses."""
-    session = get_session()
 
-    try:
-        query = session.query(DeviceStatus)
+        query = db.query(DeviceStatus)
 
         if status:
             query = query.filter(DeviceStatus.status == status)
@@ -332,23 +306,20 @@ async def list_device_statuses(
         devices = query.limit(limit).offset(offset).all()
         return devices
 
-    finally:
-        session.close()
 
 
 @router.put("/status/{device_id}")
 async def update_device_status(
     device_id: str,
     new_status: str,
-    health_score: Optional[float] = None,
-    current_user: dict = Depends(get_current_user)
+    health_score: Optional[float] = None,,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Update device operational status."""
-    session = get_session()
     audit = Audit()
 
-    try:
-        device_status = session.query(DeviceStatus).filter(
+        device_status = db.query(DeviceStatus).filter(
             DeviceStatus.device_id == device_id
         ).first()
 
@@ -359,20 +330,19 @@ async def update_device_status(
                 status=new_status,
                 health_score=health_score
             )
-            session.add(device_status)
+            db.add(device_status)
         else:
             device_status.status = new_status
             if health_score is not None:
                 device_status.health_score = health_score
             device_status.updated_at = datetime.utcnow()
 
-        session.commit()
+        db.commit()
 
         # Audit log (non-blocking)
-        try:
-            audit.log(
+                audit.log(
                 "DEVICE_STATUS_UPDATED",
-                current_user["email"],
+                current_user.email,
                 device_id,
                 f"Device {device_id} status updated to {new_status}"
             )
@@ -392,5 +362,3 @@ async def update_device_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating device status: {str(e)}"
         )
-    finally:
-        session.close()
