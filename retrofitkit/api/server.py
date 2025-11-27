@@ -204,6 +204,9 @@ _start_time = time.time()
 from retrofitkit.api.health import router as health_router
 from retrofitkit.api.devices import router as devices_router
 from retrofitkit.api.workflows import router as workflows_router
+from retrofitkit.api.samples import router as samples_router
+from retrofitkit.api.inventory import router as inventory_router
+from retrofitkit.api.calibration import router as calibration_router
 
 # Import drivers to trigger registry auto-registration
 from retrofitkit.drivers.raman import vendor_ocean_optics  # noqa: F401
@@ -213,6 +216,9 @@ app.include_router(api_router, prefix="/api", tags=["api"])
 app.include_router(health_router, prefix="/api", tags=["health"])
 app.include_router(devices_router, prefix="/api", tags=["devices"])
 app.include_router(workflows_router, prefix="/api", tags=["workflows"])
+app.include_router(samples_router, tags=["samples"])  # Prefix already in router definition
+app.include_router(inventory_router, tags=["inventory"])  # Prefix already in router definition
+app.include_router(calibration_router, tags=["calibration"])  # Prefix already in router definition
 
 app.mount(
     "/static",
