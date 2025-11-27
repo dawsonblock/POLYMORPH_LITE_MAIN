@@ -6,7 +6,7 @@ import psutil
 import time
 import os
 from typing import Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -63,7 +63,7 @@ async def health_check():
     
     return HealthStatus(
         status="healthy",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         uptime_seconds=uptime,
         version=__version__,  # Import from single source
         environment=os.getenv("P4_ENVIRONMENT", "production")  # Read from environment
@@ -98,7 +98,7 @@ async def readiness_check():
                 detail=f"Database connectivity check failed: {str(db_error)}"
             )
         
-        return {"status": "ready", "timestamp": datetime.utcnow(), "database": "connected"}
+        return {"status": "ready", "timestamp": datetime.now(timezone.utc), "database": "connected"}
         
     except HTTPException:
         raise
@@ -112,7 +112,7 @@ async def liveness_check():
     Kubernetes-style liveness check.
     Returns 200 if system is alive (basic functionality working).
     """
-    return {"status": "alive", "timestamp": datetime.utcnow()}
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc)}
 
 
 @router.get("/diagnostics", response_model=SystemDiagnostics)
@@ -220,7 +220,7 @@ async def _check_ai_service_health() -> ComponentHealth:
                 return ComponentHealth(
                     name="AI Service",
                     status="healthy",
-                    last_check=datetime.utcnow(),
+                    last_check=datetime.now(timezone.utc),
                     response_time_ms=round(response_time, 2),
                     details={"url": url}
                 )
@@ -228,7 +228,7 @@ async def _check_ai_service_health() -> ComponentHealth:
                 return ComponentHealth(
                     name="AI Service",
                     status="error",
-                    last_check=datetime.utcnow(),
+                    last_check=datetime.now(timezone.utc),
                     response_time_ms=round(response_time, 2),
                     error_message=f"Status {resp.status_code}"
                 )
@@ -236,7 +236,7 @@ async def _check_ai_service_health() -> ComponentHealth:
             return ComponentHealth(
                 name="AI Service",
                 status="not_initialized",
-                last_check=datetime.utcnow(),
+                last_check=datetime.now(timezone.utc),
                 response_time_ms=0,
                 error_message="App not initialized"
             )
@@ -244,7 +244,7 @@ async def _check_ai_service_health() -> ComponentHealth:
         return ComponentHealth(
             name="AI Service",
             status="error",
-            last_check=datetime.utcnow(),
+            last_check=datetime.now(timezone.utc),
             response_time_ms=round((time.time() - start_time) * 1000, 2),
             error_message=str(e)
         )
@@ -359,7 +359,7 @@ async def _check_daq_health() -> ComponentHealth:
             return ComponentHealth(
                 name="DAQ Driver",
                 status="healthy",
-                last_check=datetime.utcnow(),
+                last_check=datetime.now(timezone.utc),
                 response_time_ms=round(response_time, 2),
                 details={"last_voltage": voltage}
             )
@@ -367,7 +367,7 @@ async def _check_daq_health() -> ComponentHealth:
             return ComponentHealth(
                 name="DAQ Driver", 
                 status="not_initialized",
-                last_check=datetime.utcnow(),
+                last_check=datetime.now(timezone.utc),
                 response_time_ms=0,
                 error_message="DAQ driver not initialized"
             )
@@ -376,7 +376,7 @@ async def _check_daq_health() -> ComponentHealth:
         return ComponentHealth(
             name="DAQ Driver",
             status="error",
-            last_check=datetime.utcnow(), 
+            last_check=datetime.now(timezone.utc), 
             response_time_ms=round((time.time() - start_time) * 1000, 2),
             error_message=str(e)
         )
@@ -396,7 +396,7 @@ async def _check_raman_health() -> ComponentHealth:
             return ComponentHealth(
                 name="Raman Driver",
                 status="healthy",
-                last_check=datetime.utcnow(),
+                last_check=datetime.now(timezone.utc),
                 response_time_ms=round(response_time, 2),
                 details={
                     "last_peak_nm": frame.get("peak_nm"),
@@ -407,7 +407,7 @@ async def _check_raman_health() -> ComponentHealth:
             return ComponentHealth(
                 name="Raman Driver",
                 status="not_initialized", 
-                last_check=datetime.utcnow(),
+                last_check=datetime.now(timezone.utc),
                 response_time_ms=0,
                 error_message="Raman driver not initialized"
             )
@@ -416,7 +416,7 @@ async def _check_raman_health() -> ComponentHealth:
         return ComponentHealth(
             name="Raman Driver",
             status="error",
-            last_check=datetime.utcnow(),
+            last_check=datetime.now(timezone.utc),
             response_time_ms=round((time.time() - start_time) * 1000, 2),
             error_message=str(e)
         )
@@ -442,7 +442,7 @@ async def _check_database_health() -> ComponentHealth:
              return ComponentHealth(
                 name="Database",
                 status="error",
-                last_check=datetime.utcnow(), 
+                last_check=datetime.now(timezone.utc), 
                 response_time_ms=0,
                 error_message=f"Database file not found at {db_path}"
             )
@@ -459,7 +459,7 @@ async def _check_database_health() -> ComponentHealth:
         return ComponentHealth(
             name="Database",
             status="healthy",
-            last_check=datetime.utcnow(),
+            last_check=datetime.now(timezone.utc),
             response_time_ms=round(response_time, 2),
             details={"path": db_path}
         )
@@ -468,7 +468,7 @@ async def _check_database_health() -> ComponentHealth:
         return ComponentHealth(
             name="Database",
             status="error",
-            last_check=datetime.utcnow(),
+            last_check=datetime.now(timezone.utc),
             response_time_ms=round((time.time() - start_time) * 1000, 2),
             error_message=str(e)
         )
@@ -498,7 +498,7 @@ async def _check_filesystem_health() -> ComponentHealth:
         return ComponentHealth(
             name="File System",
             status=status,
-            last_check=datetime.utcnow(),
+            last_check=datetime.now(timezone.utc),
             response_time_ms=round(response_time, 2),
             details={
                 "total_gb": round(total / (1024**3), 2),
@@ -513,7 +513,7 @@ async def _check_filesystem_health() -> ComponentHealth:
         return ComponentHealth(
             name="File System", 
             status="error",
-            last_check=datetime.utcnow(),
+            last_check=datetime.now(timezone.utc),
             response_time_ms=round((time.time() - start_time) * 1000, 2),
             error_message=str(e)
         )

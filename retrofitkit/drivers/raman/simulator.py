@@ -49,12 +49,11 @@ class SimRaman(RamanBase, SpectrometerDevice):
         """
         # Handle both cfg object and kwargs for registry compatibility
         if cfg is not None:
-            sim_config = cfg.raman.simulator
             self.id = "sim_raman_0"
-            self.peak_nm = float(sim_config.get("peak_nm", 532.0))
-            self.intensity = float(sim_config.get("base_intensity", 1000.0))
-            self.noise = float(sim_config.get("noise_std", 2.0))
-            self.drift = float(sim_config.get("drift_per_s", 0.5))
+            self.peak_nm = float(cfg.raman.simulator_peak_nm)
+            self.intensity = float(cfg.raman.simulator_base_intensity)
+            self.noise = float(cfg.raman.simulator_noise_std)
+            self.drift = float(cfg.raman.simulator_drift_per_s)
         else:
             # Registry-style creation
             self.id = kwargs.get("id", "sim_raman_0")

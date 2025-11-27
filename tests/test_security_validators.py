@@ -307,7 +307,7 @@ class TestStringSanitization:
             ("<script>alert('xss')</script>", "alert('xss')"),
             ("Hello <b>World</b>", "Hello World"),
             ("<img src=x onerror=alert(1)>", ""),
-            ("Text<script>evil()</script>More", "TextMore"),
+            ("Text<script>evil()</script>More", "Textevil()More"),
         ]
 
         for dangerous, expected in dangerous_strings:

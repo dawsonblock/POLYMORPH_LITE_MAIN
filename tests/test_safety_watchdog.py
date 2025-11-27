@@ -21,7 +21,7 @@ def mock_config():
     config = Config(
         system=SystemCfg(
             name="Test System",
-            mode="test",
+            environment="testing",
             timezone="UTC",
             data_dir="/tmp/test",
             logs_dir="/tmp/logs"
@@ -46,7 +46,8 @@ def mock_config():
         ),
         gating=GatingCfg(rules=[]),
         safety=SafetyCfg(
-            interlocks={"estop_line": 0, "door_line": 1},
+            estop_line=0,
+            door_line=1,
             watchdog_seconds=1.0
         )
     )

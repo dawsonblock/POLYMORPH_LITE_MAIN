@@ -11,7 +11,7 @@ This enables:
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, Optional
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @dataclass
@@ -32,7 +32,7 @@ class Spectrum:
     def __post_init__(self):
         """Validate and set timestamp."""
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
         
         # Ensure numpy arrays
         if not isinstance(self.wavelengths, np.ndarray):
@@ -87,7 +87,7 @@ class DAQTrace:
     def __post_init__(self):
         """Validate and set timestamp."""
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
         
         # Ensure numpy arrays
         if not isinstance(self.time, np.ndarray):
@@ -140,7 +140,7 @@ class ImageFrame:
     def __post_init__(self):
         """Validate and set timestamp."""
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
         
         # Ensure numpy array
         if not isinstance(self.data, np.ndarray):
@@ -194,7 +194,7 @@ class MotionPosition:
     def __post_init__(self):
         """Set timestamp if not provided."""
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to JSON-serializable dict."""

@@ -8,23 +8,33 @@ import logging
 import socket
 from typing import Dict, Any, Optional
 from retrofitkit.drivers.base import DAQDevice, DeviceCapabilities, DeviceKind, SafetyAwareMixin, require_safety
+from retrofitkit.core.registry import registry
 
 logger = logging.getLogger(__name__)
 
-class RedPitayaDriver(SafetyAwareMixin):
+class RedPitayaDAQ(SafetyAwareMixin):
     """
     Driver for Red Pitaya STEMlab via SCPI.
+    
+    NOTE: This driver is currently LIMITED to Analog Output (AO) only.
+    AI and DI/DO are not fully implemented/validated in this build.
     """
+    KIND = DeviceKind.DAQ
+    
+    # Required for registry validation (class-level default)
+    capabilities = DeviceCapabilities(
+        kind=DeviceKind.DAQ,
+        vendor="Red Pitaya",
+        model="STEMlab 125-14",
+        actions=["write_ao"], 
+        features={"channels_ai": 0, "channels_ao": 2, "channels_dio": 0}
+    )
+
     def __init__(self, config):
         super().__init__(config)
         self.id = "redpitaya_daq"
-        self.capabilities = DeviceCapabilities(
-            kind=DeviceKind.DAQ,
-            vendor="Red Pitaya",
-            model="STEMlab 125-14",
-            actions=["read_ai", "write_ao", "read_di", "write_do"],
-            features={"channels_ai": 2, "channels_ao": 2, "channels_dio": 8}
-        )
+        # Instance-level capabilities (can be same as class-level)
+        self.capabilities = self.__class__.capabilities
         self.host = config.daq.redpitaya_host
         self.port = config.daq.redpitaya_port
         self.reader = None
@@ -82,24 +92,11 @@ class RedPitayaDriver(SafetyAwareMixin):
     async def read_ai(self, channel: int = 1) -> float:
         """
         Read analog input voltage.
-        Channel 1 or 2 (IN1, IN2).
         """
-        # SCPI: ACQ:SOUR1:DATA? (This returns buffer)
-        # For single value: MEAS:VOLT:DC? CH1 (if supported by specific SCPI version)
-        # Common Red Pitaya SCPI for single sample is tricky, usually involves acquiring buffer.
-        # Let's assume a simplified SCPI or custom server for this example.
-        # "ANALOG:PIN? AIN1"
-        
-        # Mapping 0-based index to 1-based SCPI if needed
-        pin = f"AIN{channel}" # e.g. AIN0, AIN1... check docs. 
-        # RP usually uses IN1, IN2 for fast inputs, or AIN0-3 for slow inputs.
-        # Let's assume slow inputs for general DAQ usage.
-        
-        resp = await self._query(f"ANALOG:PIN? AIN{channel}")
-        try:
-            return float(resp)
-        except ValueError:
-            return 0.0
+        raise RuntimeError(
+            "RedPitayaDAQ read_ai is not implemented in this build. "
+            "This backend is output-only; configure another DAQ for AI."
+        )
 
     @require_safety
     async def write_ao(self, channel: int, value: float) -> None:
@@ -114,18 +111,21 @@ class RedPitayaDriver(SafetyAwareMixin):
     async def read_di(self, line: int) -> bool:
         """
         Read digital input.
-        Line: DIO0_N - DIO7_N
         """
-        # "DIG:PIN? DIO0_P"
-        pin = f"DIO{line}_P"
-        resp = await self._query(f"DIG:PIN? {pin}")
-        return resp == "1"
+        raise RuntimeError(
+            "RedPitayaDAQ read_di is not implemented in this build. "
+            "Use NI DAQ or another backend for digital inputs."
+        )
 
     @require_safety
     async def write_do(self, line: int, state: bool) -> None:
         """
         Write digital output.
         """
-        pin = f"DIO{line}_P"
-        val = 1 if state else 0
-        await self._send_cmd(f"DIG:PIN {pin},{val}")
+        raise RuntimeError(
+            "RedPitayaDAQ write_do is not implemented in this build. "
+            "Use NI DAQ or another backend for digital outputs."
+        )
+
+# Register the device in the global registry.
+registry.register("redpitaya_daq", RedPitayaDAQ)

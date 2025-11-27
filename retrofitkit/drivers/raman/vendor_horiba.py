@@ -1,36 +1,82 @@
+# retrofitkit/drivers/raman/vendor_horiba.py
+
 import time
-from typing import Dict, Any
-from retrofitkit.drivers.raman.base import RamanBase
+from typing import Dict, Any, Optional
+
+from retrofitkit.core.data_models import Spectrum
+from retrofitkit.drivers.base import DeviceKind, DeviceCapabilities
 from retrofitkit.drivers.production_base import ProductionHardwareDriver
+from retrofitkit.core.registry import registry
 
-# Placeholder: requires Horiba/LabSpec SDK python bindings (not shipped)
 try:
-    import horiba  # fictitious placeholder
+    import horiba_sdk  # type: ignore
 except Exception:
-    horiba = None
+    horiba_sdk = None
 
-class HoribaRaman(ProductionHardwareDriver, RamanBase):
-    def __init__(self, cfg):
-        super().__init__(max_workers=1)
-        self.t0 = time.time()
-        self.dev = None
-        # Connect via vendor SDK here
-        if horiba:
-             # Example of wrapping a blocking connect call
-             # self._run_blocking(horiba.connect, cfg)
-             pass
+class HoribaRaman(ProductionHardwareDriver):
+    KIND = DeviceKind.SPECTROMETER
+    MODEL = "horiba_raman"
+    VENDOR = "horiba"
+    
+    # Required for registry validation
+    capabilities = DeviceCapabilities(
+        kind=DeviceKind.SPECTROMETER,
+        vendor="Horiba",
+        model="LabRAM",
+        actions=["acquire_spectrum"]
+    )
+    
+    def __init__(self, config):
+        super().__init__(config)
+        self._t0 = time.time()
 
-    def _acquire_spectrum_blocking(self) -> Dict[str, Any]:
-        """Blocking acquisition function to be run in executor."""
-        # Simulate blocking hardware call
-        time.sleep(0.1) 
-        return {
-            "t": time.time()-self.t0, 
-            "wavelengths":[532.1], 
-            "intensities":[1010.0], 
-            "peak_nm":532.1, 
-            "peak_intensity":1010.0
+    async def acquire_spectrum(
+        self, 
+        integration_time_ms: float, 
+        averages: int = 1, 
+        center_wavelength_nm: Optional[float] = None
+    ) -> Spectrum:
+        if horiba_sdk is None:
+            return await self._acquire_simulated(integration_time_ms, averages, center_wavelength_nm)
+        else:
+            # TODO: implement real SDK calls
+            raise NotImplementedError(
+                "Real Horiba SDK integration not yet implemented. "
+                "Implement HoribaRaman.acquire_spectrum() using horiba_sdk."
+            )
+
+    async def _acquire_simulated(
+        self,
+        integration_time_ms: float,
+        averages: int,
+        center_wavelength_nm: Optional[float],
+    ) -> Spectrum:
+        """
+        Simple simulation for Horiba.
+        """
+        t = time.time() - self._t0
+        # Just return a flat line with a peak for now
+        wavelengths = [500.0 + i * 0.1 for i in range(1000)]
+        intensities = [100.0] * 1000
+        # Add a peak at 532nm
+        peak_idx = int((532.0 - 500.0) / 0.1)
+        if 0 <= peak_idx < 1000:
+            intensities[peak_idx] = 1000.0
+            
+        metadata = {
+            "integration_time_ms": integration_time_ms,
+            "averages": averages,
+            "backend": "simulator",
+            "device_model": self.MODEL,
+            "vendor": self.VENDOR,
+            "t": t,
         }
+        
+        return Spectrum(
+            t=t,
+            wavelengths=wavelengths,
+            intensities=intensities,
+            metadata=metadata
+        )
 
-    async def read_frame(self) -> Dict[str, Any]:
-        return await self._run_blocking(self._acquire_spectrum_blocking, timeout=5.0)
+registry.register("horiba_raman", HoribaRaman)

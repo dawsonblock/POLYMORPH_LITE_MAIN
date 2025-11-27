@@ -34,9 +34,43 @@ def sample_data():
 
 class TestSampleAPI:
     """Test sample CRUD operations."""
+    
+    @pytest.fixture(autouse=True)
+    def override_dependencies(self, db_session):
+        """Override dependencies."""
+        from retrofitkit.api.dependencies import get_current_user
+        
+        # Override auth
+        app.dependency_overrides[get_current_user] = mock_get_current_user
+        
+        # Patch get_session
+        real_close = db_session.close
+        db_session.close = Mock()
+        
+        with patch("retrofitkit.api.samples.get_session", return_value=db_session):
+            yield
+            
+        db_session.close = real_close
+        app.dependency_overrides = {}
 
-    @patch("retrofitkit.api.samples.get_current_user", return_value=mock_get_current_user())
-    def test_create_sample(self, mock_auth, sample_data, auth_headers):
+    @pytest.fixture(autouse=True)
+    def seed_user(self, db_session):
+        """Seed test user."""
+        from retrofitkit.db.models.user import User
+        from retrofitkit.db.models.rbac import Role, UserRole
+        
+        user = db_session.query(User).filter_by(email="test@example.com").first()
+        if not user:
+            user = User(
+                email="test@example.com",
+                name="Test User",
+                role="Admin",
+                password_hash=b"test_hash"
+            )
+            db_session.add(user)
+            db_session.commit()
+
+    def test_create_sample(self, sample_data, auth_headers):
         """Test creating a new sample."""
         response = client.post(
             "/api/samples/",
@@ -65,8 +99,7 @@ class TestSampleAPI:
 
         assert response.status_code == 404
 
-    @patch("retrofitkit.api.samples.get_current_user", return_value=mock_get_current_user())
-    def test_update_sample(self, mock_auth, auth_headers):
+    def test_update_sample(self, auth_headers):
         """Test updating sample status."""
         # First create a sample
         sample_data = {
@@ -92,8 +125,7 @@ class TestSampleAPI:
             data = response.json()
             assert data["status"] == "consumed"
 
-    @patch("retrofitkit.api.samples.get_current_user", return_value=mock_get_current_user())
-    def test_split_sample(self, mock_auth, auth_headers):
+    def test_split_sample(self, auth_headers):
         """Test sample splitting (aliquoting)."""
         # Create parent sample
         parent_data = {
@@ -123,9 +155,41 @@ class TestSampleAPI:
 
 class TestContainerAPI:
     """Test container management."""
+    
+    @pytest.fixture(autouse=True)
+    def override_dependencies(self, db_session):
+        """Override dependencies."""
+        from retrofitkit.api.dependencies import get_current_user
+        
+        app.dependency_overrides[get_current_user] = mock_get_current_user
+        
+        real_close = db_session.close
+        db_session.close = Mock()
+        
+        with patch("retrofitkit.api.samples.get_session", return_value=db_session):
+            yield
+            
+        db_session.close = real_close
+        app.dependency_overrides = {}
 
-    @patch("retrofitkit.api.samples.get_current_user", return_value=mock_get_current_user())
-    def test_create_container(self, mock_auth, auth_headers):
+    @pytest.fixture(autouse=True)
+    def seed_user(self, db_session):
+        """Seed test user."""
+        from retrofitkit.db.models.user import User
+        from retrofitkit.db.models.rbac import Role, UserRole
+        
+        user = db_session.query(User).filter_by(email="test@example.com").first()
+        if not user:
+            user = User(
+                email="test@example.com",
+                name="Test User",
+                role="Admin",
+                password_hash=b"test_hash"
+            )
+            db_session.add(user)
+            db_session.commit()
+
+    def test_create_container(self, auth_headers):
         """Test creating a container."""
         container_data = {
             "container_id": f"CONTAINER-{uuid.uuid4().hex[:8]}",
@@ -156,9 +220,41 @@ class TestContainerAPI:
 
 class TestProjectAPI:
     """Test project management."""
+    
+    @pytest.fixture(autouse=True)
+    def override_dependencies(self, db_session):
+        """Override dependencies."""
+        from retrofitkit.api.dependencies import get_current_user
+        
+        app.dependency_overrides[get_current_user] = mock_get_current_user
+        
+        real_close = db_session.close
+        db_session.close = Mock()
+        
+        with patch("retrofitkit.api.samples.get_session", return_value=db_session):
+            yield
+            
+        db_session.close = real_close
+        app.dependency_overrides = {}
 
-    @patch("retrofitkit.api.samples.get_current_user", return_value=mock_get_current_user())
-    def test_create_project(self, mock_auth, auth_headers):
+    @pytest.fixture(autouse=True)
+    def seed_user(self, db_session):
+        """Seed test user."""
+        from retrofitkit.db.models.user import User
+        from retrofitkit.db.models.rbac import Role, UserRole
+        
+        user = db_session.query(User).filter_by(email="test@example.com").first()
+        if not user:
+            user = User(
+                email="test@example.com",
+                name="Test User",
+                role="Admin",
+                password_hash=b"test_hash"
+            )
+            db_session.add(user)
+            db_session.commit()
+
+    def test_create_project(self, auth_headers):
         """Test creating a project."""
         project_data = {
             "project_id": f"PROJ-{uuid.uuid4().hex[:8]}",

@@ -3,45 +3,25 @@ from pydantic import BaseModel
 import yaml, os
 from dataclasses import dataclass
 
-class SystemCfg(BaseModel):
-    name: str
-    mode: str
-    timezone: str
-    data_dir: str
-    logs_dir: str
+from retrofitkit.core.config import (
+    PolymorphConfig as Config,
+    SystemConfig as SystemCfg,
+    SecurityConfig as SecurityCfg,
+    DAQConfig as DAQCfg,
+    RamanConfig as RamanCfg,
+    SafetyConfig as SafetyCfg,
+    # GatingCfg is not in config.py, we might need to keep it or remove it if unused
+)
 
-class SecurityCfg(BaseModel):
-    password_policy: dict
-    two_person_signoff: bool
-    jwt_exp_minutes: int
-    rsa_private_key: str
-    rsa_public_key: str
-
-class DAQCfg(BaseModel):
-    backend: str
-    ni: dict
-    redpitaya: dict
-    simulator: dict
-
-class RamanCfg(BaseModel):
-    provider: str
-    simulator: dict
-    vendor: dict
+# GatingCfg seems to be missing from config.py. 
+# If it's used, we should define it or find where it belongs.
+# For now, I'll keep a local definition if it's not in config.py, 
+# but looking at config.py, there is no GatingConfig.
+# I'll define it here for now to avoid breaking imports, 
+# but ideally it should be in config.py.
 
 class GatingCfg(BaseModel):
-    rules: list
-
-class SafetyCfg(BaseModel):
-    interlocks: dict
-    watchdog_seconds: float
-
-class Config(BaseModel):
-    system: SystemCfg
-    security: SecurityCfg
-    daq: DAQCfg
-    raman: RamanCfg
-    gating: GatingCfg
-    safety: SafetyCfg
+    rules: list = []
 
 @dataclass
 class AppContext:
@@ -50,11 +30,12 @@ class AppContext:
 
     @staticmethod
     def load():
-        path = os.environ.get("P4_CONFIG", "config/config.yaml")
-        with open(path, "r", encoding="utf-8") as f:
-            raw = yaml.safe_load(f)
-        cfg = Config(**raw)
-        instance = AppContext(cfg)
+        from retrofitkit.core.config_loader import get_loader
+        
+        # Use ConfigLoader to resolve configuration
+        config = get_loader().load_base().resolve()
+        
+        instance = AppContext(config)
         AppContext._instance = instance
         return instance
 

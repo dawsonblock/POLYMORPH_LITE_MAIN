@@ -29,9 +29,33 @@ class Approval(BaseModel):
 class PackageReq(BaseModel):
     run_id: str
 
+from retrofitkit.core.safety.interlocks import get_interlocks
+
 @router.get("/status")
 def status(user=Depends(get_current_user)):
-    return {"ok": True, "user": user, "mode": ctx.config.system.mode, "daq": ctx.config.daq.backend, "raman": ctx.config.raman.provider}
+    """Get current system status (dynamic)."""
+    
+    # Get safety status
+    interlocks = get_interlocks(ctx.config)
+    safety_status = "unknown"
+    if interlocks:
+        if interlocks.estop_active: safety_status = "ESTOP"
+        elif interlocks.door_open: safety_status = "DOOR_OPEN"
+        else: safety_status = "SAFE"
+    else:
+        safety_status = "uninitialized"
+
+    return {
+        "ok": True,
+        "user": user,
+        "mode": ctx.config.system.environment,
+        "daq": ctx.config.daq.backend,
+        "raman": ctx.config.raman.provider,
+        "orchestrator": orc.status, # Dynamic status from engine
+        "safety": {
+            "interlocks": safety_status
+        }
+    }
 
 @router.get("/runs")
 def runs(user=Depends(get_current_user)):

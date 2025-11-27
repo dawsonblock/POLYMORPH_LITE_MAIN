@@ -14,6 +14,7 @@ import os
 import json
 import tempfile
 import shutil
+from unittest.mock import Mock, patch
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from retrofitkit.compliance.signatures import Signer, SignatureRequest
@@ -70,29 +71,75 @@ class TestSignerInitialization:
 
     def test_signer_initialization_creates_key_dir(self, temp_data_dir):
         """Test that Signer creates key directory in non-production."""
+        old_env = os.environ.get("ENVIRONMENT")
         os.environ["ENVIRONMENT"] = "development"
-        signer = Signer()
+        
         key_dir = os.path.join(temp_data_dir, "config", "keys")
-        assert os.path.exists(key_dir)
+        priv_path = os.path.join(key_dir, "private.pem")
+        
+        try:
+            # Patch module-level constants because they are evaluated at import time
+            with patch("retrofitkit.compliance.signatures.KEY_DIR", key_dir), \
+                 patch("retrofitkit.compliance.signatures.PRIV_KEY_PATH", priv_path), \
+                 patch("os.path.exists", return_value=False), \
+                 patch("os.makedirs") as mock_makedirs:
+                
+                signer = Signer()
+                
+                mock_makedirs.assert_called_with(key_dir, exist_ok=True)
+        finally:
+            if old_env:
+                os.environ["ENVIRONMENT"] = old_env
+            else:
+                del os.environ["ENVIRONMENT"]
 
     def test_signer_fails_in_production_without_keys(self, temp_data_dir):
         """Test that Signer raises error in production when keys are missing."""
+        old_env = os.environ.get("ENVIRONMENT")
         os.environ["ENVIRONMENT"] = "production"
+        
+        key_dir = os.path.join(temp_data_dir, "config", "keys")
+        priv_path = os.path.join(key_dir, "private.pem")
+        
+        try:
+            with patch("retrofitkit.compliance.signatures.KEY_DIR", key_dir), \
+                 patch("retrofitkit.compliance.signatures.PRIV_KEY_PATH", priv_path), \
+                 patch("os.path.exists", return_value=False):
+                
+                with pytest.raises(RuntimeError) as exc_info:
+                    signer = Signer()
 
-        # Don't create keys
-        with pytest.raises(RuntimeError) as exc_info:
-            signer = Signer()
-
-        assert "Production Signing Keys missing" in str(exc_info.value)
+            assert "Production Signing Keys missing" in str(exc_info.value)
+        finally:
+            if old_env:
+                os.environ["ENVIRONMENT"] = old_env
+            else:
+                del os.environ["ENVIRONMENT"]
 
     def test_load_keys_raises_when_missing(self, temp_data_dir):
         """Test that _load_keys raises FileNotFoundError when keys don't exist."""
-        signer = Signer()
+        old_env = os.environ.get("ENVIRONMENT")
+        os.environ["ENVIRONMENT"] = "development"
+        
+        key_dir = os.path.join(temp_data_dir, "config", "keys")
+        priv_path = os.path.join(key_dir, "private.pem")
+        
+        try:
+            with patch("retrofitkit.compliance.signatures.KEY_DIR", key_dir), \
+                 patch("retrofitkit.compliance.signatures.PRIV_KEY_PATH", priv_path), \
+                 patch("os.path.exists", return_value=False):
+                
+                signer = Signer()
+                
+                with pytest.raises(FileNotFoundError) as exc_info:
+                    signer._load_keys()
 
-        with pytest.raises(FileNotFoundError) as exc_info:
-            signer._load_keys()
-
-        assert "Private key not found" in str(exc_info.value)
+            assert "Private key not found" in str(exc_info.value)
+        finally:
+            if old_env:
+                os.environ["ENVIRONMENT"] = old_env
+            else:
+                del os.environ["ENVIRONMENT"]
 
 
 class TestSignatureCreation:

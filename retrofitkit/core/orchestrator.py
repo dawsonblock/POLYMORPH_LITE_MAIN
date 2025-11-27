@@ -31,7 +31,10 @@ class Orchestrator:
         self.daq = self._create_daq_device(ctx.config)
         self.raman = self._create_raman_device(ctx.config)
         self.mx = Metrics.get()
-        self.mx.set("polymorph_run_state", RUN_STATE["IDLE"])
+        
+        # State tracking
+        self._active_run_id = None
+        self._run_state = RUN_STATE["IDLE"]
         
         # Async components - initialized on start()
         self._watchdog_task = None
@@ -57,8 +60,8 @@ class Orchestrator:
         return {
             "ai_circuit_open": self._ai_circuit_open,
             "ai_failures": self._ai_failures,
-            "run_state": self.mx.get("polymorph_run_state"),
-            "active_run_id": self.mx.get("polymorph_run_active", {}).get("run_id"),
+            "run_state": self._run_state,
+            "active_run_id": self._active_run_id,
             "progress": getattr(self, "_progress", {"current": 0, "total": 0}),
         }
     
@@ -230,27 +233,28 @@ class Orchestrator:
         from retrofitkit.api.compliance import get_session
         
         # Initialize new engine components
+        # Initialize new engine components
         db_logger = DatabaseLogger(get_session)
         executor = WorkflowExecutor(self.ctx.config, db_logger)
         
-        # Update metrics
+        # Update metrics and state
+        self._run_state = RUN_STATE["ACTIVE"]
         self.mx.set("polymorph_run_state", RUN_STATE["ACTIVE"])
+        
+        def on_start(run_id):
+            self._active_run_id = run_id
         
         try:
             # Execute
-            # Note: We are not using the return value of execute() yet, 
-            # but it logs to DB which is the source of truth.
-            # We might want to return the run_id from executor.
+            await executor.execute(recipe, operator_email, {"simulation": simulation}, on_start=on_start)
             
-            # For now, we wrap in try/except to handle errors and update metrics
-            await executor.execute(recipe, operator_email, {"simulation": simulation})
-            
-            # We don't have the run_id easily available unless we change execute signature or access logger
-            # But the logger has it.
-            return db_logger.run_id
+            return self._active_run_id
             
         except Exception as e:
+            self._run_state = RUN_STATE["ERROR"]
             self.mx.set("polymorph_run_state", RUN_STATE["ERROR"])
             raise e
         finally:
+            self._run_state = RUN_STATE["IDLE"]
+            self._active_run_id = None
             self.mx.set("polymorph_run_state", RUN_STATE["IDLE"])

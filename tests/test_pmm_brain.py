@@ -9,11 +9,13 @@ def test_pmm_creates_modes_and_merges():
     brain = StaticPseudoModeMemory(
         latent_dim=8,
         max_modes=8,
-        merge_thresh=0.9,   # high similarity required
-        split_thresh=1000.0,
-        prune_thresh=0.0,
-        device=device,
-    )
+        init_modes=4
+    ).to(device)
+    
+    # Manually set thresholds for test if needed, or rely on defaults
+    brain.merge_thresh = 0.9
+    brain.split_thresh = 1000.0
+    brain.prune_thresh = 0.0
 
     # Two very close clusters
     cluster_a = torch.randn(16, 8) * 0.01 + 1.0
@@ -21,7 +23,8 @@ def test_pmm_creates_modes_and_merges():
     x = torch.cat([cluster_a, cluster_b], dim=0).to(device)
 
     with torch.no_grad():
-        _ = brain(x, update=True)  # one pass
+        _ = brain(x)  # one pass
+        brain.apply_explicit_updates()
         n_modes_after = int(brain.active_mask.sum().item())
 
     assert n_modes_after >= 1
@@ -33,15 +36,17 @@ def test_pmm_prunes_inactive_modes():
     brain = StaticPseudoModeMemory(
         latent_dim=4,
         max_modes=4,
-        merge_thresh=0.8,
-        split_thresh=1000.0,
-        prune_thresh=0.1,
-        device=device,
-    )
+        init_modes=4
+    ).to(device)
+    
+    brain.merge_thresh = 0.8
+    brain.split_thresh = 1000.0
+    brain.prune_thresh = 0.1
 
     x = torch.randn(10, 4, device=device)
     with torch.no_grad():
-        _ = brain(x, update=True)
+        _ = brain(x)
+        brain.apply_explicit_updates()
         # simulate decay / no new data
         for _ in range(20):
             brain.apply_explicit_updates()

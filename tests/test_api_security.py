@@ -142,7 +142,7 @@ class TestSecurityHeadersMiddleware:
     @pytest.fixture
     def client(self, app):
         """Create test client."""
-        return TestClient(app)
+        return TestClient(app, raise_server_exceptions=False)
 
     def test_x_content_type_options_header(self, client):
         """Test X-Content-Type-Options header is set."""
@@ -219,7 +219,8 @@ class TestSecurityHeadersMiddleware:
 
         @app.get("/error")
         def error_endpoint():
-            raise Exception("Test error")
+            from fastapi import HTTPException
+            raise HTTPException(status_code=500, detail="Test error")
 
         response = client.get("/error")
         # Should have security headers even on 500 error

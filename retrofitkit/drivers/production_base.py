@@ -12,6 +12,15 @@ class ProductionHardwareDriver:
     Enforces thread safety and timeouts for blocking SDK calls.
     """
     def __init__(self, max_workers: int = 1):
+        # Initialize logger if not present (BaseHardwareDriver usually handles this if inherited)
+        # But ProductionHardwareDriver doesn't seem to inherit from BaseHardwareDriver in the file I viewed?
+        # Let's check imports. It imports DeviceKind, DeviceCapabilities from base.
+        # But definition is `class ProductionHardwareDriver:`. It does NOT inherit BaseHardwareDriver!
+        # This is a problem if AndorRaman expects it to be a driver.
+        # AndorRaman inherits ProductionHardwareDriver.
+        # If ProductionHardwareDriver is the base, it should provide logger.
+        import logging
+        self.logger = logging.getLogger(self.__class__.__name__)
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._lock = asyncio.Lock()
 
@@ -44,6 +53,17 @@ class ProductionHardwareDriver:
                 # Log the error here if a logger is available
                 raise e
 
+    async def connect(self):
+        """Connect to the hardware."""
+        self.connected = True
+        self.logger.info(f"Connected to {self.__class__.__name__}")
+
+    async def disconnect(self):
+        """Disconnect from the hardware."""
+        self.connected = False
+        self.logger.info(f"Disconnected from {self.__class__.__name__}")
+
     async def shutdown(self):
         """Clean up resources."""
+        await self.disconnect()
         self._executor.shutdown(wait=True)

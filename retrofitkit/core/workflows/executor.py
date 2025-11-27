@@ -37,7 +37,7 @@ class WorkflowExecutor:
         self._pause_event = asyncio.Event()
         self._pause_event.set() # Start unpaused
 
-    async def execute(self, recipe: Recipe, operator_email: str, run_metadata: Dict[str, Any] = None):
+    async def execute(self, recipe: Recipe, operator_email: str, run_metadata: Dict[str, Any] = None, on_start=None):
         """
         Execute a recipe.
         """
@@ -47,6 +47,13 @@ class WorkflowExecutor:
             # For now, let's assume recipe object has what we need or we pass version ID.
             # Let's assume recipe.id is the UUID of the version.
             run_id = self.logger.log_run_start(recipe.id, operator_email, run_metadata)
+            
+            if on_start:
+                if asyncio.iscoroutinefunction(on_start):
+                    await on_start(run_id)
+                else:
+                    on_start(run_id)
+                    
         except Exception as e:
             logger.error(f"Failed to start run: {e}")
             raise
@@ -69,7 +76,19 @@ class WorkflowExecutor:
 
                 # Execute step
                 try:
+                    # SAFETY CHECK: Before execution
+                    if self.interlocks:
+                        self.interlocks.check_safe()
+                    
                     result = await self._execute_step(step)
+                    
+                    # SAFETY CHECK: After execution (and pet watchdog)
+                    if self.interlocks:
+                        self.interlocks.check_safe()
+                        # Pet watchdog if available (assuming interlocks controller has access or we do it separately)
+                        # Ideally watchdog is separate, but for now let's assume safety check implies system is healthy enough
+                        pass 
+
                     self.logger.log_step_complete(i, step.type, result)
                 except Exception as step_err:
                     logger.error(f"Step {i} ({step.type}) failed: {step_err}")
@@ -88,14 +107,24 @@ class WorkflowExecutor:
             raise
 
     async def _execute_step(self, step: Step) -> Any:
-        """Dispatch step to handler."""
+        """Dispatch step to handler with safety checks."""
+        # SAFETY CHECK: Before execution
+        if self.interlocks:
+            self.interlocks.check_safe()
+
         handler_name = f"_handle_{step.type}"
         handler = getattr(self, handler_name, None)
         
         if not handler:
             raise ValueError(f"Unknown step type: {step.type}")
             
-        return await handler(step.params)
+        result = await handler(step.params)
+
+        # SAFETY CHECK: After execution (and pet watchdog)
+        if self.interlocks:
+            self.interlocks.check_safe()
+            
+        return result
 
     # --- Step Handlers ---
 

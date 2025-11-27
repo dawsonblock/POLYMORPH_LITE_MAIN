@@ -6,7 +6,7 @@ Handles persistence of run status, step logs, and audit events.
 import logging
 import uuid
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from retrofitkit.db.models.workflow import WorkflowExecution, WorkflowVersion
@@ -38,7 +38,7 @@ class DatabaseLogger:
             The generated run_id (string).
         """
         self.operator_email = operator_email
-        self.run_id = f"RUN-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+        self.run_id = f"RUN-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         
         session = self.session_factory()
         try:
@@ -47,7 +47,7 @@ class DatabaseLogger:
                 workflow_version_id=workflow_version_id,
                 operator=operator_email,
                 status="running",
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc),
                 run_metadata=run_metadata or {}
             )
             session.add(execution)
@@ -76,7 +76,7 @@ class DatabaseLogger:
         """Log step completion and result."""
         session = self.session_factory()
         try:
-            execution = session.query(WorkflowExecution).get(self.execution_id)
+            execution = session.get(WorkflowExecution, self.execution_id)
             if execution:
                 # Append result to results JSON
                 current_results = dict(execution.results) if execution.results else {}
@@ -106,10 +106,10 @@ class DatabaseLogger:
         """Finalize the run record."""
         session = self.session_factory()
         try:
-            execution = session.query(WorkflowExecution).get(self.execution_id)
+            execution = session.get(WorkflowExecution, self.execution_id)
             if execution:
                 execution.status = status
-                execution.completed_at = datetime.utcnow()
+                execution.completed_at = datetime.now(timezone.utc)
                 if error:
                     execution.error_message = error
                 session.commit()

@@ -4,9 +4,9 @@ Instrument Calibration API endpoints.
 Provides calibration logging, certificate storage, and upcoming calibration reminders.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from pydantic import BaseModel, UUID4
+from pydantic import BaseModel, UUID4, ConfigDict
 from typing import List, Optional, Dict, Any
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 import os
 import shutil
 
@@ -45,8 +45,7 @@ class CalibrationResponse(BaseModel):
     certificate_path: Optional[str]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeviceStatusResponse(BaseModel):
@@ -58,8 +57,7 @@ class DeviceStatusResponse(BaseModel):
     health_score: Optional[float]
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -77,7 +75,7 @@ async def add_calibration_entry(
 
     try:
         # Default calibration date to now if not provided
-        calib_date = calibration.calibration_date or datetime.utcnow()
+        calib_date = calibration.calibration_date or datetime.now(timezone.utc)
 
         new_entry = CalibrationEntry(
             device_id=calibration.device_id,
@@ -99,7 +97,7 @@ async def add_calibration_entry(
             device_status.last_calibration_date = calib_date.date()
             device_status.next_calibration_due = calibration.next_due_date
             device_status.status = 'operational' if calibration.status == 'valid' else 'maintenance'
-            device_status.updated_at = datetime.utcnow()
+            device_status.updated_at = datetime.now(timezone.utc)
         else:
             device_status = DeviceStatus(
                 device_id=calibration.device_id,
@@ -364,7 +362,7 @@ async def update_device_status(
             device_status.status = new_status
             if health_score is not None:
                 device_status.health_score = health_score
-            device_status.updated_at = datetime.utcnow()
+            device_status.updated_at = datetime.now(timezone.utc)
 
         session.commit()
 

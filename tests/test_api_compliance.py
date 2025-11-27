@@ -13,14 +13,16 @@ from retrofitkit.db.models.workflow import ConfigSnapshot
 client = TestClient(app)
 
 @pytest.fixture
-def mock_app_context():
+def mock_app_context(monkeypatch):
+    monkeypatch.setenv("P4_SYSTEM_NAME", "TestApp")
+    monkeypatch.setenv("P4_ENVIRONMENT", "testing")
     config = Config(
-        system=SystemCfg(name="TestApp", mode="test", timezone="UTC", data_dir="/tmp", logs_dir="/tmp"),
+        system=SystemCfg(name="TestApp", environment="testing", timezone="UTC", data_dir="/tmp", logs_dir="/tmp"),
         security=SecurityCfg(password_policy={}, two_person_signoff=False, jwt_exp_minutes=60, rsa_private_key="key", rsa_public_key="pub"),
         daq=DAQCfg(backend="simulator", ni={}, redpitaya={}, simulator={}),
         raman=RamanCfg(provider="stub", simulator={}, vendor={}),
         gating=GatingCfg(rules=[]),
-        safety=SafetyCfg(interlocks={"enabled": True}, watchdog_seconds=1.0)
+        safety=SafetyCfg(estop_line=0, door_line=1, watchdog_seconds=1.0)
     )
     with patch("retrofitkit.core.app.AppContext.load") as mock_load:
         mock_load.return_value = MagicMock(config=config)

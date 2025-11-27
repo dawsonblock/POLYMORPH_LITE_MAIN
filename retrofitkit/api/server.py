@@ -8,6 +8,7 @@ import socketio
 from typing import Dict, List, Any
 
 from retrofitkit.core.app import AppContext
+import retrofitkit.drivers # Ensure drivers are registered
 from retrofitkit.api.auth import router as auth_router
 from retrofitkit.api.routes import router as api_router, orc  # Import global orchestrator
 from retrofitkit.core.raman_stream import RamanStreamer

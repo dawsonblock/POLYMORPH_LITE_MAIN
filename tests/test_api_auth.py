@@ -37,17 +37,22 @@ def temp_db_dir():
 
 
 @pytest.fixture
-def client(temp_db_dir):
+def client(db_session):
     """Create a test client with auth router."""
+    from retrofitkit.db.session import get_db
     app = FastAPI()
     app.include_router(router)
+    
+    # Override get_db to use the test session
+    app.dependency_overrides[get_db] = lambda: db_session
+    
     return TestClient(app)
 
 
 @pytest.fixture
-def test_user(temp_db_dir):
+def test_user(db_session):
     """Create a test user in the database."""
-    users = Users()
+    users = Users(db=db_session)
     users.create(
         email="test@example.com",
         name="Test User",
@@ -154,9 +159,9 @@ class TestLoginEndpoint:
         # This tests actual behavior - may need to adjust based on requirements
         assert response.status_code == 401
 
-    def test_multiple_users_login(self, client, temp_db_dir):
+    def test_multiple_users_login(self, client, db_session):
         """Test login with multiple different users."""
-        users = Users()
+        users = Users(db=db_session)
 
         # Create multiple users
         user1 = {"email": "user1@example.com", "name": "User One", "role": "operator", "password": "Pass1!"}
@@ -222,9 +227,9 @@ class TestLoginEndpoint:
         current_timestamp = time.time()
         assert exp_timestamp > current_timestamp
 
-        # Check expiration is within expected range (480 minutes = 8 hours)
-        expected_exp = datetime.utcnow() + timedelta(minutes=480)
-        actual_exp = datetime.fromtimestamp(exp_timestamp)
+        # Check expiration is within expected range (30 minutes)
+        expected_exp = datetime.utcnow() + timedelta(minutes=30)
+        actual_exp = datetime.utcfromtimestamp(exp_timestamp)
 
         # Allow 1 minute tolerance for test execution time
         assert abs((actual_exp - expected_exp).total_seconds()) < 60
@@ -233,9 +238,9 @@ class TestLoginEndpoint:
 class TestMFAAuthentication:
     """Test cases for Multi-Factor Authentication."""
 
-    def test_mfa_required_response(self, client, test_user, temp_db_dir):
+    def test_mfa_required_response(self, client, test_user, db_session):
         """Test that MFA-enabled users get mfa_required response without token."""
-        users = Users()
+        users = Users(db=db_session)
         secret = users.enable_mfa(test_user["email"])
 
         # Note: Current API doesn't support mfa_token parameter
@@ -316,9 +321,9 @@ class TestSecurityRequirements:
         assert response.status_code == 401
         assert response.json()["detail"] == "Invalid credentials"
 
-    def test_special_characters_in_credentials(self, client, temp_db_dir):
+    def test_special_characters_in_credentials(self, client, db_session):
         """Test that special characters in credentials are handled correctly."""
-        users = Users()
+        users = Users(db=db_session)
         special_password = "P@$$w0rd!#%&*()[]{}|<>?/\\~`"
         special_email = "test+special@example.com"
 

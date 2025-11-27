@@ -12,14 +12,17 @@ class InputValidator:
     # Regex patterns
     EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
     FILENAME_PATTERN = re.compile(r'^[a-zA-Z0-9_\-\.]+$')
-    PATH_SAFE_PATTERN = re.compile(r'^[a-zA-Z0-9_\-/]+$')
+    PATH_SAFE_PATTERN = re.compile(r'^[a-zA-Z0-9_\-/\.]+$')
     
     @staticmethod
     def validate_email(email: str) -> str:
         """Validate email format."""
-        if not email or not InputValidator.EMAIL_PATTERN.match(email):
+        if not email:
             raise HTTPException(status_code=400, detail="Invalid email format")
-        return email.strip().lower()
+        email = email.strip().lower()
+        if not InputValidator.EMAIL_PATTERN.match(email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        return email
     
     @staticmethod
     def validate_filename(filename: str) -> str:

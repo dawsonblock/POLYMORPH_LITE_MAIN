@@ -44,9 +44,10 @@ def write_audit_event(
     
     # Create payload string
     details = json.dumps(payload, sort_keys=True)
+    subject = f"{entity_type}:{entity_id}"
     
     # Compute current hash
-    data = f"{ts}{event_type}{actor_id}{entity_type}{entity_id}{details}{prev_hash}"
+    data = f"{ts}{event_type}{actor_id}{subject}{details}{prev_hash}"
     current_hash = hashlib.sha256(data.encode()).hexdigest()
     
     # Create new entry
@@ -170,12 +171,19 @@ def verify_audit_chain(db: Session, start_id: Optional[int] = None, end_id: Opti
     }
 
 
+from retrofitkit.db.session import SessionLocal
+
 # Legacy class wrapper for backwards compatibility
 class Audit:
     """Legacy wrapper for backwards compatibility with existing code."""
     
     def __init__(self, db: Optional[Session] = None):
-        self.db = db
+        self.db = db or SessionLocal()
+        self._owned = db is None
+
+    def __del__(self):
+        if getattr(self, '_owned', False) and self.db:
+            self.db.close()
     
     def log(self, event: str, actor: str, subject: str, details: str = "") -> int:
         """Log an audit event - legacy interface."""

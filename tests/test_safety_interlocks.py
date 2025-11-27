@@ -45,10 +45,8 @@ def mock_config():
         ),
         gating=GatingCfg(rules=[]),
         safety=SafetyCfg(
-            interlocks={
-                "estop_line": 0,
-                "door_line": 1
-            },
+            estop_line=0,
+            door_line=1,
             watchdog_seconds=1.0
         )
     )
@@ -132,7 +130,7 @@ class TestEmergencyStopDetection:
     def test_estop_reads_correct_line(self, interlocks, mock_daq, app_context):
         """Test that E-STOP reads from configured line number."""
         # Change estop_line in config
-        app_context.config.safety.interlocks["estop_line"] = 5
+        app_context.config.safety.estop_line = 5
         mock_daq.read_di.return_value = 1
 
         interlocks.estop_triggered()
@@ -180,7 +178,7 @@ class TestDoorOpenDetection:
     def test_door_reads_correct_line(self, interlocks, mock_daq, app_context):
         """Test that door sensor reads from configured line number."""
         # Change door_line in config
-        app_context.config.safety.interlocks["door_line"] = 7
+        app_context.config.safety.door_line = 7
         mock_daq.read_di.return_value = 1
 
         interlocks.door_open()
@@ -308,10 +306,8 @@ class TestConfigurationVariations:
 
     def test_interlocks_with_same_line_number(self, app_context, mock_daq, monkeypatch):
         """Test when estop and door use same line (unusual but valid)."""
-        app_context.config.safety.interlocks = {
-            "estop_line": 0,
-            "door_line": 0  # Same line
-        }
+        app_context.config.safety.estop_line = 0
+        app_context.config.safety.door_line = 0
 
         monkeypatch.setattr("retrofitkit.safety.interlocks.make_daq", lambda cfg: mock_daq)
         interlocks = Interlocks(app_context)
@@ -324,10 +320,8 @@ class TestConfigurationVariations:
 
     def test_interlocks_with_high_line_numbers(self, app_context, mock_daq, monkeypatch):
         """Test interlocks with high line numbers."""
-        app_context.config.safety.interlocks = {
-            "estop_line": 100,
-            "door_line": 200
-        }
+        app_context.config.safety.estop_line = 100
+        app_context.config.safety.door_line = 200
 
         monkeypatch.setattr("retrofitkit.safety.interlocks.make_daq", lambda cfg: mock_daq)
         interlocks = Interlocks(app_context)

@@ -87,7 +87,9 @@ class SimDAQ(DAQBase, DAQDevice):
     
     async def set_voltage(self, volts: float):
         """Set simulated output voltage."""
-        self._voltage = float(volts)
+        # Clamp to range
+        volts = max(-10.0, min(10.0, float(volts)))
+        self._voltage = volts
         await asyncio.sleep(0.01)
     
     async def read_ai(self, channel: int = 0) -> float:
@@ -109,6 +111,25 @@ class SimDAQ(DAQBase, DAQDevice):
         """Write digital output line."""
         if 0 <= line < len(self._do_state):
             self._do_state[line] = bool(state)
+
+    # Helpers for tests/compatibility
+    async def read_voltage(self) -> float:
+        """Alias for read_ai(0)."""
+        return await self.read_ai(0)
+
+    async def read_interlocks(self) -> Dict[str, bool]:
+        """Read safety interlocks (simulated on DI lines)."""
+        # Assume DI 0 is Estop (Active High for test), DI 1 is Door
+        estop = await self.read_di(0)
+        door = await self.read_di(1)
+        
+        # If estop was set via property in test, respect it
+        if hasattr(self, 'estop_active'):
+            estop = self.estop_active
+        if hasattr(self, 'door_open'):
+            door = self.door_open
+            
+        return {"estop": estop, "door": door}
 
 
 # Backward compatibility alias for tests

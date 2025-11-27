@@ -13,7 +13,7 @@ import logging
 import structlog
 from pathlib import Path
 from typing import Any, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Create logs directory
 LOGS_DIR = Path(os.getenv("P4_LOGS_DIR", "logs"))
@@ -22,7 +22,7 @@ LOGS_DIR.mkdir(exist_ok=True)
 
 def add_timestamp(logger: Any, method_name: str, event_dict: Dict) -> Dict:
     """Add ISO timestamp to log entries."""
-    event_dict["timestamp"] = datetime.utcnow().isoformat() + "Z"
+    event_dict["timestamp"] = datetime.now(timezone.utc).isoformat() + "Z"
     return event_dict
 
 

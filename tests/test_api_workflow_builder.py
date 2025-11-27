@@ -66,9 +66,50 @@ def workflow_definition():
 
 class TestWorkflowBuilderAPI:
     """Test workflow builder CRUD operations."""
+    
+    @pytest.fixture(autouse=True)
+    def override_dependencies(self, db_session):
+        """Override dependencies."""
+        from retrofitkit.api.dependencies import get_current_user
+        
+        # Override auth
+        app.dependency_overrides[get_current_user] = mock_get_current_user
+        
+        # Patch get_session in the workflow_builder module
+        # We need to return a mock that behaves like a session context manager if needed,
+        # or just the session itself if get_session() returns a session directly.
+        # Looking at workflow_builder.py: session = get_session(); ... session.close()
+        # So get_session() returns a session.
+        # We should return a MagicMock that wraps the db_session but prevents close() from actually closing it
+        # because pytest fixture handles teardown.
+        
+        real_close = db_session.close
+        db_session.close = Mock() # Prevent closing by endpoint
+        
+        with patch("retrofitkit.api.workflow_builder.get_session", return_value=db_session):
+            yield
+            
+        db_session.close = real_close # Restore
+        app.dependency_overrides = {}
 
-    @patch("retrofitkit.api.workflow_builder.get_current_user", return_value=mock_get_current_user())
-    def test_create_workflow(self, mock_auth, workflow_definition, auth_headers):
+    @pytest.fixture(autouse=True)
+    def seed_user(self, db_session):
+        """Seed test user."""
+        from retrofitkit.db.models.user import User
+        from retrofitkit.db.models.rbac import Role, UserRole
+        
+        user = db_session.query(User).filter_by(email="test@example.com").first()
+        if not user:
+            user = User(
+                email="test@example.com",
+                name="Test User",
+                role="Admin",
+                password_hash=b"test_hash"
+            )
+            db_session.add(user)
+            db_session.commit()
+
+    def test_create_workflow(self, workflow_definition, auth_headers):
         """Test creating a new workflow definition."""
         response = client.post(
             "/api/workflow-builder/workflows",
@@ -85,8 +126,7 @@ class TestWorkflowBuilderAPI:
         assert len(data["definition"]["nodes"]) == 3
         assert len(data["definition"]["edges"]) == 2
 
-    @patch("retrofitkit.api.workflow_builder.get_current_user", return_value=mock_get_current_user())
-    def test_workflow_versioning(self, mock_auth, auth_headers):
+    def test_workflow_versioning(self, auth_headers):
         """Test that creating multiple versions increments version number."""
         workflow_name = f"versioned-workflow-{uuid.uuid4().hex[:8]}"
 
@@ -134,8 +174,7 @@ class TestWorkflowBuilderAPI:
         data = response.json()
         assert isinstance(data, list)
 
-    @patch("retrofitkit.api.workflow_builder.get_current_user", return_value=mock_get_current_user())
-    def test_approve_workflow(self, mock_auth, workflow_definition, auth_headers):
+    def test_approve_workflow(self, workflow_definition, auth_headers):
         """Test workflow approval process."""
         # Create workflow
         create_response = client.post(
@@ -155,8 +194,7 @@ class TestWorkflowBuilderAPI:
         if approve_response.status_code == 200:
             assert "approved" in approve_response.json()["message"].lower()
 
-    @patch("retrofitkit.api.workflow_builder.get_current_user", return_value=mock_get_current_user())
-    def test_activate_workflow_requires_approval(self, mock_auth, workflow_definition, auth_headers):
+    def test_activate_workflow_requires_approval(self, workflow_definition, auth_headers):
         """Test that unapproved workflows cannot be activated."""
         # Create workflow (not approved)
         create_response = client.post(
@@ -175,8 +213,7 @@ class TestWorkflowBuilderAPI:
 
         assert activate_response.status_code == 403  # Forbidden
 
-    @patch("retrofitkit.api.workflow_builder.get_current_user", return_value=mock_get_current_user())
-    def test_execute_workflow(self, mock_auth, auth_headers):
+    def test_execute_workflow(self, auth_headers):
         """Test workflow execution creation."""
         # Create, approve, and activate a workflow first
         workflow_def = {
@@ -237,9 +274,42 @@ class TestWorkflowBuilderAPI:
 
 class TestWorkflowIntegrity:
     """Test workflow definition integrity features."""
+    
+    @pytest.fixture(autouse=True)
+    def override_dependencies(self, db_session):
+        """Override dependencies."""
+        from retrofitkit.api.dependencies import get_current_user, get_db
+        
+        # Override auth
+        app.dependency_overrides[get_current_user] = mock_get_current_user
+        
+        # Override DB
+        def override_get_db():
+            yield db_session
+            
+        app.dependency_overrides[get_db] = override_get_db
+        
+        yield
+        app.dependency_overrides = {}
 
-    @patch("retrofitkit.api.workflow_builder.get_current_user", return_value=mock_get_current_user())
-    def test_workflow_hash_generation(self, mock_auth, workflow_definition, auth_headers):
+    @pytest.fixture(autouse=True)
+    def seed_user(self, db_session):
+        """Seed test user."""
+        from retrofitkit.db.models.user import User
+        from retrofitkit.db.models.rbac import Role, UserRole
+        
+        user = db_session.query(User).filter_by(email="test@example.com").first()
+        if not user:
+            user = User(
+                email="test@example.com",
+                name="Test User",
+                role="Admin",
+                password_hash=b"test_hash"
+            )
+            db_session.add(user)
+            db_session.commit()
+
+    def test_workflow_hash_generation(self, workflow_definition, auth_headers):
         """Test that workflow definitions get a hash for integrity verification."""
         response = client.post(
             "/api/workflow-builder/workflows",

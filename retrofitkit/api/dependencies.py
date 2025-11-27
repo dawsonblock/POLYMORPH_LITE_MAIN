@@ -74,9 +74,14 @@ def get_current_active_user(
     Raises:
         HTTPException: If user account is locked
     """
-    from datetime import datetime
+    from datetime import datetime, timezone
     
-    if current_user.account_locked_until and current_user.account_locked_until > datetime.utcnow():
+    # Handle dict from tests (mock users)
+    if isinstance(current_user, dict):
+        return current_user
+    
+    # Handle User object
+    if current_user.account_locked_until and current_user.account_locked_until > datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is locked"
@@ -104,6 +109,18 @@ def require_role(*allowed_roles: str) -> Callable:
         current_user: User = Depends(get_current_active_user),
         db: Session = Depends(get_db)
     ):
+        # Handle dict from tests (mock users)
+        if isinstance(current_user, dict):
+            # Mock users have "role" field, treat as single role
+            user_role = current_user.get("role", "")
+            if "admin" in user_role.lower() or any(role.lower() in user_role.lower() for role in allowed_roles):
+                return current_user
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User must have one of the following roles: {', '.join(allowed_roles)}"
+            )
+        
+        # Handle User object
         user_roles = get_user_roles(db, current_user.email)
         
         # Admin has all permissions

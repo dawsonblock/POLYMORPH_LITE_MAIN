@@ -5,14 +5,15 @@ Provides CRUD operations for samples, containers, projects, and batches.
 Includes lineage tracking and workflow assignment functionality.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, UUID4, field_validator, Field
+from pydantic import BaseModel, UUID4, field_validator, Field, ConfigDict
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import re
 
 from retrofitkit.db.models.sample import Project, Batch, Container, Sample, SampleLineage
 from retrofitkit.db.models.workflow import WorkflowSampleAssignment
+from retrofitkit.database.models import get_session
 from retrofitkit.db.session import get_db
 from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
@@ -65,8 +66,7 @@ class SampleResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SampleWithLineage(SampleResponse):
@@ -89,8 +89,7 @@ class ContainerResponse(BaseModel):
     capacity: Optional[int]
     current_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProjectCreate(BaseModel):
@@ -110,8 +109,7 @@ class ProjectResponse(BaseModel):
     created_by: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BatchCreate(BaseModel):
@@ -128,8 +126,7 @@ class BatchResponse(BaseModel):
     created_by: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -421,7 +418,7 @@ async def update_sample(
             sample.extra_data = {**sample.extra_data, **update.extra_data}
 
         sample.updated_by = current_user["email"]
-        sample.updated_at = datetime.utcnow()
+        sample.updated_at = datetime.now(timezone.utc)
 
         session.commit()
         session.refresh(sample)
@@ -464,7 +461,7 @@ async def delete_sample(
         # Soft delete - mark as disposed
         sample.status = 'disposed'
         sample.updated_by = current_user["email"]
-        sample.updated_at = datetime.utcnow()
+        sample.updated_at = datetime.now(timezone.utc)
 
         session.commit()
 

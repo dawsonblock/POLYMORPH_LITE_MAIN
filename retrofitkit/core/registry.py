@@ -6,8 +6,11 @@ The registry provides:
 - Factory pattern for device instantiation
 - Runtime device inventory
 """
-from typing import Dict, Type, Any, List, Optional
-from retrofitkit.drivers.base import DeviceBase, DeviceCapabilities, DeviceKind
+from typing import Dict, Type, Any, List, Optional, TYPE_CHECKING
+from retrofitkit.drivers.base import DeviceCapabilities, DeviceKind
+
+if TYPE_CHECKING:
+    from retrofitkit.drivers.base import DeviceBase
 
 
 class DeviceRegistry:
@@ -29,10 +32,10 @@ class DeviceRegistry:
     """
     
     def __init__(self) -> None:
-        self._drivers: Dict[str, Type[DeviceBase]] = {}
-        self._instances: Dict[str, DeviceBase] = {}
+        self._drivers: Dict[str, Type["DeviceBase"]] = {}
+        self._instances: Dict[str, "DeviceBase"] = {}
     
-    def register(self, name: str, driver_cls: Type[DeviceBase]) -> None:
+    def register(self, name: str, driver_cls: Type["DeviceBase"]) -> None:
         """
         Register a device driver class.
         
@@ -107,7 +110,7 @@ class DeviceRegistry:
             if driver_cls.capabilities.supports_action(action)  # type: ignore[attr-defined]
         ]
     
-    def create(self, name: str, instance_id: Optional[str] = None, **kwargs: Any) -> DeviceBase:
+    def create(self, name: str, instance_id: Optional[str] = None, **kwargs: Any) -> "DeviceBase":
         """
         Create a device instance using registered driver.
         
@@ -138,7 +141,7 @@ class DeviceRegistry:
         
         return instance
     
-    def get_instance(self, instance_id: str) -> Optional[DeviceBase]:
+    def get_instance(self, instance_id: str) -> Optional["DeviceBase"]:
         """
         Get a tracked device instance by ID.
         
@@ -150,7 +153,7 @@ class DeviceRegistry:
         """
         return self._instances.get(instance_id)
     
-    def list_instances(self) -> Dict[str, DeviceBase]:
+    def list_instances(self) -> Dict[str, "DeviceBase"]:
         """
         Get all tracked device instances.
         

@@ -1,167 +1,180 @@
-"""
-Andor Spectrometer Driver.
+# retrofitkit/drivers/raman/vendor_andor.py
 
-Implements full control for Andor cameras (Newton, iDus, etc.) via SDK wrapper or simulation.
-Includes:
-- Temperature control (Cooling)
-- Trigger modes (Internal, External)
-- Safety integration
-"""
-import asyncio
+import math
 import time
-import logging
-import random
-from typing import Dict, Any, List, Optional
-from retrofitkit.drivers.base import SpectrometerDevice, DeviceCapabilities, DeviceKind, SafetyAwareMixin, require_safety
+import numpy as np
+from typing import Optional, Sequence
 
-logger = logging.getLogger(__name__)
+from retrofitkit.core.data_models import Spectrum
+from retrofitkit.drivers.base import DeviceKind, DeviceCapabilities
+from retrofitkit.drivers.production_base import ProductionHardwareDriver
+from retrofitkit.core.registry import registry
 
-# Mock SDK if not present
-try:
-    import andor_sdk_wrapper as sdk # Hypothetical wrapper
-except ImportError:
-    sdk = None
-    logger.warning("Andor SDK not found. Using simulation mode.")
 
-class AndorDriver(SafetyAwareMixin):
+class AndorRaman(ProductionHardwareDriver):
     """
-    Driver for Andor Spectrometers.
+    Andor Raman spectrometer driver.
+
+    This implementation is:
+      - SDK-backed if the Andor library is available
+      - otherwise falls back to a safe simulator that still returns a valid Spectrum
+
+    This ensures:
+      - the module always imports
+      - workflows can run in sim mode
+      - real hardware can be hooked in later without touching callers
     """
+
+    KIND = DeviceKind.SPECTROMETER
+    MODEL = "andor_raman"
+    VENDOR = "andor"
+    
+    capabilities = DeviceCapabilities(
+        kind=DeviceKind.SPECTROMETER,
+        vendor="Andor",
+        model="Newton",
+        actions=["acquire_spectrum"]
+    )
+
     def __init__(self, config):
-        super().__init__(config)
-        self.id = "andor_spectrometer"
-        self.capabilities = DeviceCapabilities(
-            kind=DeviceKind.SPECTROMETER,
-            vendor="Andor",
-            model="Newton",
-            actions=["acquire", "set_temperature", "get_temperature", "set_trigger"],
-            features={"cooling": True, "triggering": True}
-        )
-        self.connected = False
-        self.temperature_setpoint = -60.0
-        self.current_temperature = 20.0
-        self.trigger_mode = "internal"
-        self.exposure_time = 0.1
-        
-        # Simulation state
-        self._sim_cooling = False
-
-    async def connect(self) -> None:
-        """Initialize connection to camera."""
-        if sdk:
-            # Real SDK initialization
-            # sdk.Initialize()
-            pass
-        
-        self.connected = True
-        logger.info("Andor Driver connected.")
-        
-        # Start cooling if configured
-        await self.set_temperature(self.temperature_setpoint)
-
-    async def disconnect(self) -> None:
-        """Shutdown camera."""
-        if sdk:
-            # sdk.ShutDown()
-            pass
-        self.connected = False
-        logger.info("Andor Driver disconnected.")
-
-    async def health(self) -> Dict[str, Any]:
-        """Get device health."""
-        temp = await self.get_temperature()
-        status = "ok"
-        if temp > -20 and self._sim_cooling: # Warning if cooling but warm
-            status = "warning"
-            
-        return {
-            "status": status,
-            "connected": self.connected,
-            "temperature": temp,
-            "locked": temp <= (self.temperature_setpoint + 5)
-        }
-
-    async def set_temperature(self, temp_c: float) -> None:
-        """Set detector temperature."""
-        self.temperature_setpoint = temp_c
-        self._sim_cooling = True
-        logger.info(f"Setting Andor temperature to {temp_c}C")
-        if sdk:
-            # sdk.SetTemperature(int(temp_c))
-            # sdk.CoolerON()
-            pass
+        # Initialize base with default workers, don't pass config as max_workers
+        super().__init__(max_workers=1)
+        self.config = config
+        self._sdk = None
+        self._t0 = time.time()
+        self._init_sdk_if_available()
 
     async def get_temperature(self) -> float:
-        """Get current detector temperature."""
-        if sdk:
-            # return sdk.GetTemperature()
-            pass
-            
-        # Simulation logic
-        if self._sim_cooling:
-            # Approach setpoint
-            diff = self.temperature_setpoint - self.current_temperature
-            self.current_temperature += diff * 0.1 # Simple exponential decay
-        
-        return self.current_temperature
-
-    async def set_trigger_mode(self, mode: str) -> None:
-        """
-        Set trigger mode.
-        Options: 'internal', 'external', 'software'
-        """
-        valid_modes = ["internal", "external", "software"]
-        if mode not in valid_modes:
-            raise ValueError(f"Invalid trigger mode: {mode}")
-            
-        self.trigger_mode = mode
-        logger.info(f"Set Andor trigger mode to {mode}")
-        if sdk:
-            # sdk.SetTriggerMode(mode_map[mode])
-            pass
-
-    @require_safety
-    async def acquire_spectrum(self, exposure_time: float = None) -> Dict[str, Any]:
-        """
-        Acquire a spectrum.
-        
-        Args:
-            exposure_time: Integration time in seconds.
-        """
-        if not self.connected:
-            raise RuntimeError("Andor camera not connected")
-            
-        exp = exposure_time or self.exposure_time
-        
-        logger.info(f"Acquiring spectrum ({exp}s, {self.trigger_mode})")
-        
-        if sdk:
-            # Real acquisition
-            # sdk.SetExposureTime(exp)
-            # sdk.StartAcquisition()
-            # sdk.WaitForAcquisition()
-            # data = sdk.GetAcquiredData()
-            pass
+        """Get the current detector temperature in Celsius."""
+        if self._sdk:
+            # Placeholder for real SDK call
+            # return await self._run_blocking(self._sdk.GetTemperature)
+            return -45.0
         else:
-            # Simulation
-            await asyncio.sleep(exp)
-            # Generate fake spectrum
-            pixels = 1024
-            wavelengths = [500 + (i * 0.5) for i in range(pixels)]
-            # Add a peak at 532nm (laser) and some Raman peaks
-            intensities = [random.gauss(100, 5) for _ in range(pixels)]
-            
-            # Add peak
-            peak_idx = int((532 - 500) / 0.5)
-            if 0 <= peak_idx < pixels:
-                intensities[peak_idx] += 5000
-                
-            return {
-                "wavelengths": wavelengths,
-                "intensities": intensities,
-                "metadata": {
-                    "exposure": exp,
-                    "temperature": await self.get_temperature(),
-                    "trigger": self.trigger_mode
-                }
-            }
+            # Simulated temperature
+            return -45.0
+
+    # ---------- SDK / simulation setup ----------
+
+    def _init_sdk_if_available(self) -> None:
+        """
+        Try to import and initialize the real Andor SDK.
+        If not available, we silently fall back to simulation.
+        """
+        try:
+            # Replace with real Andor SDK import when available
+            import andor_sdk  # type: ignore
+
+            self._sdk = andor_sdk
+            self.logger.info("Andor SDK detected, using real hardware backend.")
+        except Exception:
+            self._sdk = None
+            self.logger.warning(
+                "Andor SDK not available, AndorRaman running in SIMULATOR mode."
+            )
+
+    # ---------- Core spectrometer interface ----------
+
+    async def acquire_spectrum(
+        self,
+        integration_time_ms: float,
+        averages: int = 1,
+        center_wavelength_nm: Optional[float] = None,
+    ) -> Spectrum:
+        """
+        Acquire a spectrum from the Andor spectrometer.
+
+        When SDK is present:
+          - call real hardware
+        Otherwise:
+          - return a clean synthetic spectrum with plausible metadata
+        """
+        if self._sdk is not None:
+            return await self._acquire_real(
+                integration_time_ms=integration_time_ms,
+                averages=averages,
+                center_wavelength_nm=center_wavelength_nm,
+            )
+        else:
+            return await self._acquire_simulated(
+                integration_time_ms=integration_time_ms,
+                averages=averages,
+                center_wavelength_nm=center_wavelength_nm,
+            )
+
+    async def _acquire_real(
+        self,
+        integration_time_ms: float,
+        averages: int,
+        center_wavelength_nm: Optional[float],
+    ) -> Spectrum:
+        """
+        Placeholder for real Andor acquisition logic.
+
+        Implement using the actual Andor API when you have the SDK wired.
+        For now, we raise a clear error so no one assumes this is done.
+        """
+        raise NotImplementedError(
+            "Real Andor SDK integration not yet implemented. "
+            "Implement _acquire_real() in vendor_andor.py when SDK is available."
+        )
+
+    async def _acquire_simulated(
+        self,
+        integration_time_ms: float,
+        averages: int,
+        center_wavelength_nm: Optional[float],
+    ) -> Spectrum:
+        """
+        Clean simulator: single Gaussian peak plus noise.
+
+        This guarantees:
+          - valid Spectrum schema
+          - deterministic behavior across tests
+        """
+        t = time.time() - self._t0
+        n_points = 1024
+
+        # simple synthetic wavelength axis around a 500–600 nm band
+        center = center_wavelength_nm or 550.0
+        span = 50.0
+        start = center - span
+        stop = center + span
+        step = (stop - start) / (n_points - 1)
+        wavelengths = [start + i * step for i in range(n_points)]
+
+        # single Gaussian peak at center
+        sigma = span / 6.0
+        intensities: list[float] = []
+        for wl in wavelengths:
+            dx = wl - center
+            base = math.exp(-0.5 * (dx / sigma) ** 2)
+            noise = 0.02 * math.sin(0.1 * wl)  # soft structure
+            intensities.append(max(0.0, base + noise))
+
+        metadata = {
+            "integration_time_ms": integration_time_ms,
+            "averages": averages,
+            "center_wavelength_nm": center,
+            "backend": "simulator",
+            "device_model": self.MODEL,
+            "vendor": self.VENDOR,
+            "t": t,
+        }
+
+        return Spectrum(
+            wavelengths=np.array(wavelengths),
+            intensities=np.array(intensities),
+            meta=metadata,
+        )
+
+    async def close(self) -> None:
+        """
+        Ensure clean shutdown; close hardware handles if SDK is active.
+        """
+        # Add real SDK cleanup here when implemented
+        self.logger.info("AndorRaman closed.")
+
+
+# Register driver with the global registry at import time
+registry.register("andor_raman", AndorRaman)

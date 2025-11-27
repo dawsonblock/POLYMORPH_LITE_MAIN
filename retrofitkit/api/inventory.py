@@ -5,7 +5,7 @@ Provides CRUD operations for inventory items, stock lots, and vendors.
 Includes low-stock alerts and expiration tracking.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, UUID4
+from pydantic import BaseModel, UUID4, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timedelta
 
@@ -43,8 +43,7 @@ class InventoryItemResponse(BaseModel):
     location: Optional[str]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StockLotCreate(BaseModel):
@@ -66,8 +65,7 @@ class StockLotResponse(BaseModel):
     expiration_date: Optional[date]
     status: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class VendorCreate(BaseModel):
@@ -83,8 +81,7 @@ class VendorResponse(BaseModel):
     contact_info: Dict[str, Any]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================

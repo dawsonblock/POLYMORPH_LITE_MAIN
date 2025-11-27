@@ -5,9 +5,9 @@ Provides workflow definition management, versioning, and execution.
 Supports visual drag-and-drop workflow design with orchestrator integration.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, UUID4
+from pydantic import BaseModel, UUID4, ConfigDict
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import json
 import uuid
@@ -66,8 +66,7 @@ class WorkflowDefinitionResponse(BaseModel):
     approved_by: Optional[str]
     approved_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WorkflowExecutionCreate(BaseModel):
@@ -89,8 +88,7 @@ class WorkflowExecutionResponse(BaseModel):
     results: Dict[str, Any]
     error_message: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -117,7 +115,7 @@ async def create_workflow_definition(
             WorkflowVersion.workflow_name == workflow.workflow_name
         ).order_by(WorkflowVersion.version.desc()).first()
 
-        next_version = (latest.version + 1) if latest else 1
+        next_version = (int(latest.version) + 1) if latest else 1
 
         # Build definition dictionary
         definition = {
@@ -374,7 +372,7 @@ async def approve_workflow_version(
 
         workflow.is_approved = True
         workflow.approved_by = current_user["email"]
-        workflow.approved_at = datetime.utcnow()
+        workflow.approved_at = datetime.now(timezone.utc)
 
         session.commit()
 
@@ -610,7 +608,7 @@ async def execute_workflow(
         # Create config snapshot
         config_snapshot = ConfigSnapshot(
             snapshot_id=str(uuid.uuid4()),
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             config_data={"workflow_parameters": execution.parameters},
             config_hash=hashlib.sha256(json.dumps(execution.parameters, sort_keys=True).encode()).hexdigest(),
             created_by=current_user["email"],
@@ -764,7 +762,7 @@ async def abort_workflow_execution(
             )
 
         execution.status = "aborted"
-        execution.completed_at = datetime.utcnow()
+        execution.completed_at = datetime.now(timezone.utc)
         execution.error_message = f"Aborted by {current_user['email']}"
 
         session.commit()

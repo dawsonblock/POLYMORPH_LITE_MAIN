@@ -12,6 +12,7 @@ from typing import Generator
 from functools import lru_cache
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import StaticPool
 
 
 class Settings:
@@ -26,6 +27,9 @@ class Settings:
             "DATABASE_URL",
             "postgresql+psycopg2://polymorph:polymorph_pass@localhost:5432/polymorph_db"
         )
+        self.echo = os.getenv("P4_DATABASE_ECHO", "False").lower() == "true"
+        self.pool_size = int(os.getenv("P4_DATABASE_POOL_SIZE", "5"))
+        self.max_overflow = int(os.getenv("P4_DATABASE_MAX_OVERFLOW", "10"))
         
         # Fallback to SQLite for local development if not PostgreSQL
         if "postgresql" not in self.database_url and "sqlite" not in self.database_url:
@@ -55,11 +59,27 @@ def get_settings() -> Settings:
 
 # Create SQLAlchemy engine
 settings = get_settings()
-engine = create_engine(
-    settings.database_url,
-    pool_pre_ping=True,  # Verify connections before using
-    echo=False,  # Set to True for SQL debugging
-)
+
+connect_args = {}
+if "sqlite" in settings.database_url:
+    connect_args["check_same_thread"] = False
+
+if settings.database_url == "sqlite:///:memory:":
+    engine = create_engine(
+        settings.database_url,
+        connect_args=connect_args,
+        poolclass=StaticPool,
+        echo=settings.echo
+    )
+else:
+    engine = create_engine(
+        settings.database_url,
+        connect_args=connect_args,
+        pool_pre_ping=True,  # Verify connections before using
+        echo=settings.echo,
+        pool_size=settings.pool_size,
+        max_overflow=settings.max_overflow
+    )
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(

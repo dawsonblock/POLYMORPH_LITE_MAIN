@@ -8,7 +8,7 @@ import bcrypt
 import pyotp
 import time
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from retrofitkit.db.models.user import User
@@ -59,8 +59,8 @@ def create_user(
         role=role if not is_superuser else "admin",
         password_hash=hashed_password,
         password_history=[hashed_password.hex()],
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
     )
     
     db.add(user)
@@ -113,7 +113,7 @@ def authenticate_user(
     
     # Check account lock
     if user.account_locked_until:
-        if user.account_locked_until > datetime.utcnow():
+        if user.account_locked_until > datetime.now(timezone.utc):
             write_audit_event(
                 db=db,
                 actor_id=email,
@@ -135,9 +135,13 @@ def authenticate_user(
             # Increment failed attempts
             user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
             
+            import logging
+            logging.warning(f"DEBUG: User {email} failed login. Attempts: {user.failed_login_attempts}")
+            
             # Check if should lock
             if user.failed_login_attempts >= 5:
-                user.account_locked_until = datetime.utcnow() + timedelta(minutes=30)
+                user.account_locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
+                logging.warning(f"DEBUG: Locking account for {email} until {user.account_locked_until}")
                 write_audit_event(
                     db=db,
                     actor_id="system",
@@ -284,4 +288,10 @@ class Users:
         """Authenticate - legacy interface."""
         if self.db:
             return authenticate_user(self.db, email, password, mfa_token)
+        return None
+
+    def get_by_email(self, email: str):
+        """Get user by email - legacy interface."""
+        if self.db:
+            return get_user_by_email(self.db, email)
         return None
