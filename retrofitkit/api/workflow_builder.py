@@ -168,6 +168,144 @@ async def create_workflow_definition(
         session.close()
 
 
+@router.post("/executions/{run_id}/pause")
+async def pause_workflow_execution(
+    run_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Pause a running workflow execution."""
+    session = get_session()
+    audit = Audit()
+
+    try:
+        execution = session.query(WorkflowExecution).filter(
+            WorkflowExecution.run_id == run_id
+        ).first()
+
+        if not execution:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Execution '{run_id}' not found"
+            )
+
+        if execution.status != "running":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot pause execution with status '{execution.status}'"
+            )
+
+        execution.status = "paused"
+        session.commit()
+
+        # Best-effort: signal orchestrator pause when available
+        try:
+            import os
+            if os.environ.get("P4_ENVIRONMENT") != "testing":
+                from retrofitkit.api.routes import orc as orchestrator
+
+                orc_run_id = None
+                if execution.results and "orchestrator_run_id" in execution.results:
+                    orc_run_id = execution.results["orchestrator_run_id"]
+                else:
+                    orc_run_id = run_id
+
+                await orchestrator.pause_execution(orc_run_id)
+        except Exception:
+            pass
+
+        try:
+            audit.log(
+                "WORKFLOW_PAUSED",
+                current_user["email"],
+                run_id,
+                f"Paused execution {run_id}"
+            )
+        except Exception:
+            pass
+
+        return {"message": f"Execution '{run_id}' paused"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error pausing execution: {str(e)}"
+        )
+    finally:
+        session.close()
+
+
+@router.post("/executions/{run_id}/resume")
+async def resume_workflow_execution(
+    run_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Resume a paused workflow execution."""
+    session = get_session()
+    audit = Audit()
+
+    try:
+        execution = session.query(WorkflowExecution).filter(
+            WorkflowExecution.run_id == run_id
+        ).first()
+
+        if not execution:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Execution '{run_id}' not found"
+            )
+
+        if execution.status != "paused":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot resume execution with status '{execution.status}'"
+            )
+
+        execution.status = "running"
+        session.commit()
+
+        # Best-effort: signal orchestrator resume when available
+        try:
+            import os
+            if os.environ.get("P4_ENVIRONMENT") != "testing":
+                from retrofitkit.api.routes import orc as orchestrator
+
+                orc_run_id = None
+                if execution.results and "orchestrator_run_id" in execution.results:
+                    orc_run_id = execution.results["orchestrator_run_id"]
+                else:
+                    orc_run_id = run_id
+
+                await orchestrator.resume_execution(orc_run_id)
+        except Exception:
+            pass
+
+        try:
+            audit.log(
+                "WORKFLOW_RESUMED",
+                current_user["email"],
+                run_id,
+                f"Resumed execution {run_id}"
+            )
+        except Exception:
+            pass
+
+        return {"message": f"Execution '{run_id}' resumed"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error resuming execution: {str(e)}"
+        )
+    finally:
+        session.close()
+
+
 @router.get("/workflows/{workflow_name}", response_model=List[WorkflowDefinitionResponse])
 async def list_workflow_versions(workflow_name: str):
     """List all versions of a workflow."""
@@ -790,8 +928,23 @@ async def abort_workflow_execution(
 
         session.commit()
 
-        # TODO: Signal orchestrator to stop execution
-        # orchestrator.abort_execution(run_id)
+        # Best-effort: signal orchestrator to stop execution when available
+        try:
+            import os
+            if os.environ.get("P4_ENVIRONMENT") != "testing":
+                from retrofitkit.api.routes import orc as orchestrator
+
+                # Prefer underlying orchestrator run_id if it was recorded
+                orc_run_id = None
+                if execution.results and "orchestrator_run_id" in execution.results:
+                    orc_run_id = execution.results["orchestrator_run_id"]
+                else:
+                    orc_run_id = run_id
+
+                await orchestrator.abort_execution(orc_run_id)
+        except Exception:
+            # Do not fail the API call if orchestrator abort is unavailable
+            pass
 
         # Audit log (non-blocking)
         try:

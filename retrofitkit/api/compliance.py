@@ -63,6 +63,21 @@ class ConfigSnapshotResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RunDetailsResponse(BaseModel):
+    """Detailed view of a workflow run for compliance/traceability."""
+
+    run_id: str
+    status: str
+    operator: str
+    started_at: datetime
+    completed_at: Optional[datetime]
+    workflow_name: Optional[str]
+    workflow_version: Optional[str]
+    workflow_hash: Optional[str]
+    config_snapshot: Optional[Dict[str, Any]]
+    audit_entries: List[Dict[str, Any]]
+
+
 # ============================================================================
 # AUDIT TRAIL VERIFICATION
 # ============================================================================
@@ -372,6 +387,86 @@ async def generate_run_report_pdf(
     finally:
         if 'session' in locals():
             session.close()
+
+
+@router.get("/run/{run_id}", response_model=RunDetailsResponse)
+async def get_run_details(
+    run_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Return detailed JSON view of a workflow run.
+
+    Includes execution metadata, workflow definition metadata, config snapshot
+    summary, and all audit entries linked to the run id.
+    """
+    session = get_session()
+
+    try:
+        # Load execution
+        execution = session.query(WorkflowExecution).filter(
+            WorkflowExecution.run_id == run_id
+        ).first()
+
+        if not execution:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Run '{run_id}' not found"
+            )
+
+        # Workflow metadata
+        workflow = session.query(WorkflowVersion).filter(
+            WorkflowVersion.id == execution.workflow_version_id
+        ).first()
+
+        # Config snapshot summary (if any)
+        config_summary: Optional[Dict[str, Any]] = None
+        if execution.config_snapshot_id:
+            config = session.query(ConfigSnapshot).filter(
+                ConfigSnapshot.id == execution.config_snapshot_id
+            ).first()
+            if config:
+                config_summary = {
+                    "snapshot_id": config.snapshot_id,
+                    "timestamp": config.timestamp.isoformat(),
+                    "config_hash": config.config_hash,
+                    "created_by": config.created_by,
+                    "reason": config.reason,
+                }
+
+        # Audit entries for this run
+        audit_entries = session.query(AuditLog).filter(
+            AuditLog.subject == run_id
+        ).order_by(AuditLog.ts.asc()).all()
+
+        audit_payload = [
+            {
+                "id": e.id,
+                "timestamp": e.ts,
+                "event": e.event,
+                "actor": e.actor,
+                "subject": e.subject,
+                "details": e.details,
+                "hash": e.hash,
+                "prev_hash": e.prev_hash,
+            }
+            for e in audit_entries
+        ]
+
+        return RunDetailsResponse(
+            run_id=execution.run_id,
+            status=execution.status,
+            operator=execution.operator,
+            started_at=execution.started_at,
+            completed_at=execution.completed_at,
+            workflow_name=getattr(workflow, "workflow_name", None),
+            workflow_version=getattr(workflow, "version", None),
+            workflow_hash=getattr(workflow, "definition_hash", None),
+            config_snapshot=config_summary,
+            audit_entries=audit_payload,
+        )
+
+    finally:
+        session.close()
 
 
 # ============================================================================

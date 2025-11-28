@@ -227,3 +227,161 @@ def test_execute_workflow_invokes_orchestrator_when_not_testing_env(
     assert body["operator"] == mock_current_user["email"]
     assert body["results"]["recipe_generated"] is True
     assert body["results"]["orchestrator_run_id"] == "RUN-ORC-TEST"
+
+
+def test_abort_workflow_missing_execution_returns_404(mock_db_session, mock_current_user):
+    # No execution found for given run_id
+    mock_db_session.query.return_value.filter.return_value.first.return_value = None
+
+    response = client.post(
+        "/api/workflow-builder/executions/RUN-UNKNOWN/abort",
+    )
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_abort_workflow_with_invalid_status_returns_400(mock_db_session, mock_current_user):
+    # Execution exists but is already completed
+    mock_execution = MagicMock()
+    mock_execution.run_id = "RUN-COMPLETED"
+    mock_execution.status = "completed"
+    mock_db_session.query.return_value.filter.return_value.first.return_value = mock_execution
+
+    response = client.post(
+        "/api/workflow-builder/executions/RUN-COMPLETED/abort",
+    )
+
+    assert response.status_code == 400
+    assert "cannot abort" in response.json()["detail"].lower()
+
+
+def test_abort_workflow_signals_orchestrator_when_not_testing_env(
+    mock_db_session, mock_current_user, monkeypatch
+):
+    # Execution is running and has an associated orchestrator_run_id
+    mock_execution = MagicMock()
+    mock_execution.run_id = "RUN-BUILDER"
+    mock_execution.status = "running"
+    mock_execution.results = {"orchestrator_run_id": "RUN-ORC-123"}
+    mock_db_session.query.return_value.filter.return_value.first.return_value = mock_execution
+
+    # Ensure environment is not 'testing' so orchestrator path is used
+    monkeypatch.setenv("P4_ENVIRONMENT", "development")
+
+    from retrofitkit.api import routes
+
+    called = {"run_id": None}
+
+    async def fake_abort_execution(run_id: str) -> bool:
+        called["run_id"] = run_id
+        return True
+
+    monkeypatch.setattr(routes.orc, "abort_execution", fake_abort_execution)
+
+    response = client.post(
+        "/api/workflow-builder/executions/RUN-BUILDER/abort",
+    )
+
+    assert response.status_code == 200
+    assert "aborted" in response.json()["message"].lower()
+    # Orchestrator should be called with the underlying orchestrator run id
+    assert called["run_id"] == "RUN-ORC-123"
+
+
+def test_pause_workflow_missing_execution_returns_404(mock_db_session, mock_current_user):
+    mock_db_session.query.return_value.filter.return_value.first.return_value = None
+
+    response = client.post("/api/workflow-builder/executions/RUN-UNKNOWN/pause")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_pause_workflow_with_invalid_status_returns_400(mock_db_session, mock_current_user):
+    mock_execution = MagicMock()
+    mock_execution.run_id = "RUN-COMPLETED"
+    mock_execution.status = "completed"
+    mock_db_session.query.return_value.filter.return_value.first.return_value = mock_execution
+
+    response = client.post("/api/workflow-builder/executions/RUN-COMPLETED/pause")
+
+    assert response.status_code == 400
+    assert "cannot pause" in response.json()["detail"].lower()
+
+
+def test_pause_workflow_signals_orchestrator_when_not_testing_env(
+    mock_db_session, mock_current_user, monkeypatch
+):
+    mock_execution = MagicMock()
+    mock_execution.run_id = "RUN-BUILDER"
+    mock_execution.status = "running"
+    mock_execution.results = {"orchestrator_run_id": "RUN-ORC-PAUSE"}
+    mock_db_session.query.return_value.filter.return_value.first.return_value = mock_execution
+
+    monkeypatch.setenv("P4_ENVIRONMENT", "development")
+
+    from retrofitkit.api import routes
+
+    called = {"run_id": None}
+
+    async def fake_pause_execution(run_id: str) -> bool:
+        called["run_id"] = run_id
+        return True
+
+    monkeypatch.setattr(routes.orc, "pause_execution", fake_pause_execution)
+
+    response = client.post("/api/workflow-builder/executions/RUN-BUILDER/pause")
+
+    assert response.status_code == 200
+    assert "paused" in response.json()["message"].lower()
+    assert called["run_id"] == "RUN-ORC-PAUSE"
+
+
+def test_resume_workflow_missing_execution_returns_404(mock_db_session, mock_current_user):
+    mock_db_session.query.return_value.filter.return_value.first.return_value = None
+
+    response = client.post("/api/workflow-builder/executions/RUN-UNKNOWN/resume")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_resume_workflow_with_invalid_status_returns_400(mock_db_session, mock_current_user):
+    mock_execution = MagicMock()
+    mock_execution.run_id = "RUN-RUNNING"
+    mock_execution.status = "running"
+    mock_db_session.query.return_value.filter.return_value.first.return_value = mock_execution
+
+    response = client.post("/api/workflow-builder/executions/RUN-RUNNING/resume")
+
+    assert response.status_code == 400
+    assert "cannot resume" in response.json()["detail"].lower()
+
+
+def test_resume_workflow_signals_orchestrator_when_not_testing_env(
+    mock_db_session, mock_current_user, monkeypatch
+):
+    mock_execution = MagicMock()
+    mock_execution.run_id = "RUN-BUILDER"
+    mock_execution.status = "paused"
+    mock_execution.results = {"orchestrator_run_id": "RUN-ORC-RESUME"}
+    mock_db_session.query.return_value.filter.return_value.first.return_value = mock_execution
+
+    monkeypatch.setenv("P4_ENVIRONMENT", "development")
+
+    from retrofitkit.api import routes
+
+    called = {"run_id": None}
+
+    async def fake_resume_execution(run_id: str) -> bool:
+        called["run_id"] = run_id
+        return True
+
+    monkeypatch.setattr(routes.orc, "resume_execution", fake_resume_execution)
+
+    response = client.post("/api/workflow-builder/executions/RUN-BUILDER/resume")
+
+    assert response.status_code == 200
+    assert "resumed" in response.json()["message"].lower()
+    assert called["run_id"] == "RUN-ORC-RESUME"

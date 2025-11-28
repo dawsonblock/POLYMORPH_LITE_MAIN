@@ -34,6 +34,7 @@ class Orchestrator:
         # State tracking
         self._active_run_id = None
         self._run_state = RUN_STATE["IDLE"]
+        self._executor = None
 
         # Async components - initialized on start()
         self._watchdog_task = None
@@ -238,9 +239,9 @@ class Orchestrator:
         from retrofitkit.api.compliance import get_session
 
         # Initialize new engine components
-        # Initialize new engine components
         db_logger = DatabaseLogger(get_session)
         executor = WorkflowExecutor(self.ctx.config, db_logger)
+        self._executor = executor
 
         # Update metrics and state
         self._run_state = RUN_STATE["ACTIVE"]
@@ -262,4 +263,58 @@ class Orchestrator:
         finally:
             self._run_state = RUN_STATE["IDLE"]
             self._active_run_id = None
+            self._executor = None
             self.mx.set("polymorph_run_state", RUN_STATE["IDLE"])
+
+    async def abort_execution(self, run_id: str) -> bool:
+        """Request abortion of the active workflow run.
+
+        Returns True if an active run matching run_id was signalled to stop.
+        """
+        if self._active_run_id != run_id:
+            return False
+
+        executor = getattr(self, "_executor", None)
+        if not executor:
+            return False
+
+        # Signal executor to stop; it will mark the run as aborted via DatabaseLogger
+        executor.stop()
+
+        # Best-effort emergency shutdown of hardware
+        try:
+            await self._emergency_shutdown()
+        except Exception:
+            pass
+
+        return True
+
+    async def pause_execution(self, run_id: str) -> bool:
+        """Pause the active workflow run if the run_id matches.
+
+        Returns True if a matching active run was signalled to pause.
+        """
+        if self._active_run_id != run_id:
+            return False
+
+        executor = getattr(self, "_executor", None)
+        if not executor:
+            return False
+
+        executor.pause()
+        return True
+
+    async def resume_execution(self, run_id: str) -> bool:
+        """Resume a previously paused workflow run if the run_id matches.
+
+        Returns True if a matching active run was signalled to resume.
+        """
+        if self._active_run_id != run_id:
+            return False
+
+        executor = getattr(self, "_executor", None)
+        if not executor:
+            return False
+
+        executor.resume()
+        return True
