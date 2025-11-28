@@ -43,19 +43,17 @@ class TestSampleAPI:
     @pytest.fixture(autouse=True)
     def override_dependencies(self, db_session):
         """Override dependencies."""
+        from retrofitkit.db.session import get_db
         from retrofitkit.api.dependencies import get_current_user
         
         # Override auth
         app.dependency_overrides[get_current_user] = mock_get_current_user
         
-        # Patch get_session
-        real_close = db_session.close
-        db_session.close = Mock()
+        # Override DB
+        app.dependency_overrides[get_db] = lambda: db_session
         
-        with patch("retrofitkit.api.samples.get_session", return_value=db_session):
-            yield
+        yield
             
-        db_session.close = real_close
         app.dependency_overrides = {}
 
     @pytest.fixture(autouse=True)
@@ -165,16 +163,13 @@ class TestContainerAPI:
     def override_dependencies(self, db_session):
         """Override dependencies."""
         from retrofitkit.api.dependencies import get_current_user
+        from retrofitkit.db.session import get_db
         
         app.dependency_overrides[get_current_user] = mock_get_current_user
+        app.dependency_overrides[get_db] = lambda: db_session
         
-        real_close = db_session.close
-        db_session.close = Mock()
-        
-        with patch("retrofitkit.api.samples.get_session", return_value=db_session):
-            yield
+        yield
             
-        db_session.close = real_close
         app.dependency_overrides = {}
 
     @pytest.fixture(autouse=True)
@@ -230,16 +225,13 @@ class TestProjectAPI:
     def override_dependencies(self, db_session):
         """Override dependencies."""
         from retrofitkit.api.dependencies import get_current_user
+        from retrofitkit.db.session import get_db
         
         app.dependency_overrides[get_current_user] = mock_get_current_user
+        app.dependency_overrides[get_db] = lambda: db_session
         
-        real_close = db_session.close
-        db_session.close = Mock()
-        
-        with patch("retrofitkit.api.samples.get_session", return_value=db_session):
-            yield
+        yield
             
-        db_session.close = real_close
         app.dependency_overrides = {}
 
     @pytest.fixture(autouse=True)

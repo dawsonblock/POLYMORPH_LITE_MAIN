@@ -23,7 +23,7 @@ from retrofitkit.api.workflows import router as workflow_router
 @pytest.fixture
 def app(db_session):
     """Create test application."""
-    from retrofitkit.api.compliance import get_session
+    from retrofitkit.db.session import get_db
     from retrofitkit.db.base import Base
     
     # Force clean slate handled by conftest.py db_session fixture
@@ -44,7 +44,7 @@ def app(db_session):
     app.include_router(workflow_router)
     
     # Override dependency
-    app.dependency_overrides[get_session] = lambda: db_session
+    app.dependency_overrides[get_db] = lambda: db_session
     return app
 
 
@@ -125,8 +125,8 @@ steps:
         # We need to remove the override and let the app create new sessions.
         # BUT, we are using sqlite:///:memory: with StaticPool, so they share data.
         
-        from retrofitkit.api.compliance import get_session
-        del app.dependency_overrides[get_session]
+        from retrofitkit.db.session import get_db
+        del app.dependency_overrides[get_db]
         
         def upload_workflow(index):
             workflow_yaml = f"""
@@ -476,9 +476,9 @@ steps:
     def test_burst_load(self, client, app):
         """Test system handling burst traffic."""
         # Remove dependency override for thread safety
-        from retrofitkit.api.compliance import get_session
-        if get_session in app.dependency_overrides:
-            del app.dependency_overrides[get_session]
+        from retrofitkit.db.session import get_db
+        if get_db in app.dependency_overrides:
+            del app.dependency_overrides[get_db]
 
         workflow_yaml = """
 id: "burst_test"

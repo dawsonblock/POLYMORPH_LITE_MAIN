@@ -13,10 +13,9 @@ import json
 import uuid
 import math
 
-from retrofitkit.database.models import (
-    WorkflowVersion, WorkflowExecution, ConfigSnapshot,
-    get_session
-)
+from retrofitkit.db.models.workflow import WorkflowVersion, WorkflowExecution, ConfigSnapshot
+from retrofitkit.db.session import get_db
+from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user
 from retrofitkit.core.recipe import Recipe, RecipeStep
@@ -165,7 +164,8 @@ class WorkflowSummaryCard(BaseModel):
 @router.post("/workflows", response_model=WorkflowDefinitionResponse, status_code=status.HTTP_201_CREATED)
 async def create_workflow_definition(
     workflow: WorkflowDefinitionCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """
     Create a new workflow definition.
@@ -173,7 +173,7 @@ async def create_workflow_definition(
     The workflow definition includes nodes (blocks) and edges (connections)
     that can be rendered in a visual workflow builder.
     """
-    session = get_session()
+
     audit = Audit()
 
     try:
@@ -232,16 +232,17 @@ async def create_workflow_definition(
             detail=f"Error creating workflow: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.post("/executions/{run_id}/pause")
 async def pause_workflow_execution(
     run_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Pause a running workflow execution."""
-    session = get_session()
+
     audit = Audit()
 
     try:
@@ -301,16 +302,17 @@ async def pause_workflow_execution(
             detail=f"Error pausing execution: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.post("/executions/{run_id}/resume")
 async def resume_workflow_execution(
     run_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Resume a paused workflow execution."""
-    session = get_session()
+
     audit = Audit()
 
     try:
@@ -370,25 +372,25 @@ async def resume_workflow_execution(
             detail=f"Error resuming execution: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.get("/workflows", response_model=List[str])
-async def list_workflows():
+async def list_workflows(session: Session = Depends(get_db)):
     """List all unique workflow names."""
-    session = get_session()
+
     try:
         # Get distinct workflow names
         names = session.query(WorkflowVersion.workflow_name).distinct().all()
         return [n[0] for n in names]
     finally:
-        session.close()
+        pass
 
 
 @router.get("/executions/{run_id}", response_model=WorkflowExecutionResponse)
-async def get_execution(run_id: str):
+async def get_execution(run_id: str, session: Session = Depends(get_db)):
     """Get workflow execution details."""
-    session = get_session()
+
     try:
         execution = session.query(WorkflowExecution).filter(
             WorkflowExecution.run_id == run_id
@@ -401,13 +403,13 @@ async def get_execution(run_id: str):
             )
         return execution
     finally:
-        session.close()
+        pass
 
 
 @router.get("/workflows/{workflow_name}", response_model=List[WorkflowDefinitionResponse])
-async def list_workflow_versions(workflow_name: str):
+async def list_workflow_versions(workflow_name: str, session: Session = Depends(get_db)):
     """List all versions of a workflow."""
-    session = get_session()
+
 
     try:
         versions = session.query(WorkflowVersion).filter(
@@ -417,13 +419,13 @@ async def list_workflow_versions(workflow_name: str):
         return versions
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/workflows/{workflow_name}/v/{version}", response_model=WorkflowDefinitionResponse)
-async def get_workflow_version(workflow_name: str, version: int):
+async def get_workflow_version(workflow_name: str, version: int, session: Session = Depends(get_db)):
     """Get a specific workflow version."""
-    session = get_session()
+
 
     try:
         workflow = session.query(WorkflowVersion).filter(
@@ -440,13 +442,13 @@ async def get_workflow_version(workflow_name: str, version: int):
         return workflow
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/workflows/{workflow_name}/active", response_model=WorkflowDefinitionResponse)
-async def get_active_workflow(workflow_name: str):
+async def get_active_workflow(workflow_name: str, session: Session = Depends(get_db)):
     """Get the currently active version of a workflow."""
-    session = get_session()
+
 
     try:
         workflow = session.query(WorkflowVersion).filter(
@@ -463,14 +465,15 @@ async def get_active_workflow(workflow_name: str):
         return workflow
 
     finally:
-        session.close()
+        pass
 
 
 @router.post("/workflows/{workflow_name}/v/{version}/activate")
 async def activate_workflow_version(
     workflow_name: str,
     version: int,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """
     Activate a specific workflow version.
@@ -479,7 +482,7 @@ async def activate_workflow_version(
     Requires approval before activation.
     Requires QA or Admin role.
     """
-    session = get_session()
+
     audit = Audit()
 
     try:
@@ -553,14 +556,15 @@ async def activate_workflow_version(
             detail=f"Error activating workflow: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.post("/workflows/{workflow_name}/v/{version}/approve")
 async def approve_workflow_version(
     workflow_name: str,
     version: int,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """
     Approve a workflow version for execution.
@@ -568,7 +572,7 @@ async def approve_workflow_version(
     Only approved workflows can be activated.
     Requires QA or Admin role (implement role check as needed).
     """
-    session = get_session()
+
     audit = Audit()
 
     try:
@@ -638,21 +642,22 @@ async def approve_workflow_version(
             detail=f"Error approving workflow: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.delete("/workflows/{workflow_name}/v/{version}")
 async def delete_workflow_version(
     workflow_name: str,
     version: int,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """
     Delete a workflow version.
 
     Cannot delete active or approved workflows.
     """
-    session = get_session()
+
     audit = Audit()
 
     try:
@@ -704,7 +709,7 @@ async def delete_workflow_version(
             detail=f"Error deleting workflow: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 # ============================================================================
@@ -820,14 +825,15 @@ def _graph_to_recipe(workflow_version: WorkflowVersion, parameters: Dict[str, An
 @router.post("/execute", response_model=WorkflowExecutionResponse, status_code=status.HTTP_201_CREATED)
 async def execute_workflow(
     execution: WorkflowExecutionCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """
     Execute a workflow.
 
     Creates a workflow execution record and triggers the orchestrator.
     """
-    session = get_session()
+
     audit = Audit()
 
     try:
@@ -956,13 +962,13 @@ async def execute_workflow(
             detail=f"Error executing workflow: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.get("/executions/{run_id}", response_model=WorkflowExecutionResponse)
-async def get_workflow_execution(run_id: str):
+async def get_workflow_execution(run_id: str, session: Session = Depends(get_db)):
     """Get workflow execution details."""
-    session = get_session()
+
 
     try:
         execution = session.query(WorkflowExecution).filter(
@@ -978,7 +984,7 @@ async def get_workflow_execution(run_id: str):
         return execution
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/executions", response_model=List[WorkflowExecutionResponse])
@@ -992,9 +998,10 @@ async def list_workflow_executions(
     metadata_value: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
+    session: Session = Depends(get_db)
 ):
     """List workflow executions with optional filtering for UI consumption."""
-    session = get_session()
+
 
     try:
         query = session.query(WorkflowExecution)
@@ -1030,15 +1037,16 @@ async def list_workflow_executions(
         return executions
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/ui/recent-executions", response_model=List[WorkflowExecutionTableRow])
 async def list_recent_workflow_executions(
     workflow_name: Optional[str] = None,
     limit: int = 20,
+    session: Session = Depends(get_db)
 ):
-    session = get_session()
+
 
     try:
         query = session.query(WorkflowExecution)
@@ -1089,15 +1097,15 @@ async def list_recent_workflow_executions(
         return rows
 
     finally:
-        session.close()
+        pass
 
 
 @router.get(
     "/workflows/{workflow_name}/executions/summary",
     response_model=WorkflowExecutionSummaryResponse,
 )
-async def get_workflow_execution_summary(workflow_name: str):
-    session = get_session()
+async def get_workflow_execution_summary(workflow_name: str, session: Session = Depends(get_db)):
+
 
     try:
         query = session.query(WorkflowExecution).join(WorkflowVersion).filter(
@@ -1176,17 +1184,17 @@ async def get_workflow_execution_summary(workflow_name: str):
         )
 
     finally:
-        session.close()
+        pass
 
 
 @router.get(
     "/ui/workflows/{workflow_name}/card",
     response_model=WorkflowSummaryCard,
 )
-async def get_workflow_summary_card(workflow_name: str):
+async def get_workflow_summary_card(workflow_name: str, session: Session = Depends(get_db)):
     """Return a flattened summary card view for workflow dashboards."""
 
-    summary = await get_workflow_execution_summary(workflow_name)
+    summary = await get_workflow_execution_summary(workflow_name, session=session)
 
     by_status = summary.by_status or {}
 
@@ -1211,11 +1219,11 @@ async def get_workflow_summary_card(workflow_name: str):
     "/ui/workflows/cards",
     response_model=List[WorkflowSummaryCard],
 )
-async def list_workflow_summary_cards():
+async def list_workflow_summary_cards(session: Session = Depends(get_db)):
     """Return summary cards for all workflows for dashboard views."""
 
     # First collect distinct workflow names from definitions
-    session = get_session()
+
 
     try:
         rows = (
@@ -1225,13 +1233,13 @@ async def list_workflow_summary_cards():
         )
         workflow_names = [row[0] for row in rows if row and row[0]]
     finally:
-        session.close()
+        pass
 
     cards: List[WorkflowSummaryCard] = []
 
     # Re-use the existing per-workflow summary logic for each workflow
     for name in workflow_names:
-        summary = await get_workflow_execution_summary(name)
+        summary = await get_workflow_execution_summary(name, session=session)
         by_status = summary.by_status or {}
         cards.append(
             WorkflowSummaryCard(
@@ -1263,10 +1271,11 @@ async def rerun_workflow_execution(
     run_id: str,
     rerun: WorkflowRerunRequest,
     current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Rerun a workflow execution with optional parameter and metadata overrides."""
 
-    session = get_session()
+
 
     try:
         original = session.query(WorkflowExecution).filter(
@@ -1335,20 +1344,21 @@ async def rerun_workflow_execution(
         )
 
     finally:
-        session.close()
+        pass
 
     # Delegate to the main execute_workflow handler so orchestrator and
     # config snapshot behavior stays consistent.
-    return await execute_workflow(new_execution_request, current_user)
+    return await execute_workflow(new_execution_request, current_user, session=session)
 
 
 @router.post("/executions/{run_id}/abort")
 async def abort_workflow_execution(
     run_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Abort a running workflow execution."""
-    session = get_session()
+
     audit = Audit()
 
     try:
@@ -1414,4 +1424,4 @@ async def abort_workflow_execution(
             detail=f"Error aborting execution: {str(e)}"
         )
     finally:
-        session.close()
+        pass

@@ -10,7 +10,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-from retrofitkit.database.models import get_session
+
 from retrofitkit.db.models.user import User
 
 # JWT Configuration
@@ -51,40 +51,3 @@ def decode_token(token: str) -> Dict[str, Any]:
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_session)
-) -> Dict[str, Any]:
-    """
-    DEPRECATED: Use retrofitkit.api.dependencies.get_current_user instead.
-    
-    Get current user from JWT token.
-    
-    Returns user info dict for compatibility with existing API code.
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    try:
-        payload = decode_token(token)
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-    except HTTPException:
-        raise
-
-    user = db.query(User).filter(User.email == email).first()
-    if user is None:
-        raise credentials_exception
-
-    # Return dict for compatibility with existing code
-    return {
-        "email": user.email,
-        "name": user.name,
-        "role": user.role
-    }

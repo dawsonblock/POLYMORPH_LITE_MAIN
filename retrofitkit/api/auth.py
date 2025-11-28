@@ -37,7 +37,7 @@ def login(payload: Login, db: Session = Depends(get_db)):
         # For now, we'll stick to 401 to avoid enumeration, unless we want to be friendly.
         # Let's check explicitly for the specific error case.
 
-        from retrofitkit.database.models import User
+        from retrofitkit.db.models.user import User
         from datetime import datetime, timezone
 
         # Reuse session

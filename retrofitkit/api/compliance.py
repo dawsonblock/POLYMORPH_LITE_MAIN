@@ -16,10 +16,11 @@ import hashlib
 import uuid
 from io import BytesIO
 
-from retrofitkit.database.models import (
-    AuditEvent as AuditLog, ConfigSnapshot, WorkflowExecution, Sample,
-    WorkflowVersion, get_session
-)
+from retrofitkit.db.models.audit import AuditEvent as AuditLog
+from retrofitkit.db.models.workflow import ConfigSnapshot, WorkflowExecution, WorkflowVersion
+from retrofitkit.db.models.sample import Sample
+from retrofitkit.db.session import get_db
+from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user
 from retrofitkit.db.models.user import User
@@ -86,7 +87,8 @@ class RunDetailsResponse(BaseModel):
 @router.get("/audit/verify-chain", response_model=AuditChainVerificationResponse)
 async def verify_audit_chain(
     limit: int = 1000,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """
     Verify the cryptographic integrity of the audit trail chain.
@@ -96,7 +98,7 @@ async def verify_audit_chain(
     - Hash validity (recomputed hash matches stored hash)
     - Chain completeness
     """
-    session = get_session()
+
     audit = Audit()
 
     try:
@@ -156,7 +158,7 @@ async def verify_audit_chain(
         )
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/audit/export")
@@ -164,14 +166,15 @@ async def export_audit_trail(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     actor: Optional[str] = None,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """
     Export audit trail as JSON for archival or analysis.
 
     Filters by date range and/or actor.
     """
-    session = get_session()
+
 
     try:
         query = session.query(AuditLog).order_by(AuditLog.ts.asc())
@@ -217,7 +220,7 @@ async def export_audit_trail(
         return export_data
 
     finally:
-        session.close()
+        pass
 
 
 # ============================================================================
@@ -227,7 +230,8 @@ async def export_audit_trail(
 @router.get("/reports/run/{run_id}.pdf")
 async def generate_run_report_pdf(
     run_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """
     Generate compliance report PDF for a specific run.
@@ -252,7 +256,7 @@ async def generate_run_report_pdf(
                 detail="PDF generation not available - install reportlab"
             )
 
-        session = get_session()
+
         data_store = DataStore()
 
         # Load run data
@@ -368,7 +372,7 @@ async def generate_run_report_pdf(
         except Exception:
             pass
 
-        session.close()
+
 
         return Response(
             content=pdf_bytes,
@@ -386,21 +390,21 @@ async def generate_run_report_pdf(
             detail=f"Error generating PDF: {str(e)}"
         )
     finally:
-        if 'session' in locals():
-            session.close()
+        pass
 
 
 @router.get("/run/{run_id}", response_model=RunDetailsResponse)
 async def get_run_details(
     run_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Return detailed JSON view of a workflow run.
 
     Includes execution metadata, workflow definition metadata, config snapshot
     summary, and all audit entries linked to the run id.
     """
-    session = get_session()
+
 
     try:
         # Load execution
@@ -467,7 +471,7 @@ async def get_run_details(
         )
 
     finally:
-        session.close()
+        pass
 
 
 # ============================================================================
@@ -475,7 +479,7 @@ async def get_run_details(
 # ============================================================================
 
 @router.get("/traceability/sample/{sample_id}", response_model=TraceabilityMatrixResponse)
-async def generate_traceability_matrix(sample_id: str):
+async def generate_traceability_matrix(sample_id: str, session: Session = Depends(get_db)):
     """
     Generate complete traceability matrix from sample to results.
 
@@ -486,7 +490,7 @@ async def generate_traceability_matrix(sample_id: str):
     - Approval records
     - Result data
     """
-    session = get_session()
+
 
     try:
         # Get sample
@@ -498,7 +502,7 @@ async def generate_traceability_matrix(sample_id: str):
             )
 
         # Get all workflow executions for this sample
-        from retrofitkit.database.models import WorkflowSampleAssignment
+        from retrofitkit.db.models.workflow import WorkflowSampleAssignment
 
         assignments = session.query(WorkflowSampleAssignment).filter(
             WorkflowSampleAssignment.sample_id == sample.id
@@ -548,7 +552,7 @@ async def generate_traceability_matrix(sample_id: str):
         )
 
     finally:
-        session.close()
+        pass
 
 
 # ============================================================================
@@ -558,14 +562,15 @@ async def generate_traceability_matrix(sample_id: str):
 @router.post("/config/snapshot", response_model=ConfigSnapshotResponse)
 async def create_config_snapshot(
     reason: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """
     Create an immutable snapshot of current system configuration.
 
     Captures all critical configuration for compliance and reproducibility.
     """
-    session = get_session()
+
     audit = Audit()
 
     try:
@@ -659,16 +664,17 @@ async def create_config_snapshot(
             detail=f"Error creating config snapshot: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.get("/config/snapshots", response_model=List[ConfigSnapshotResponse])
 async def list_config_snapshots(
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
+    session: Session = Depends(get_db)
 ):
     """List configuration snapshots."""
-    session = get_session()
+
 
     try:
         snapshots = session.query(ConfigSnapshot).order_by(
@@ -678,13 +684,13 @@ async def list_config_snapshots(
         return snapshots
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/config/snapshots/{snapshot_id}", response_model=ConfigSnapshotResponse)
-async def get_config_snapshot(snapshot_id: str):
+async def get_config_snapshot(snapshot_id: str, session: Session = Depends(get_db)):
     """Get a specific configuration snapshot."""
-    session = get_session()
+
 
     try:
         snapshot = session.query(ConfigSnapshot).filter(
@@ -700,4 +706,4 @@ async def get_config_snapshot(snapshot_id: str):
         return snapshot
 
     finally:
-        session.close()
+        pass

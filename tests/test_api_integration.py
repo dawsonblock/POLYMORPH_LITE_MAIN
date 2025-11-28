@@ -4,7 +4,8 @@ from fastapi.testclient import TestClient
 from retrofitkit.api.server import app
 from retrofitkit.core.registry import registry
 from retrofitkit.core.app import AppContext
-from retrofitkit.database.models import Base, engine
+from retrofitkit.db.base import Base
+from retrofitkit.db.session import engine
 from retrofitkit.db.session import get_db
 
 @pytest.fixture

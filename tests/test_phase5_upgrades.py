@@ -42,6 +42,7 @@ async def test_cli_audit_verify():
     with patch("retrofitkit.compliance.audit.verify_audit_chain") as mock_verify:
         mock_verify.return_value = {"valid": True, "entries_checked": 10, "errors": []}
         
-        with patch("retrofitkit.api.compliance.get_session") as mock_get_session:
+        with patch("retrofitkit.db.session.SessionLocal") as mock_session_local:
+            mock_session_local.return_value = MagicMock()
             await cmd_audit(args, config)
             mock_verify.assert_called_once()

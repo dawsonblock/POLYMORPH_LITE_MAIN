@@ -20,7 +20,7 @@ from retrofitkit.db.models import user, device, sample, workflow, audit, rbac, o
 def setup_test_db():
     from retrofitkit.db.base import Base
     from retrofitkit.db.models.user import User
-    from retrofitkit.database.models import WorkflowVersion, WorkflowExecution, ConfigSnapshot
+    from retrofitkit.db.models.workflow import WorkflowVersion, WorkflowExecution, ConfigSnapshot
     
     """Create tables for all tests."""
     # Create tables

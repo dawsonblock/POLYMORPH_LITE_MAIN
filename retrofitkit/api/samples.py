@@ -12,7 +12,8 @@ import re
 
 from retrofitkit.db.models.sample import Project, Batch, Container, Sample, SampleLineage
 from retrofitkit.db.models.workflow import WorkflowSampleAssignment
-from retrofitkit.database.models import get_session
+from retrofitkit.db.session import get_db
+from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user, require_role
 from retrofitkit.api.dependencies import require_role
@@ -138,10 +139,10 @@ class BatchResponse(BaseModel):
 )
 async def create_sample(
     sample: SampleCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Create a new sample."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -208,7 +209,7 @@ async def create_sample(
             detail=f"Error creating sample: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.post(
@@ -219,14 +220,14 @@ async def create_sample(
 )
 async def create_samples_bulk(
     samples: List[SampleCreate],
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """
     Create multiple samples in a single transaction.
 
     Maximum 100 samples per request for performance.
     """
-    session = get_session()
     audit = Audit()
 
     # Validate batch size
@@ -310,16 +311,16 @@ async def create_samples_bulk(
             detail=f"Error creating samples in bulk: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.post("/containers", response_model=ContainerResponse, status_code=status.HTTP_201_CREATED)
 async def create_container(
     container: ContainerCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Create a new container."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -351,25 +352,23 @@ async def create_container(
         return new_container
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/containers", response_model=List[ContainerResponse])
-async def list_containers(limit: int = 100, offset: int = 0):
+async def list_containers(limit: int = 100, offset: int = 0, session: Session = Depends(get_db)):
     """List all containers."""
-    session = get_session()
 
     try:
         containers = session.query(Container).limit(limit).offset(offset).all()
         return containers
     finally:
-        session.close()
+        pass
 
 
 @router.get("/containers/{container_id}", response_model=ContainerResponse)
-async def get_container(container_id: str):
+async def get_container(container_id: str, session: Session = Depends(get_db)):
     """Get container details."""
-    session = get_session()
 
     try:
         container = session.query(Container).filter(Container.container_id == container_id).first()
@@ -380,7 +379,7 @@ async def get_container(container_id: str):
             )
         return container
     finally:
-        session.close()
+        pass
 
 
 # ============================================================================
@@ -390,10 +389,10 @@ async def get_container(container_id: str):
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project: ProjectCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Create a new project."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -427,17 +426,17 @@ async def create_project(
         return new_project
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/projects", response_model=List[ProjectResponse])
 async def list_projects(
     status: Optional[str] = None,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
+    session: Session = Depends(get_db)
 ):
     """List projects."""
-    session = get_session()
 
     try:
         query = session.query(Project)
@@ -447,7 +446,7 @@ async def list_projects(
         projects = query.limit(limit).offset(offset).all()
         return projects
     finally:
-        session.close()
+        pass
 
 
 # ============================================================================
@@ -457,10 +456,10 @@ async def list_projects(
 @router.post("/batches", response_model=BatchResponse, status_code=status.HTTP_201_CREATED)
 async def create_batch(
     batch: BatchCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Create a new batch."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -492,23 +491,21 @@ async def create_batch(
         return new_batch
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/batches", response_model=List[BatchResponse])
-async def list_batches(limit: int = 100, offset: int = 0):
+async def list_batches(limit: int = 100, offset: int = 0, session: Session = Depends(get_db)):
     """List batches."""
-    session = get_session()
 
     try:
         batches = session.query(Batch).limit(limit).offset(offset).all()
         return batches
     finally:
-        session.close()
+        pass
 @router.get("/{sample_id}", response_model=SampleWithLineage)
-async def get_sample(sample_id: str):
+async def get_sample(sample_id: str, session: Session = Depends(get_db)):
     """Get sample details with lineage."""
-    session = get_session()
 
     try:
         sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
@@ -542,7 +539,7 @@ async def get_sample(sample_id: str):
         }
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/", response_model=List[SampleResponse])
@@ -551,10 +548,10 @@ async def list_samples(
     project_id: Optional[str] = None,
     container_id: Optional[str] = None,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
+    session: Session = Depends(get_db)
 ):
     """List samples with optional filtering."""
-    session = get_session()
 
     try:
         query = session.query(Sample)
@@ -575,17 +572,17 @@ async def list_samples(
         return samples
 
     finally:
-        session.close()
+        pass
 
 
 @router.put("/{sample_id}", response_model=SampleResponse)
 async def update_sample(
     sample_id: str,
     update: SampleUpdate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Update sample properties."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -623,7 +620,7 @@ async def update_sample(
         return sample
 
     finally:
-        session.close()
+        pass
 
 
 @router.delete(
@@ -633,10 +630,10 @@ async def update_sample(
 )
 async def delete_sample(
     sample_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Delete (soft delete) a sample."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -663,17 +660,17 @@ async def delete_sample(
         )
 
     finally:
-        session.close()
+        pass
 
 
 @router.post("/{sample_id}/split")
 async def split_sample(
     sample_id: str,
     child_sample_ids: List[str],
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Create child samples from a parent sample (aliquoting)."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -728,17 +725,17 @@ async def split_sample(
         }
 
     finally:
-        session.close()
+        pass
 
 
 @router.post("/{sample_id}/assign-workflow")
 async def assign_sample_to_workflow(
     sample_id: str,
     workflow_execution_id: UUID4,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Assign sample to a workflow execution."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -769,7 +766,7 @@ async def assign_sample_to_workflow(
         return {"message": "Sample assigned to workflow successfully"}
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/{sample_id}/history")

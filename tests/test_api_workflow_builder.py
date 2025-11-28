@@ -75,21 +75,16 @@ class TestWorkflowBuilderAPI:
         # Override auth
         app.dependency_overrides[get_current_user] = mock_get_current_user
         
-        # Patch get_session in the workflow_builder module
-        # We need to return a mock that behaves like a session context manager if needed,
-        # or just the session itself if get_session() returns a session directly.
-        # Looking at workflow_builder.py: session = get_session(); ... session.close()
-        # So get_session() returns a session.
-        # We should return a MagicMock that wraps the db_session but prevents close() from actually closing it
-        # because pytest fixture handles teardown.
+        from retrofitkit.db.session import get_db
         
-        real_close = db_session.close
-        db_session.close = Mock() # Prevent closing by endpoint
+        # Override auth
+        app.dependency_overrides[get_current_user] = mock_get_current_user
         
-        with patch("retrofitkit.api.workflow_builder.get_session", return_value=db_session):
-            yield
+        # Override DB
+        app.dependency_overrides[get_db] = lambda: db_session
+        
+        yield
             
-        db_session.close = real_close # Restore
         app.dependency_overrides = {}
 
     @pytest.fixture(autouse=True)

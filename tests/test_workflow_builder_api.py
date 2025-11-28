@@ -14,10 +14,11 @@ client = TestClient(app)
 
 @pytest.fixture
 def mock_db_session():
-    with patch("retrofitkit.api.workflow_builder.get_session") as mock_get_session:
-        session = MagicMock()
-        mock_get_session.return_value = session
-        yield session
+    from retrofitkit.db.session import get_db
+    session = MagicMock()
+    app.dependency_overrides[get_db] = lambda: session
+    yield session
+    app.dependency_overrides = {}
 
 from retrofitkit.api.dependencies import get_current_user
 
@@ -734,7 +735,7 @@ def test_ui_workflow_dashboard_cards(mock_db_session, mock_current_user, monkeyp
 
     from retrofitkit.api import workflow_builder as wb
 
-    async def fake_get_workflow_execution_summary(workflow_name: str):
+    async def fake_get_workflow_execution_summary(workflow_name: str, session=None):
         if workflow_name == "WF-A":
             return wb.WorkflowExecutionSummaryResponse(
                 workflow_name="WF-A",
@@ -842,7 +843,7 @@ def test_rerun_workflow_execution_happy_path(
 
     captured = {}
 
-    async def fake_execute_workflow(exec_req, user):
+    async def fake_execute_workflow(exec_req, user, session=None):
         captured["req"] = exec_req
 
         # Minimal object compatible with WorkflowExecutionResponse

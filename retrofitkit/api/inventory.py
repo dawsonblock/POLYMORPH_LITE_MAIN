@@ -9,9 +9,9 @@ from pydantic import BaseModel, UUID4, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timedelta
 
-from retrofitkit.database.models import (
-    InventoryItem, StockLot, Vendor, get_session
-)
+from retrofitkit.db.models.inventory import InventoryItem, StockLot, Vendor
+from retrofitkit.db.session import get_db
+from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user
 
@@ -91,10 +91,10 @@ class VendorResponse(BaseModel):
 @router.post("/items", response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED)
 async def create_inventory_item(
     item: InventoryItemCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Create a new inventory item."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -132,7 +132,7 @@ async def create_inventory_item(
         return new_item
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/items", response_model=List[InventoryItemResponse])
@@ -140,10 +140,10 @@ async def list_inventory_items(
     category: Optional[str] = None,
     low_stock_only: bool = False,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
+    session: Session = Depends(get_db)
 ):
     """List inventory items with optional filtering."""
-    session = get_session()
 
     try:
         query = session.query(InventoryItem)
@@ -158,13 +158,12 @@ async def list_inventory_items(
         return items
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/items/{item_code}", response_model=InventoryItemResponse)
-async def get_inventory_item(item_code: str):
+async def get_inventory_item(item_code: str, session: Session = Depends(get_db)):
     """Get inventory item details."""
-    session = get_session()
 
     try:
         item = session.query(InventoryItem).filter(
@@ -178,13 +177,12 @@ async def get_inventory_item(item_code: str):
         return item
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/alerts/low-stock")
-async def get_low_stock_alerts():
+async def get_low_stock_alerts(session: Session = Depends(get_db)):
     """Get items below reorder point."""
-    session = get_session()
 
     try:
         low_stock_items = session.query(InventoryItem).filter(
@@ -206,13 +204,12 @@ async def get_low_stock_alerts():
         }
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/alerts/expiring")
-async def get_expiring_lots(days: int = 30):
+async def get_expiring_lots(days: int = 30, session: Session = Depends(get_db)):
     """Get stock lots expiring within N days."""
-    session = get_session()
 
     try:
         cutoff_date = date.today() + timedelta(days=days)
@@ -238,7 +235,7 @@ async def get_expiring_lots(days: int = 30):
         }
 
     finally:
-        session.close()
+        pass
 
 
 # ============================================================================
@@ -248,10 +245,10 @@ async def get_expiring_lots(days: int = 30):
 @router.post("/lots", response_model=StockLotResponse, status_code=status.HTTP_201_CREATED)
 async def create_stock_lot(
     lot: StockLotCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Add a new stock lot."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -302,7 +299,7 @@ async def create_stock_lot(
         return new_lot
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/lots", response_model=List[StockLotResponse])
@@ -310,10 +307,10 @@ async def list_stock_lots(
     item_code: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
+    session: Session = Depends(get_db)
 ):
     """List stock lots."""
-    session = get_session()
 
     try:
         query = session.query(StockLot)
@@ -332,17 +329,17 @@ async def list_stock_lots(
         return lots
 
     finally:
-        session.close()
+        pass
 
 
 @router.post("/lots/{lot_number}/consume")
 async def consume_stock(
     lot_number: str,
     quantity: int,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Consume stock from a lot with pessimistic locking to prevent race conditions."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -411,7 +408,7 @@ async def consume_stock(
             detail=f"Error consuming stock: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 # ============================================================================
@@ -421,10 +418,10 @@ async def consume_stock(
 @router.post("/vendors", response_model=VendorResponse, status_code=status.HTTP_201_CREATED)
 async def create_vendor(
     vendor: VendorCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Create a new vendor."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -455,26 +452,24 @@ async def create_vendor(
         return new_vendor
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/vendors", response_model=List[VendorResponse])
-async def list_vendors(limit: int = 100, offset: int = 0):
+async def list_vendors(limit: int = 100, offset: int = 0, session: Session = Depends(get_db)):
     """List all vendors."""
-    session = get_session()
 
     try:
         vendors = session.query(Vendor).order_by(Vendor.name).limit(limit).offset(offset).all()
         return vendors
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/vendors/{vendor_id}", response_model=VendorResponse)
-async def get_vendor(vendor_id: str):
+async def get_vendor(vendor_id: str, session: Session = Depends(get_db)):
     """Get vendor details."""
-    session = get_session()
 
     try:
         vendor = session.query(Vendor).filter(Vendor.vendor_id == vendor_id).first()
@@ -486,4 +481,4 @@ async def get_vendor(vendor_id: str):
         return vendor
 
     finally:
-        session.close()
+        pass

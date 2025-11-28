@@ -10,9 +10,10 @@ from datetime import datetime, date, timedelta, timezone
 import os
 import shutil
 
-from retrofitkit.database.models import (
-    CalibrationEntry, DeviceStatus, get_session
-)
+from retrofitkit.db.models.calibration import CalibrationEntry
+from retrofitkit.db.models.device import DeviceStatus
+from retrofitkit.db.session import get_db
+from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user
 
@@ -67,10 +68,10 @@ class DeviceStatusResponse(BaseModel):
 @router.post("/", response_model=CalibrationResponse, status_code=status.HTTP_201_CREATED)
 async def add_calibration_entry(
     calibration: CalibrationCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Add a new calibration record."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -132,13 +133,12 @@ async def add_calibration_entry(
             detail=f"Error adding calibration: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.get("/device/{device_id}", response_model=List[CalibrationResponse])
-async def get_device_calibration_history(device_id: str):
+async def get_device_calibration_history(device_id: str, session: Session = Depends(get_db)):
     """Get calibration history for a specific device."""
-    session = get_session()
 
     try:
         calibrations = session.query(CalibrationEntry).filter(
@@ -148,13 +148,12 @@ async def get_device_calibration_history(device_id: str):
         return calibrations
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/upcoming", response_model=List[Dict])
-async def get_upcoming_calibrations(days: int = 30):
+async def get_upcoming_calibrations(days: int = 30, session: Session = Depends(get_db)):
     """Get devices due for calibration within N days."""
-    session = get_session()
 
     try:
         cutoff_date = date.today() + timedelta(days=days)
@@ -176,13 +175,12 @@ async def get_upcoming_calibrations(days: int = 30):
         ]
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/overdue")
-async def get_overdue_calibrations():
+async def get_overdue_calibrations(session: Session = Depends(get_db)):
     """Get devices with overdue calibrations."""
-    session = get_session()
 
     try:
         overdue = session.query(DeviceStatus).filter(
@@ -204,17 +202,17 @@ async def get_overdue_calibrations():
         }
 
     finally:
-        session.close()
+        pass
 
 
 @router.post("/{calibration_id}/attach-certificate")
 async def attach_certificate(
     calibration_id: UUID4,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Upload calibration certificate (PDF or image)."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -265,13 +263,12 @@ async def attach_certificate(
             detail=f"Error attaching certificate: {str(e)}"
         )
     finally:
-        session.close()
+        pass
 
 
 @router.get("/{calibration_id}", response_model=CalibrationResponse)
-async def get_calibration_entry(calibration_id: UUID4):
+async def get_calibration_entry(calibration_id: UUID4, session: Session = Depends(get_db)):
     """Get specific calibration entry details."""
-    session = get_session()
 
     try:
         calibration = session.query(CalibrationEntry).filter(
@@ -285,7 +282,7 @@ async def get_calibration_entry(calibration_id: UUID4):
         return calibration
 
     finally:
-        session.close()
+        pass
 
 
 # ============================================================================
@@ -293,9 +290,8 @@ async def get_calibration_entry(calibration_id: UUID4):
 # ============================================================================
 
 @router.get("/status/{device_id}", response_model=DeviceStatusResponse)
-async def get_device_status(device_id: str):
+async def get_device_status(device_id: str, session: Session = Depends(get_db)):
     """Get current status of a device."""
-    session = get_session()
 
     try:
         device_status = session.query(DeviceStatus).filter(
@@ -309,17 +305,17 @@ async def get_device_status(device_id: str):
         return device_status
 
     finally:
-        session.close()
+        pass
 
 
 @router.get("/status", response_model=List[DeviceStatusResponse])
 async def list_device_statuses(
     status: Optional[str] = None,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
+    session: Session = Depends(get_db)
 ):
     """List all device statuses."""
-    session = get_session()
 
     try:
         query = session.query(DeviceStatus)
@@ -331,7 +327,7 @@ async def list_device_statuses(
         return devices
 
     finally:
-        session.close()
+        pass
 
 
 @router.put("/status/{device_id}")
@@ -339,10 +335,10 @@ async def update_device_status(
     device_id: str,
     new_status: str,
     health_score: Optional[float] = None,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
     """Update device operational status."""
-    session = get_session()
     audit = Audit()
 
     try:
@@ -391,4 +387,4 @@ async def update_device_status(
             detail=f"Error updating device status: {str(e)}"
         )
     finally:
-        session.close()
+        pass

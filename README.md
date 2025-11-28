@@ -73,6 +73,7 @@ POLYMORPH-LITE transforms legacy analytical instruments into intelligent, AI-pow
 ### ⚙️ Backend Modernization (Pydantic v2 & Timezones)
 - Pydantic models migrated to v2 (`ConfigDict`, `model_config`, `model_dump()`).
 - Backend timestamps are now timezone-aware UTC (`datetime.now(timezone.utc)` via helpers).
+- **Unified Session Management**: All API endpoints and core components now use `Depends(get_db)` and `SessionLocal` for consistent, thread-safe database access. Deprecated `get_session` patterns have been removed.
 - Device registry uses explicit keys for DAQ and Raman simulators to avoid name collisions.
 - Hardware-dependent tests are marked with `pytest.mark.hardware` and are skipped by default unless explicitly enabled.
 
@@ -116,11 +117,9 @@ POLYMORPH-LITE provides technical features that support 21 CFR Part 11 requireme
 > the technical foundation to support compliant operations when properly validated and deployed  
 > according to your organization's quality system.
 
-### 🎨 Modern Interface
-- **React 18**: Fast, responsive UI
-- **Real-Time Updates**: WebSocket-based live data
-- **Scientific Dark Mode**: Eye-friendly design
-- **Glassmorphism**: Premium visual aesthetics
+### 🎨 Modern Interface (Coming Soon)
+- **Note**: The v2 frontend has been deprecated and removed. A new, modern React-based LIMS interface is currently under development for v3.1.
+- **Current Access**: Use the API documentation (`/docs`) and CLI tools for interaction.
 
 ---
 
@@ -143,8 +142,8 @@ docker-compose up -d
 # Create admin user
 docker-compose exec backend python scripts/create_admin_user.py
 
-# Access system
-open http://localhost
+# Access system API docs
+open http://localhost:8001/docs
 ```
 
 **Default Login**: `admin@polymorph.local` / `admin123` ⚠️ Change immediately!
@@ -284,11 +283,11 @@ python scripts/generate_keys.py
 - **Pydantic v2** - Data validation
 - **BentoML** - AI model serving
 
-### Frontend
-- **React 18** - UI library
-- **Vite** - Fast build tool
-- **TypeScript** - Type-safe JavaScript
-- **Socket.IO** - Real-time communication
+### Frontend (Planned v3.1)
+- **React 18**
+- **Vite**
+- **TypeScript**
+- **Socket.IO**
 
 ### DevOps
 - **Docker & Docker Compose** - Containerization

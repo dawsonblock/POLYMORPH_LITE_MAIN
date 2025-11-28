@@ -9,7 +9,7 @@ import uuid
 from retrofitkit.api.server import app
 from retrofitkit.core.app import AppContext, Config, SystemCfg, SecurityCfg, DAQCfg, RamanCfg, GatingCfg, SafetyCfg
 from retrofitkit.db.models.workflow import ConfigSnapshot, WorkflowExecution, WorkflowVersion
-from retrofitkit.database.models import AuditEvent as AuditLog
+from retrofitkit.db.models.audit import AuditEvent as AuditLog
 
 client = TestClient(app)
 
@@ -31,19 +31,21 @@ def mock_app_context(monkeypatch):
 
 @pytest.fixture
 def mock_db_session():
-    with patch("retrofitkit.api.compliance.get_session") as mock_get_session:
-        session = MagicMock()
-        mock_get_session.return_value = session
-        # Mock Alembic revision
-        session.execute.return_value.scalar.return_value = "12345abcdef"
-        
-        # Mock refresh to set ID
-        def mock_refresh(obj):
-            if hasattr(obj, 'id') and obj.id is None:
-                obj.id = uuid.uuid4()
-        session.refresh.side_effect = mock_refresh
-        
-        yield session
+    from retrofitkit.db.session import get_db
+    session = MagicMock()
+    
+    # Mock Alembic revision
+    session.execute.return_value.scalar.return_value = "12345abcdef"
+    
+    # Mock refresh to set ID
+    def mock_refresh(obj):
+        if hasattr(obj, 'id') and obj.id is None:
+            obj.id = uuid.uuid4()
+    session.refresh.side_effect = mock_refresh
+    
+    app.dependency_overrides[get_db] = lambda: session
+    yield session
+    app.dependency_overrides = {}
 
 from retrofitkit.api.dependencies import get_current_user
 

@@ -196,10 +196,10 @@ class Orchestrator:
         """
         from retrofitkit.core.workflows.executor import WorkflowExecutor
         from retrofitkit.core.workflows.db_logger import DatabaseLogger
-        from retrofitkit.api.compliance import get_session
+        from retrofitkit.db.session import SessionLocal
 
         # Initialize new engine components
-        db_logger = DatabaseLogger(get_session)
+        db_logger = DatabaseLogger(SessionLocal)
         executor = WorkflowExecutor(self.ctx.config, db_logger, self.ai_client, self.gating_engine)
         self._executor = executor
 

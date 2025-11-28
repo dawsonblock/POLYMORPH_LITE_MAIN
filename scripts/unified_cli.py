@@ -88,9 +88,9 @@ async def cmd_audit(args, config):
         logger.info("Verifying Audit Chain Integrity...")
         try:
             from retrofitkit.compliance.audit import verify_audit_chain
-            from retrofitkit.api.compliance import get_session
+            from retrofitkit.db.session import SessionLocal
             
-            session = get_session()
+            session = SessionLocal()
             try:
                 result = verify_audit_chain(session)
                 if result["valid"]:
