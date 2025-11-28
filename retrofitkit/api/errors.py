@@ -46,7 +46,7 @@ class AuthorizationError(PolymorphError):
         super().__init__(message, "AUTHORIZATION_ERROR", details)
 
 
-class ValidationError(PolymorphError):
+class APIDataValidationError(PolymorphError):
     """Data validation failed."""
     def __init__(self, message: str, details: Dict[str, Any] = None):
         super().__init__(message, "VALIDATION_ERROR", details)
