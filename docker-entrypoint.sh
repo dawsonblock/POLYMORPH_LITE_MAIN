@@ -60,24 +60,36 @@ fi
 # Seed default roles and data if enabled
 if [ "${SEED_DATA:-true}" = "true" ]; then
     echo ""
-    if python3 - <<'PYCODE'
+    if [ "${SEED_DATA:-true}" = "true" ]; then
+        echo ""
+        if [ -z "${DATABASE_URL}" ]; then
+            echo "⚠️  SEED_DATA=true but DATABASE_URL is not set; skipping seeding"
+        else
+            if timeout 30s python3 - <<'PYCODE'
     from retrofitkit.db.session import SessionLocal
     from retrofitkit.compliance.rbac import seed_default_roles
 
+    db = None
     try:
         db = SessionLocal()
         seed_default_roles(db)
-        db.close()
         print('✓ Default roles seeded')
     except Exception as e:
         print(f'⚠️  Seeding failed: {e}')
         # Do not raise to avoid crashing the container when seeding is optional
+    finally:
+        try:
+            if db is not None:
+                db.close()
+        except Exception:
+            pass
     PYCODE
-    then
-        echo "✓ Data seeding complete"
-    else
-        echo "⚠️  Data seeding failed or skipped"
-    fi
+            then
+                echo "✓ Data seeding complete"
+            else
+                echo "⚠️  Data seeding failed, timed out, or was skipped"
+            fi
+        fi
     fi
 fi
 
