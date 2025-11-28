@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import uuid
+import math
 
 from retrofitkit.database.models import (
     WorkflowVersion, WorkflowExecution, ConfigSnapshot,
@@ -75,6 +76,18 @@ class WorkflowExecutionCreate(BaseModel):
     workflow_version: Optional[int] = None  # Use latest active if not specified
     parameters: Dict[str, Any] = {}
 
+    # Optional metadata/labels for this run (sample IDs, batch IDs, etc.)
+    metadata: Dict[str, Any] = {}
+
+
+class WorkflowRerunRequest(BaseModel):
+    """Request body for rerunning a workflow execution."""
+
+    # If provided, keys will update/override the original parameters
+    parameters_override: Optional[Dict[str, Any]] = None
+    # If provided, keys will update/override the original run metadata
+    metadata_override: Optional[Dict[str, Any]] = None
+
 
 class WorkflowExecutionResponse(BaseModel):
     """Workflow execution response."""
@@ -88,6 +101,9 @@ class WorkflowExecutionResponse(BaseModel):
     results: Dict[str, Any]
     error_message: Optional[str]
 
+    # Expose run metadata to callers
+    run_metadata: Dict[str, Any] = {}
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -99,6 +115,12 @@ class WorkflowExecutionSummaryResponse(BaseModel):
     last_run_status: Optional[str] = None
     last_run_started_at: Optional[datetime] = None
     last_run_completed_at: Optional[datetime] = None
+
+    # Extended analytics
+    median_duration_seconds: Optional[float] = None
+    p95_duration_seconds: Optional[float] = None
+    success_rate: Optional[float] = None
+    runs_per_operator: Dict[str, int] = {}
 
 
 class WorkflowExecutionTableRow(BaseModel):
@@ -113,6 +135,7 @@ class WorkflowExecutionTableRow(BaseModel):
     completed_at: Optional[datetime]
     total_duration_seconds: Optional[float]
     orchestrator_run_id: Optional[str]
+    run_metadata: Dict[str, Any] = {}
 
 
 class WorkflowSummaryCard(BaseModel):
@@ -128,6 +151,11 @@ class WorkflowSummaryCard(BaseModel):
     last_run_status: Optional[str] = None
     last_run_started_at: Optional[datetime] = None
     last_run_completed_at: Optional[datetime] = None
+
+    # Selected analytics for UI display
+    success_rate: Optional[float] = None
+    median_duration_seconds: Optional[float] = None
+    p95_duration_seconds: Optional[float] = None
 
 
 # ============================================================================
@@ -800,7 +828,8 @@ async def execute_workflow(
             workflow_version_id=workflow.id,
             operator=current_user["email"],
             status="running",
-            config_snapshot_id=config_snapshot.id
+            config_snapshot_id=config_snapshot.id,
+            run_metadata=execution.metadata or {},
         )
 
         session.add(new_execution)
@@ -910,6 +939,8 @@ async def list_workflow_executions(
     operator: Optional[str] = None,
     started_after: Optional[datetime] = None,
     started_before: Optional[datetime] = None,
+    metadata_key: Optional[str] = None,
+    metadata_value: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
 ):
@@ -936,6 +967,12 @@ async def list_workflow_executions(
 
         if started_before:
             query = query.filter(WorkflowExecution.started_at <= started_before)
+
+        if metadata_key and metadata_value is not None:
+            # Best-effort JSON contains filter; relies on DB JSON support
+            query = query.filter(
+                WorkflowExecution.run_metadata.contains({metadata_key: metadata_value})
+            )
 
         executions = query.order_by(
             WorkflowExecution.started_at.desc()
@@ -996,6 +1033,7 @@ async def list_recent_workflow_executions(
                     completed_at=completed_at,
                     total_duration_seconds=duration,
                     orchestrator_run_id=orchestrator_run_id,
+                    run_metadata=getattr(execution, "run_metadata", {}) or {},
                 )
             )
 
@@ -1022,10 +1060,17 @@ async def get_workflow_execution_summary(workflow_name: str):
         by_status: Dict[str, int] = {}
         durations: List[float] = []
         last_run = None
+        runs_per_operator: Dict[str, int] = {}
 
         for execution in executions:
             status = getattr(execution, "status", None) or "unknown"
             by_status[status] = by_status.get(status, 0) + 1
+
+            operator_email = getattr(execution, "operator", None)
+            if isinstance(operator_email, str) and operator_email:
+                runs_per_operator[operator_email] = (
+                    runs_per_operator.get(operator_email, 0) + 1
+                )
 
             started_at = getattr(execution, "started_at", None)
             completed_at = getattr(execution, "completed_at", None)
@@ -1033,12 +1078,35 @@ async def get_workflow_execution_summary(workflow_name: str):
             if started_at and completed_at:
                 durations.append((completed_at - started_at).total_seconds())
 
-            if started_at and (last_run is None or started_at > getattr(last_run, "started_at", None)):
+            if started_at and (
+                last_run is None
+                or started_at > getattr(last_run, "started_at", None)
+            ):
                 last_run = execution
 
         total = len(executions)
 
         average_duration = sum(durations) / len(durations) if durations else None
+
+        median_duration = None
+        p95_duration = None
+        if durations:
+            sorted_durations = sorted(durations)
+            n = len(sorted_durations)
+            mid = n // 2
+            if n % 2 == 1:
+                median_duration = sorted_durations[mid]
+            else:
+                median_duration = (
+                    sorted_durations[mid - 1] + sorted_durations[mid]
+                ) / 2.0
+
+            # Nearest-rank 95th percentile
+            index_95 = max(0, int(math.ceil(0.95 * n)) - 1)
+            p95_duration = sorted_durations[index_95]
+
+        completed_count = by_status.get("completed", 0)
+        success_rate = (completed_count / total) if total else None
 
         last_run_status = getattr(last_run, "status", None) if last_run else None
         last_run_started_at = getattr(last_run, "started_at", None) if last_run else None
@@ -1052,6 +1120,10 @@ async def get_workflow_execution_summary(workflow_name: str):
             last_run_status=last_run_status,
             last_run_started_at=last_run_started_at,
             last_run_completed_at=last_run_completed_at,
+            median_duration_seconds=median_duration,
+            p95_duration_seconds=p95_duration,
+            success_rate=success_rate,
+            runs_per_operator=runs_per_operator,
         )
 
     finally:
@@ -1080,6 +1152,9 @@ async def get_workflow_summary_card(workflow_name: str):
         last_run_status=summary.last_run_status,
         last_run_started_at=summary.last_run_started_at,
         last_run_completed_at=summary.last_run_completed_at,
+        success_rate=summary.success_rate,
+        median_duration_seconds=summary.median_duration_seconds,
+        p95_duration_seconds=summary.p95_duration_seconds,
     )
 
 
@@ -1121,10 +1196,101 @@ async def list_workflow_summary_cards():
                 last_run_status=summary.last_run_status,
                 last_run_started_at=summary.last_run_started_at,
                 last_run_completed_at=summary.last_run_completed_at,
+                success_rate=summary.success_rate,
+                median_duration_seconds=summary.median_duration_seconds,
+                p95_duration_seconds=summary.p95_duration_seconds,
             )
         )
 
     return cards
+
+
+@router.post(
+    "/executions/{run_id}/rerun",
+    response_model=WorkflowExecutionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def rerun_workflow_execution(
+    run_id: str,
+    rerun: WorkflowRerunRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Rerun a workflow execution with optional parameter and metadata overrides."""
+
+    session = get_session()
+
+    try:
+        original = session.query(WorkflowExecution).filter(
+            WorkflowExecution.run_id == run_id
+        ).first()
+
+        if not original:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Execution '{run_id}' not found",
+            )
+
+        workflow = getattr(original, "workflow_version", None)
+        if workflow is None and getattr(original, "workflow_version_id", None):
+            workflow = session.query(WorkflowVersion).filter(
+                WorkflowVersion.id == original.workflow_version_id
+            ).first()
+
+        if not workflow:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Original workflow version not found for rerun",
+            )
+
+        if not getattr(workflow, "is_approved", True):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Workflow must be approved before rerun",
+            )
+
+        # Load original parameters from config snapshot if available
+        original_params: Dict[str, Any] = {}
+        snapshot = getattr(original, "config_snapshot", None)
+        if snapshot is None and getattr(original, "config_snapshot_id", None):
+            snapshot = session.query(ConfigSnapshot).filter(
+                ConfigSnapshot.id == original.config_snapshot_id
+            ).first()
+
+        if snapshot and isinstance(getattr(snapshot, "config_data", None), dict):
+            original_params = dict(
+                snapshot.config_data.get("workflow_parameters", {}) or {}
+            )
+
+        # Merge parameter overrides
+        params = dict(original_params)
+        if rerun.parameters_override:
+            params.update(rerun.parameters_override)
+
+        # Merge metadata overrides
+        original_metadata = getattr(original, "run_metadata", {}) or {}
+        metadata = dict(original_metadata)
+        if rerun.metadata_override:
+            metadata.update(rerun.metadata_override)
+
+        # Build a new execution request that reuses execute_workflow logic
+        try:
+            version_int = int(getattr(workflow, "version"))
+        except (TypeError, ValueError):
+            version_int = None
+
+        new_execution_request = WorkflowExecutionCreate(
+            workflow_name=workflow.workflow_name,
+            workflow_version=version_int,
+            parameters=params,
+            metadata=metadata,
+        )
+
+    finally:
+        session.close()
+
+    # Delegate to the main execute_workflow handler so orchestrator and
+    # config snapshot behavior stays consistent.
+    return await execute_workflow(new_execution_request, current_user)
 
 
 @router.post("/executions/{run_id}/abort")

@@ -167,6 +167,52 @@ def test_execute_workflow_happy_path_creates_execution(mock_db_session, mock_cur
     assert body["results"]["step_types"] == ["bias_set", "wait_for_raman"]
 
 
+def test_execute_workflow_with_metadata(mock_db_session, mock_current_user):
+    # Approved workflow with metadata passed through to run_metadata
+    graph = {
+        "nodes": [
+            {"id": "start", "type": "start", "data": {}},
+        ],
+        "edges": [],
+    }
+
+    mock_workflow = MagicMock()
+    mock_workflow.workflow_name = "TestWorkflow"
+    mock_workflow.version = 1
+    mock_workflow.definition = graph
+    mock_workflow.is_approved = True
+    mock_workflow.id = uuid.uuid4()
+
+    mock_db_session.query.return_value.filter.return_value.first.return_value = mock_workflow
+
+    captured = {}
+
+    def add_side_effect(obj):
+        if hasattr(obj, "run_id"):
+            captured["execution"] = obj
+            obj.id = uuid.uuid4()
+            obj.started_at = datetime.now(timezone.utc)
+
+    mock_db_session.add.side_effect = add_side_effect
+
+    metadata = {"batch": "B-42", "sample_id": "S-1"}
+
+    response = client.post(
+        "/api/workflow-builder/execute",
+        json={
+            "workflow_name": "TestWorkflow",
+            "workflow_version": 1,
+            "parameters": {},
+            "metadata": metadata,
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["run_metadata"] == metadata
+    assert captured["execution"].run_metadata == metadata
+
+
 def test_execute_workflow_invokes_orchestrator_when_not_testing_env(
     mock_db_session, mock_current_user, monkeypatch
 ):
@@ -399,6 +445,7 @@ def test_list_workflow_executions_with_filters(mock_db_session, mock_current_use
     exec1.operator = "op@example.com"
     exec1.results = {}
     exec1.error_message = None
+    exec1.run_metadata = {}
 
     # Configure query chain
     query = MagicMock()
@@ -423,6 +470,38 @@ def test_list_workflow_executions_with_filters(mock_db_session, mock_current_use
     assert body[0]["run_id"] == "RUN-1"
 
 
+def test_list_workflow_executions_with_metadata_filter(mock_db_session, mock_current_user):
+    exec1 = MagicMock()
+    exec1.run_id = "RUN-1"
+    exec1.id = uuid.uuid4()
+    exec1.workflow_version_id = uuid.uuid4()
+    exec1.started_at = datetime.now(timezone.utc)
+    exec1.completed_at = None
+    exec1.status = "completed"
+    exec1.operator = "user@example.com"
+    exec1.results = {}
+    exec1.error_message = None
+    exec1.run_metadata = {}
+    exec1.run_metadata = {"batch": "B-42"}
+
+    query = MagicMock()
+    mock_db_session.query.return_value = query
+    query.filter.return_value = query
+    query.order_by.return_value.limit.return_value.offset.return_value.all.return_value = [
+        exec1
+    ]
+
+    params = {"metadata_key": "batch", "metadata_value": "B-42"}
+
+    response = client.get("/api/workflow-builder/executions", params=params)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["run_id"] == "RUN-1"
+    assert body[0]["run_metadata"]["batch"] == "B-42"
+
+
 def test_get_workflow_execution_not_found(mock_db_session, mock_current_user):
     mock_db_session.query.return_value.filter.return_value.first.return_value = None
 
@@ -443,6 +522,7 @@ def test_get_workflow_execution_happy_path(mock_db_session, mock_current_user):
     exec1.operator = mock_current_user["email"]
     exec1.results = {"foo": "bar"}
     exec1.error_message = None
+    exec1.run_metadata = {}
 
     mock_db_session.query.return_value.filter.return_value.first.return_value = exec1
 
@@ -467,6 +547,7 @@ def test_list_workflow_executions_with_date_filters(mock_db_session, mock_curren
     exec1.operator = "user@example.com"
     exec1.results = {}
     exec1.error_message = None
+    exec1.run_metadata = {}
 
     query = MagicMock()
     mock_db_session.query.return_value = query
@@ -503,6 +584,7 @@ def test_ui_recent_executions_endpoint(mock_db_session, mock_current_user):
     exec1.operator = "user@example.com"
     exec1.results = {}
     exec1.error_message = None
+    exec1.run_metadata = {"batch": "B1"}
     exec1.workflow_version = MagicMock(workflow_name="TestWorkflow", version="1")
 
     exec2 = MagicMock()
@@ -515,6 +597,7 @@ def test_ui_recent_executions_endpoint(mock_db_session, mock_current_user):
     exec2.operator = "user@example.com"
     exec2.results = {}
     exec2.error_message = None
+    exec2.run_metadata = {"batch": "B2"}
     exec2.workflow_version = MagicMock(workflow_name="TestWorkflow", version="1")
 
     query = MagicMock()
@@ -537,6 +620,7 @@ def test_ui_recent_executions_endpoint(mock_db_session, mock_current_user):
     for item in body:
         assert item["workflow_name"] == "TestWorkflow"
         assert item["workflow_version"] == "1"
+    assert {item["run_metadata"]["batch"] for item in body} == {"B1", "B2"}
 
 
 
@@ -545,16 +629,19 @@ def test_workflow_execution_summary_endpoint(mock_db_session, mock_current_user)
     exec1.status = "running"
     exec1.started_at = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     exec1.completed_at = datetime(2025, 1, 1, 0, 5, 0, tzinfo=timezone.utc)  # 300s
+    exec1.operator = "op1@example.com"
 
     exec2 = MagicMock()
     exec2.status = "completed"
     exec2.started_at = datetime(2025, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
     exec2.completed_at = datetime(2025, 1, 1, 1, 10, 0, tzinfo=timezone.utc)  # 600s
+    exec2.operator = "op1@example.com"
 
     exec3 = MagicMock()
     exec3.status = "completed"
     exec3.started_at = datetime(2025, 1, 1, 2, 0, 0, tzinfo=timezone.utc)
     exec3.completed_at = datetime(2025, 1, 1, 2, 20, 0, tzinfo=timezone.utc)  # 1200s
+    exec3.operator = "op2@example.com"
 
     query = MagicMock()
     mock_db_session.query.return_value = query
@@ -584,6 +671,15 @@ def test_workflow_execution_summary_endpoint(mock_db_session, mock_current_user)
     assert body["last_run_started_at"].startswith(
         exec3.started_at.strftime("%Y-%m-%dT%H:%M:%S")
     )
+
+    # Extended analytics
+    assert round(body["median_duration_seconds"]) == 600
+    assert round(body["p95_duration_seconds"]) == 1200
+    assert body["success_rate"] == pytest.approx(2 / 3)
+    assert body["runs_per_operator"] == {
+        "op1@example.com": 2,
+        "op2@example.com": 1,
+    }
 
 
 def test_ui_workflow_summary_card_endpoint(mock_db_session, mock_current_user):
@@ -623,6 +719,11 @@ def test_ui_workflow_summary_card_endpoint(mock_db_session, mock_current_user):
     # Average duration ~ 700 seconds
     assert round(body["average_duration_seconds"]) == 700
     assert body["last_run_status"] == "completed"
+
+    # Card also exposes extended analytics
+    assert round(body["median_duration_seconds"]) == 600
+    assert round(body["p95_duration_seconds"]) == 1200
+    assert body["success_rate"] == pytest.approx(2 / 3)
 
 
 def test_ui_workflow_dashboard_cards(mock_db_session, mock_current_user, monkeypatch):
@@ -682,3 +783,97 @@ def test_ui_workflow_dashboard_cards(mock_db_session, mock_current_user, monkeyp
     assert wf_b["aborted_count"] == 0
     assert wf_b["average_duration_seconds"] is None
     assert wf_b["last_run_status"] == "failed"
+
+
+def test_rerun_workflow_execution_missing_original_returns_404(
+    mock_db_session, mock_current_user
+):
+    mock_db_session.query.return_value.filter.return_value.first.return_value = None
+
+    response = client.post(
+        "/api/workflow-builder/executions/RUN-MISSING/rerun",
+        json={"parameters_override": {}, "metadata_override": {}},
+    )
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_rerun_workflow_execution_unapproved_workflow_returns_403(
+    mock_db_session, mock_current_user
+):
+    original = MagicMock()
+    original.run_id = "RUN-1"
+    original.workflow_version = MagicMock()
+    original.workflow_version.is_approved = False
+
+    mock_db_session.query.return_value.filter.return_value.first.return_value = original
+
+    response = client.post(
+        "/api/workflow-builder/executions/RUN-1/rerun",
+        json={"parameters_override": {}, "metadata_override": {}},
+    )
+
+    assert response.status_code == 403
+    assert "approved" in response.json()["detail"].lower()
+
+
+def test_rerun_workflow_execution_happy_path(
+    mock_db_session, mock_current_user, monkeypatch
+):
+    from retrofitkit.api import workflow_builder as wb
+
+    # Original execution with config snapshot and metadata
+    original = MagicMock()
+    original.run_id = "RUN-ORIG"
+
+    workflow = MagicMock()
+    workflow.workflow_name = "TestWorkflow"
+    workflow.version = "1"
+    workflow.is_approved = True
+    original.workflow_version = workflow
+
+    snapshot = MagicMock()
+    snapshot.config_data = {"workflow_parameters": {"foo": "bar", "x": 1}}
+    original.config_snapshot = snapshot
+    original.run_metadata = {"batch": "B1", "sample_id": "S1"}
+
+    mock_db_session.query.return_value.filter.return_value.first.return_value = original
+
+    captured = {}
+
+    async def fake_execute_workflow(exec_req, user):
+        captured["req"] = exec_req
+
+        # Minimal object compatible with WorkflowExecutionResponse
+        result = MagicMock()
+        result.id = uuid.uuid4()
+        result.run_id = "RUN-RERUN"
+        result.workflow_version_id = uuid.uuid4()
+        result.started_at = datetime.now(timezone.utc)
+        result.completed_at = None
+        result.status = "ready"
+        result.operator = user["email"]
+        result.results = {"recipe_generated": True}
+        result.error_message = None
+        result.run_metadata = exec_req.metadata
+        return result
+
+    monkeypatch.setattr(wb, "execute_workflow", fake_execute_workflow)
+
+    response = client.post(
+        "/api/workflow-builder/executions/RUN-ORIG/rerun",
+        json={
+            "parameters_override": {"x": 2},
+            "metadata_override": {"batch": "B2"},
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    # New run id from fake executor
+    assert body["run_id"] == "RUN-RERUN"
+    # Parameters were merged before delegating
+    assert captured["req"].parameters == {"foo": "bar", "x": 2}
+    # Metadata was merged and exposed on the response
+    assert body["run_metadata"] == {"batch": "B2", "sample_id": "S1"}
