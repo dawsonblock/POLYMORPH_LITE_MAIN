@@ -98,7 +98,7 @@ services:
 
       # Security
       SECRET_KEY: ${SECRET_KEY}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-${SECRET_KEY}}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
 
       # AI Service
       AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai-service:3000/infer}
