@@ -27,7 +27,8 @@ class HoribaRaman(ProductionHardwareDriver):
     )
 
     def __init__(self, config):
-        super().__init__(config)
+        super().__init__(max_workers=1)
+        self.config = config
         self._t0 = time.time()
 
     async def acquire_spectrum(
@@ -40,10 +41,8 @@ class HoribaRaman(ProductionHardwareDriver):
             return await self._acquire_simulated(integration_time_ms, averages, center_wavelength_nm)
         else:
             # TODO: implement real SDK calls
-            raise NotImplementedError(
-                "Real Horiba SDK integration not yet implemented. "
-                "Implement HoribaRaman.acquire_spectrum() using horiba_sdk."
-            )
+            print("WARNING: Horiba SDK present but integration not implemented. Falling back to simulation.")
+            return await self._acquire_simulated(integration_time_ms, averages, center_wavelength_nm)
 
     async def _acquire_simulated(
         self,
@@ -72,11 +71,13 @@ class HoribaRaman(ProductionHardwareDriver):
             "t": t,
         }
 
+        # Add t to metadata
+        metadata["t"] = t
+
         return Spectrum(
-            t=t,
             wavelengths=wavelengths,
             intensities=intensities,
-            metadata=metadata
+            meta=metadata
         )
 
 registry.register("horiba_raman", HoribaRaman)

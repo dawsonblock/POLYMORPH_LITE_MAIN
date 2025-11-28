@@ -16,9 +16,7 @@ import retrofitkit.drivers  # noqa: F401
 
 RUN_STATE = {"IDLE":0, "ACTIVE":1, "ERROR":2}
 
-class AIFailsafeError(Exception):
-    """Raised when AI service is critical but unreachable."""
-    pass
+from retrofitkit.core.ai_client import AIServiceClient, AIFailsafeError
 
 class Orchestrator:
     def __init__(self, ctx: AppContext):
@@ -45,21 +43,23 @@ class Orchestrator:
             self.ai_service_url = ctx.config.ai.service_url
         except AttributeError:
             # Fallback if ai config missing
-            self.ai_service_url = os.getenv("P4_AI_URL", "http://localhost:3000")
+            # Fallback if ai config missing
+            self.ai_service_url = os.getenv("AI_SERVICE_URL", os.getenv("P4_AI_URL", "http://localhost:3000"))
 
-        # AI Circuit Breaker state
-        self._ai_failures = 0
-        self._ai_circuit_open = False
-        self._ai_circuit_threshold = 3
-        self._ai_failure_threshold = 3
-        self._ai_recovery_timeout = 60.0
+        # AI Service Client
+        self.ai_client = AIServiceClient(self.ai_service_url)
+
+        # Gating Engine
+        self.gating_engine = None
+        if hasattr(ctx.config, 'gating') and hasattr(ctx.config.gating, 'rules'):
+             from retrofitkit.core.gating import GatingEngine
+             self.gating_engine = GatingEngine(ctx.config.gating.rules)
 
     @property
     def status(self) -> Dict[str, Any]:
         """Get current orchestrator status."""
         return {
-            "ai_circuit_open": self._ai_circuit_open,
-            "ai_failures": self._ai_failures,
+            "ai_status": self.ai_client.status,
             "run_state": self._run_state,
             "active_run_id": self._active_run_id,
             "progress": getattr(self, "_progress", {"current": 0, "total": 0}),
@@ -144,56 +144,7 @@ class Orchestrator:
             from retrofitkit.drivers.raman.factory import make_raman
             return make_raman(config)
 
-    async def _call_inference_service(self, spectrum: list, critical: bool = True) -> dict:
-        """
-        Call AI service with Circuit Breaker. 
-        If critical=True and service fails/timeout, raises AIFailsafeError.
-        """
-        if self._ai_circuit_open:
-            if time.time() - self._ai_last_failure_time > self._ai_recovery_timeout:
-                print("AI Circuit Breaker: Attempting recovery...")
-            elif critical:
-                raise AIFailsafeError("AI Circuit Breaker OPEN - Failsafe Triggered")
-            else:
-                return {}
 
-        try:
-            async with httpx.AsyncClient() as client:
-                payload = {"spectrum": spectrum}
-                response = await client.post(self.ai_service_url, json=payload, timeout=2.0)
-
-                if response.status_code == 200:
-                    if self._ai_circuit_open:
-                        print("AI Circuit Breaker: Recovered.")
-                        self._ai_failures = 0
-                        self._ai_circuit_open = False
-                    return response.json()
-                else:
-                    self._record_ai_failure()
-                    msg = f"AI Service Error: {response.status_code}"
-                    print(msg)
-                    if critical: raise AIFailsafeError(msg)
-                    return {}
-        except httpx.TimeoutException as e:
-            self._record_ai_failure()
-            msg = f"AI Connection Timeout: {str(e)}"
-            print(msg)
-            if critical: raise AIFailsafeError(msg)
-            return {}
-        except Exception as e:
-            self._record_ai_failure()
-            msg = f"AI Connection Failed: {str(e)}"
-            print(msg)
-            if critical: raise AIFailsafeError(msg)
-            return {}
-
-    def _record_ai_failure(self):
-        self._ai_failures += 1
-        self._ai_last_failure_time = time.time()
-        if self._ai_failures >= self._ai_failure_threshold:
-            if not self._ai_circuit_open:
-                print("AI Circuit Breaker: OPEN (Too many failures)")
-            self._ai_circuit_open = True
 
     async def _watchdog_loop(self):
         """Global watchdog to monitor system health."""
@@ -240,7 +191,7 @@ class Orchestrator:
 
         # Initialize new engine components
         db_logger = DatabaseLogger(get_session)
-        executor = WorkflowExecutor(self.ctx.config, db_logger)
+        executor = WorkflowExecutor(self.ctx.config, db_logger, self.ai_client)
         self._executor = executor
 
         # Update metrics and state

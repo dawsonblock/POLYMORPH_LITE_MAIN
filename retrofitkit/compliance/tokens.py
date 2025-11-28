@@ -58,6 +58,8 @@ def get_current_user(
     db: Session = Depends(get_session)
 ) -> Dict[str, Any]:
     """
+    DEPRECATED: Use retrofitkit.api.dependencies.get_current_user instead.
+    
     Get current user from JWT token.
     
     Returns user info dict for compatibility with existing API code.

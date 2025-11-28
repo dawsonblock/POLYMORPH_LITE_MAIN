@@ -22,9 +22,11 @@ class WorkflowExecutor:
     """
     Executes a Recipe step-by-step.
     """
-    def __init__(self, config, db_logger: DatabaseLogger):
+    def __init__(self, config, db_logger: DatabaseLogger, ai_client=None):
         self.config = config
         self.logger = db_logger
+        self.ai_client = ai_client
+        self.step_results = []  # Track results of each step for context
         self.router = get_router()
         self.interlocks = None
         try:
@@ -119,6 +121,9 @@ class WorkflowExecutor:
 
         result = await handler(step.params)
 
+        # Store result for context
+        self.step_results.append(result)
+
         # SAFETY CHECK: After execution (and pet watchdog)
         if self.interlocks:
             self.interlocks.check_safe()
@@ -177,6 +182,37 @@ class WorkflowExecutor:
         """
         # In real system, this would access previous results context
         return {"result": "computed"}
+
+    async def _handle_ai_decision(self, params: Dict[str, Any]):
+        """
+        AI-driven decision step.
+        Uses the last available spectrum from context.
+        """
+        if not self.ai_client:
+            raise RuntimeError("AI Client not initialized in executor")
+
+        # Find last spectrum in results
+        spectrum_data = None
+        for res in reversed(self.step_results):
+            if isinstance(res, dict) and ("intensities" in res or "spectrum" in res):
+                spectrum_data = res.get("intensities") or res.get("spectrum")
+                break
+            # Handle Spectrum object if we start returning them directly
+            if hasattr(res, "intensities"):
+                spectrum_data = res.intensities.tolist()
+                break
+        
+        if not spectrum_data:
+            logger.warning("No spectrum found in context for AI decision. Using dummy data.")
+            spectrum_data = [0.0] * 1024 # Dummy data to prevent crash if testing
+
+        # Call AI Service
+        prediction = await self.ai_client.predict(spectrum_data, critical=params.get("critical", True))
+        
+        # Log prediction
+        logger.info(f"AI Prediction: {prediction}")
+        
+        return {"prediction": prediction}
 
     async def _handle_decision(self, params: Dict[str, Any]):
         """

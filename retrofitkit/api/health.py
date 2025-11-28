@@ -83,14 +83,13 @@ async def readiness_check():
 
         # Check database connection
         try:
-            from retrofitkit.compliance.audit import Audit
-            audit = Audit()
-            # Simple connectivity test: try to query audit log
-            conn = audit._get_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
-            conn.close()
+            from retrofitkit.db.session import SessionLocal
+            from sqlalchemy import text
+            db = SessionLocal()
+            try:
+                db.execute(text("SELECT 1"))
+            finally:
+                db.close()
         except Exception as db_error:
             raise HTTPException(
                 status_code=503,
