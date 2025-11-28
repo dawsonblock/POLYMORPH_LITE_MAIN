@@ -69,9 +69,10 @@ try:
     db.close()
     print('✓ Default roles seeded')
 except Exception as e:
-    print(f'⚠️  Seeding failed: {e}')
-" 2>/dev/null; then
-        echo "✓ Data seeding complete"
+        print(f'⚠️  Seeding failed: {e}')
+        raise
+    "; then
+            echo "✓ Data seeding complete"
     else
         echo "⚠️  Data seeding failed or skipped"
     fi
