@@ -570,28 +570,13 @@ docker-compose exec backend alembic current
 # ADMIN_PASSWORD="your-very-strong-password" docker-compose exec -e ADMIN_PASSWORD backend python scripts/create_admin_user.py admin@lab.com
 
 # For manual creation, use a strong password and consider security implications:
-docker-compose exec backend python3 -c "
-import os, sys
-from retrofitkit.db.session import SessionLocal
-from retrofitkit.compliance.users import create_user
-from retrofitkit.compliance.rbac import assign_role
-password = os.environ.get('ADMIN_PASSWORD')
-if not password:
-    print('Error: ADMIN_PASSWORD environment variable not set.', file=sys.stderr)
-    sys.exit(1)
-db = SessionLocal()
-# Note: This script should be made idempotent to avoid errors on re-run
-user = create_user(db, 'admin@lab.com', password, 'Admin User', is_superuser=True)
-assign_role(db, 'admin@lab.com', 'admin', assigned_by='system')
-db.close()
-print('Admin user created successfully.')
-"
-```
-
-### Post-Deployment Verification
-
-```bash
-# Health check
+# Recommended: use a dedicated, idempotent script that reads ADMIN_PASSWORD from env
+# Ensure ADMIN_PASSWORD is exported in your environment (not on the command line)
+# export ADMIN_PASSWORD="your-very-strong-password"
+docker-compose exec -e ADMIN_PASSWORD backend python scripts/create_admin_user.py admin@lab.com || {
+  echo "Admin user creation script failed. Check logs." >&2
+  exit 1
+}
 curl http://localhost:8001/health
 # Expected: {"status": "healthy", ...}
 
