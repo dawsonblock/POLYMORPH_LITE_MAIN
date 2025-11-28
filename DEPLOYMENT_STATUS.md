@@ -344,22 +344,16 @@ done
 # Run database migrations
 alembic upgrade head
 
-# Seed default roles and create flag file
-INIT_FLAG_FILE="/app/db_initialized.flag"
-if [ ! -f "$INIT_FLAG_FILE" ]; then
-    echo "Performing first-time database initialization..."
-    python3 -c "
+# Seed default roles idempotently (no file sentinel required)
+python3 - <<'PYCODE'
 from retrofitkit.db.session import SessionLocal
 from retrofitkit.compliance.rbac import seed_default_roles
 db = SessionLocal()
-seed_default_roles(db)
-db.close()
-"
-    touch "$INIT_FLAG_FILE"
-    echo "Initialization complete."
-else
-    echo "Database already initialized. Skipping seeding."
-fi
+try:
+    seed_default_roles(db)  # must be idempotent: no-op if roles exist
+finally:
+    db.close()
+PYCODE
 
 # Start API server
 exec uvicorn retrofitkit.api.server:app --host 0.0.0.0 --port 8001
