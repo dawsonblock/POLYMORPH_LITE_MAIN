@@ -167,7 +167,7 @@ curl http://localhost:8001/health
 
 ```mermaid
 graph TD
-    A[Frontend React] -->|REST API| B[FastAPI Backend]
+    A[API Client / Future Frontend] -->|REST API| B[FastAPI Backend]
     B -->|ORM| C[PostgreSQL 27 Tables]
     B -->|Inference| D[BentoML AI Service]
     B -->|Cache| E[Redis]
