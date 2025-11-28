@@ -49,7 +49,11 @@ fi
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
     echo ""
     echo "📦 Running database migrations..."
-    if alembic upgrade head; then
+    if [ -z "${DATABASE_URL}" ]; then
+        echo "❌ RUN_MIGRATIONS=true but DATABASE_URL is not set"
+        exit 1
+    fi
+    if ALEMBIC_CONFIG="${ALEMBIC_CONFIG:-alembic.ini}" DATABASE_URL="${DATABASE_URL}" alembic -c "${ALEMBIC_CONFIG}" upgrade head; then
         echo "✓ Migrations complete"
     else
         echo "❌ Migration failed - exiting"
