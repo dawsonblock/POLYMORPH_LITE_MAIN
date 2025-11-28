@@ -176,6 +176,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Register error handlers
+from retrofitkit.api.errors import register_exception_handlers
+register_exception_handlers(app)
+
 # Mount Socket.IO
 socket_app = socketio.ASGIApp(sio)
 app.mount("/socket.io", socket_app)

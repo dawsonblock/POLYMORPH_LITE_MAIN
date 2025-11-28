@@ -1,63 +1,84 @@
+# Core FastAPI and Web Framework
 fastapi==0.115.0
-uvicorn==0.30.6
-pydantic==2.12.4
-pydantic-settings==2.4.0
-typer==0.12.3
-jinja2==3.1.4
+uvicorn[standard]==0.30.6
 python-multipart==0.0.9
+websockets==13.1
+python-socketio==5.11.4
 
-numpy==2.0.2
-scipy==1.13.1
-pandas==2.2.2
+# Pydantic for validation
+pydantic==2.9.2
+pydantic-settings==2.5.2
 
-sqlalchemy==2.0.32
+# CLI
+typer==0.12.5
+rich==13.9.2
+
+# Templates
+jinja2==3.1.4
+
+# Scientific Computing
+numpy==1.26.4
+scipy==1.14.1
+pandas==2.2.3
+
+# Database
+sqlalchemy==2.0.35
+alembic==1.13.3
 asyncpg==0.29.0
-psycopg2-binary==2.9.11
-alembic==1.13.1
-aiosqlite==0.21.0
+psycopg2-binary==2.9.10
+aiosqlite==0.20.0
 
-cryptography==43.0.1
+# Authentication and Security
+cryptography==43.0.3
 passlib[bcrypt]==1.7.4
-python-jose==3.5.0
+python-jose[cryptography]==3.3.0
+argon2-cffi==23.1.0
+pyotp==2.9.0
 
-httpx==0.27.0
-websockets==12.0
-loguru==0.7.3
-rich==13.7.1
+# HTTP Client
+httpx==0.27.2
+
+# Logging and Monitoring
+loguru==0.7.2
+structlog==24.4.0
+python-json-logger==3.1.0
+
+# Configuration
 pyyaml==6.0.2
+python-dotenv==1.0.1
 
-# Observability
-prometheus-client==0.23.1
-opentelemetry-api==1.24.0
-opentelemetry-sdk==1.38.0
-opentelemetry-instrumentation-fastapi==0.45b0
-opentelemetry-exporter-otlp==1.38.0
+# Observability and Metrics
+prometheus-client==0.21.0
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-instrumentation-fastapi==0.48b0
+opentelemetry-exporter-otlp==1.27.0
 
-# Additional validation
-jsonschema==4.25.1
-python-json-logger==2.0.7
+# Validation
+jsonschema==4.23.0
 
-# Logging
-structlog==24.1.0
-python-dotenv==1.0.0
+# PDF Generation (Compliance Reports)
+reportlab==4.2.5
 
-# PDF Generation (Compliance)
-reportlab==4.0.7
+# Error Tracking
+sentry-sdk[fastapi]==2.16.0
 
-# Error Tracking (Optional)
-sentry-sdk==1.40.0
+# Caching and Task Queue
+redis==5.2.0
+celery==5.4.0
 
 # Testing
-pytest==8.3.4
-pytest-asyncio==0.23.8
-pytest-cov==5.0.0
+pytest==8.3.3
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+httpx==0.27.2  # for testing
 
-# Build tools
+# Development Tools
 pip-tools==7.4.1
-redis==5.0.8
-pyotp==2.9.0
-argon2-cffi>=21.3.0
+black==24.10.0
+ruff==0.7.2
+mypy==1.13.0
 
-# PostgreSQL Support
-asyncpg>=0.29.0
-psycopg2-binary>=2.9.9
+# Additional dependencies for hardware integration
+pyserial==3.5  # For serial device communication
