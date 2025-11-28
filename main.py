@@ -68,8 +68,7 @@ def main():
             log.info("database_migrations_completed")
         except Exception as e:
             log.error("database_migration_failed", error=str(e))
-            if environment == "production":
-                sys.exit(1)
+            sys.exit(1)
 
     # Start server
     try:
