@@ -52,7 +52,8 @@ if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
     if alembic upgrade head; then
         echo "✓ Migrations complete"
     else
-        echo "⚠️  Migration failed or skipped"
+        echo "❌ Migration failed - exiting"
+        exit 1
     fi
 fi
 
