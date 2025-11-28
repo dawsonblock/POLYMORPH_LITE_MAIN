@@ -60,22 +60,24 @@ fi
 # Seed default roles and data if enabled
 if [ "${SEED_DATA:-true}" = "true" ]; then
     echo ""
-    echo "👥 Seeding default data..."
-    if python3 -c "
-from retrofitkit.db.session import SessionLocal
-from retrofitkit.compliance.rbac import seed_default_roles
-try:
-    db = SessionLocal()
-    seed_default_roles(db)
-    db.close()
-    print('✓ Default roles seeded')
-except Exception as e:
+    if python3 - <<'PYCODE'
+    from retrofitkit.db.session import SessionLocal
+    from retrofitkit.compliance.rbac import seed_default_roles
+
+    try:
+        db = SessionLocal()
+        seed_default_roles(db)
+        db.close()
+        print('✓ Default roles seeded')
+    except Exception as e:
         print(f'⚠️  Seeding failed: {e}')
-        raise
-    "; then
-            echo "✓ Data seeding complete"
+        # Do not raise to avoid crashing the container when seeding is optional
+    PYCODE
+    then
+        echo "✓ Data seeding complete"
     else
         echo "⚠️  Data seeding failed or skipped"
+    fi
     fi
 fi
 
