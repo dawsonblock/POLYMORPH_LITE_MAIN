@@ -112,7 +112,11 @@ def authenticate_user(
 
     # Check account lock
     if user.account_locked_until:
-        if user.account_locked_until > datetime.now(timezone.utc):
+        locked_until = user.account_locked_until
+        if locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+
+        if locked_until > datetime.now(timezone.utc):
             write_audit_event(
                 db=db,
                 actor_id=email,

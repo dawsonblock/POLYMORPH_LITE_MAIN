@@ -70,6 +70,12 @@ POLYMORPH-LITE transforms legacy analytical instruments into intelligent, AI-pow
 </tr>
 </table>
 
+### ⚙️ Backend Modernization (Pydantic v2 & Timezones)
+- Pydantic models migrated to v2 (`ConfigDict`, `model_config`, `model_dump()`).
+- Backend timestamps are now timezone-aware UTC (`datetime.now(timezone.utc)` via helpers).
+- Device registry uses explicit keys for DAQ and Raman simulators to avoid name collisions.
+- Hardware-dependent tests are marked with `pytest.mark.hardware` and are skipped by default unless explicitly enabled.
+
 ---
 
 ## ✨ Key Features

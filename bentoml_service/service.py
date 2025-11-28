@@ -5,7 +5,7 @@ import torch
 import numpy as np
 import scipy.signal
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pmm_brain import StaticPseudoModeMemory, RamanPreprocessor  # Import shared preprocessor
 from bentoml.io import JSON
 from pydantic import BaseModel
@@ -33,8 +33,8 @@ class PolymorphService:
         
         # Tracking for honest predictions
         self.poly_tracker: Dict[str, Dict[str, Any]] = {}
-        self._session_created_at = datetime.utcnow()
-        self._last_poly_change_at = datetime.utcnow()
+        self._session_created_at = datetime.now(timezone.utc)
+        self._last_poly_change_at = datetime.now(timezone.utc)
         self._prev_intensity = 0.0
 
     def _compute_polymorph_id(self, latent: np.ndarray) -> str:
@@ -44,7 +44,7 @@ class PolymorphService:
 
     def _estimate_finish_time(self, created_at: datetime, last_change_at: datetime, max_horizon_sec: int = 3600) -> int:
         """Simple, honest heuristic for time estimation."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         total_age = (now - created_at).total_seconds()
         since_change = (now - last_change_at).total_seconds()
 
@@ -59,7 +59,7 @@ class PolymorphService:
 
     def _build_response(self, active_modes: int, new_poly_id: Optional[str], spectra_slope: float) -> Dict[str, Any]:
         """Build honest AI response."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if new_poly_id is not None:
             self._last_poly_change_at = now
@@ -105,7 +105,7 @@ class PolymorphService:
                 if poly_id not in self.poly_tracker:
                     self.poly_tracker[poly_id] = {
                         "id": poly_id,
-                        "first_seen": datetime.utcnow().isoformat()
+                        "first_seen": datetime.now(timezone.utc).isoformat()
                     }
                     new_poly_id = poly_id
 

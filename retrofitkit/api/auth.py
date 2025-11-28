@@ -39,13 +39,21 @@ def login(payload: Login, db: Session = Depends(get_db)):
 
         from retrofitkit.database.models import User
         from datetime import datetime, timezone
+
         # Reuse session
         db_user = db.query(User).filter(User.email == payload.email).first()
-        if db_user and db_user.account_locked_until and db_user.account_locked_until > datetime.now(timezone.utc):
-             raise HTTPException(
-                 status_code=status.HTTP_423_LOCKED,
-                 detail=f"Account locked until {db_user.account_locked_until.isoformat()}"
-             )
+
+        # Normalize stored lockout timestamp to UTC-aware before comparison
+        if db_user and db_user.account_locked_until:
+            locked_until = db_user.account_locked_until
+            if locked_until.tzinfo is None:
+                locked_until = locked_until.replace(tzinfo=timezone.utc)
+
+            if locked_until > datetime.now(timezone.utc):
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail=f"Account locked until {locked_until.isoformat()}"
+                )
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

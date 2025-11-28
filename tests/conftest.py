@@ -1,12 +1,15 @@
 import pytest
 import os
 import sys
-from unittest.mock import MagicMock
 
 # Force SQLite for testing
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["P4_DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["P4_ENVIRONMENT"] = "testing"
+
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 from retrofitkit.db.session import engine, SessionLocal
 from retrofitkit.db.base import Base
@@ -55,8 +58,6 @@ def setup_test_db():
     yield
     # Drop tables
     Base.metadata.drop_all(bind=engine)
-
-from sqlalchemy import event
 
 @pytest.fixture
 def db_session():

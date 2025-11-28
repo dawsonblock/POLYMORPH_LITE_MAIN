@@ -50,7 +50,19 @@ class SimDAQ(DAQBase, DAQDevice):
         """
         # Handle both cfg object and kwargs for registry compatibility
         if cfg is not None:
-            sim_config = cfg.daq.simulator
+            # Support both legacy cfg.daq.simulator dict and new DAQConfig fields.
+            sim_config = None
+            daq_cfg = getattr(cfg, "daq", None)
+            if daq_cfg is not None:
+                sim_config = getattr(daq_cfg, "simulator", None)
+                if sim_config is None:
+                    # Build compatibility dict from new-style config attributes.
+                    noise_std = getattr(daq_cfg, "simulator_noise_std", 0.01)
+                    sim_config = {"noise_v": noise_std}
+
+            if sim_config is None:
+                sim_config = {"noise_v": 0.01}
+
             self.id = "sim_daq_0"
             self._noise = sim_config.get("noise_v", 0.01)
         else:
@@ -136,6 +148,6 @@ class SimDAQ(DAQBase, DAQDevice):
 SimulatorDAQ = SimDAQ
 
 
-# Register with DeviceRegistry
+# Register with DeviceRegistry (DAQ-specific keys to avoid collisions)
 registry.register("sim_daq", SimDAQ)
 registry.register("daq_simulator", SimDAQ)  # Alternative name

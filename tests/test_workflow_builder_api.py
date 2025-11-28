@@ -1,7 +1,9 @@
+import uuid
+from datetime import datetime, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch
-from datetime import datetime
 
 from retrofitkit.api.server import app
 from retrofitkit.db.models.workflow import WorkflowVersion
@@ -67,3 +69,161 @@ def test_activate_workflow_success(mock_db_session, mock_current_user):
     
     assert response.status_code == 200
     assert "activated" in response.json()["message"]
+
+def test_execute_workflow_unapproved_returns_403(mock_db_session, mock_current_user):
+
+    mock_workflow = MagicMock()
+    mock_workflow.is_approved = False
+    mock_db_session.query.return_value.filter.return_value.first.return_value = mock_workflow
+
+    response = client.post(
+        "/api/workflow-builder/execute",
+        json={
+            "workflow_name": "TestWorkflow",
+            "workflow_version": 1,
+            "parameters": {},
+        },
+    )
+
+    assert response.status_code == 403
+    assert "must be approved" in response.json()["detail"].lower()
+
+
+def test_execute_workflow_missing_workflow_returns_404(mock_db_session, mock_current_user):
+
+    mock_db_session.query.return_value.filter.return_value.first.return_value = None
+
+    response = client.post(
+        "/api/workflow-builder/execute",
+        json={
+            "workflow_name": "MissingWorkflow",
+            "parameters": {},
+        },
+    )
+
+    assert response.status_code == 404
+    assert "workflow" in response.json()["detail"].lower()
+
+
+def test_execute_workflow_happy_path_creates_execution(mock_db_session, mock_current_user):
+    # Approved workflow with a simple acquire → measure graph
+    graph = {
+        "nodes": [
+            {
+                "id": "start",
+                "type": "start",
+                "data": {},
+            },
+            {
+                "id": "n-acquire",
+                "type": "acquire",
+                "data": {"voltage": 2.5, "device_id": "daq"},
+            },
+            {
+                "id": "n-measure",
+                "type": "measure",
+                "data": {"timeout": 120, "device_id": "raman"},
+            },
+        ],
+        "edges": [
+            {"id": "e1", "source": "start", "target": "n-acquire"},
+            {"id": "e2", "source": "n-acquire", "target": "n-measure"},
+        ],
+    }
+
+    mock_workflow = MagicMock()
+    mock_workflow.workflow_name = "TestWorkflow"
+    mock_workflow.version = 1
+    mock_workflow.definition = graph
+    mock_workflow.is_approved = True
+    mock_workflow.id = uuid.uuid4()
+
+    mock_db_session.query.return_value.filter.return_value.first.return_value = mock_workflow
+
+    # Ensure created execution objects have the fields required by the
+    # response model (id as UUID4 and started_at as datetime).
+    def add_side_effect(obj):
+        if hasattr(obj, "run_id"):
+            obj.id = uuid.uuid4()
+            obj.started_at = datetime.now(timezone.utc)
+
+    mock_db_session.add.side_effect = add_side_effect
+
+    response = client.post(
+        "/api/workflow-builder/execute",
+        json={
+            "workflow_name": "TestWorkflow",
+            "workflow_version": 1,
+            "parameters": {"n-acquire": {"voltage": 3.3}},
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["operator"] == mock_current_user["email"]
+    assert body["results"]["recipe_generated"] is True
+    assert body["results"]["steps_count"] == 2
+    assert body["results"]["step_types"] == ["bias_set", "wait_for_raman"]
+
+
+def test_execute_workflow_invokes_orchestrator_when_not_testing_env(
+    mock_db_session, mock_current_user, monkeypatch
+):
+    # Approved workflow with simple graph, same as happy path
+    graph = {
+        "nodes": [
+            {"id": "start", "type": "start", "data": {}},
+            {
+                "id": "n-acquire",
+                "type": "acquire",
+                "data": {"voltage": 2.5, "device_id": "daq"},
+            },
+        ],
+        "edges": [
+            {"id": "e1", "source": "start", "target": "n-acquire"},
+        ],
+    }
+
+    mock_workflow = MagicMock()
+    mock_workflow.workflow_name = "TestWorkflow"
+    mock_workflow.version = 1
+    mock_workflow.definition = graph
+    mock_workflow.is_approved = True
+    mock_workflow.id = uuid.uuid4()
+
+    mock_db_session.query.return_value.filter.return_value.first.return_value = mock_workflow
+
+    def add_side_effect(obj):
+        if hasattr(obj, "run_id"):
+            obj.id = uuid.uuid4()
+            obj.started_at = datetime.now(timezone.utc)
+
+    mock_db_session.add.side_effect = add_side_effect
+
+    # Ensure environment is not 'testing' for this test so orchestrator path is used
+    monkeypatch.setenv("P4_ENVIRONMENT", "development")
+
+    # Patch orchestrator.run to avoid hitting real hardware and to return a known ID
+    from retrofitkit.api import routes
+
+    async def fake_run(recipe, operator_email, simulation=False):
+        return "RUN-ORC-TEST"
+
+    monkeypatch.setattr(routes.orc, "run", fake_run)
+
+    response = client.post(
+        "/api/workflow-builder/execute",
+        json={
+            "workflow_name": "TestWorkflow",
+            "workflow_version": 1,
+            "parameters": {},
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["operator"] == mock_current_user["email"]
+    assert body["results"]["recipe_generated"] is True
+    assert body["results"]["orchestrator_run_id"] == "RUN-ORC-TEST"

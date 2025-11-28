@@ -10,6 +10,7 @@ from retrofitkit.data.storage import DataStore
 from retrofitkit.metrics.exporter import Metrics
 from retrofitkit.core.data_models import Spectrum
 from retrofitkit.core.registry import registry
+import retrofitkit.drivers  # noqa: F401
 
 # Import drivers to trigger auto-registration
 
@@ -108,9 +109,15 @@ class Orchestrator:
         """
         backend = config.daq.backend
 
+        # Map configuration backend names to registry keys
+        registry_name = {
+            "simulator": "daq_simulator",
+            "redpitaya": "redpitaya_daq",
+        }.get(backend, backend)
+
         try:
             # Try DeviceRegistry first (Option C path)
-            return registry.create(backend, cfg=config)
+            return registry.create(registry_name, cfg=config)
         except KeyError:
             # Fallback to legacy factory during transition
             from retrofitkit.drivers.daq.factory import make_daq

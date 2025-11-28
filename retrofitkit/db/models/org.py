@@ -3,12 +3,16 @@ Organization and multi-site models for enterprise deployments.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from retrofitkit.db.base import Base
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class Organization(Base):
@@ -20,8 +24,8 @@ class Organization(Base):
     name = Column(String(255), nullable=False)
     subscription_tier = Column(String(50), nullable=True)  # free, professional, enterprise
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     labs = relationship("Lab", back_populates="organization", cascade="all, delete-orphan")
@@ -39,8 +43,8 @@ class Lab(Base):
     location = Column(String(255), nullable=True)
     timezone = Column(String(50), default='UTC')
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     organization = relationship("Organization", back_populates="labs")
@@ -63,8 +67,8 @@ class Node(Base):
 
     capabilities = Column(JSON, default=dict)  # Available devices, resources
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     lab = relationship("Lab", back_populates="nodes")
@@ -82,7 +86,7 @@ class DeviceHub(Base):
     device_registry = Column(JSON, nullable=False)  # List of available devices
     health_status = Column(JSON, default=dict)  # Health metrics for each device
 
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     node = relationship("Node", back_populates="device_hubs")

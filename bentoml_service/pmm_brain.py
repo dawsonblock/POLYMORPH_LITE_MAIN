@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from scipy.signal import savgol_filter
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -253,7 +253,10 @@ class StaticPseudoModeMemory(nn.Module):
             sig = hash(new_mode.tobytes()[:64])
             if sig not in self.poly_tracker:
                 name = f"Polymorph-{self.poly_id:02d}"
-                self.poly_tracker[sig] = {"name": name, "first_seen": datetime.utcnow().isoformat()}
+                self.poly_tracker[sig] = {
+                    "name": name,
+                    "first_seen": datetime.now(timezone.utc).isoformat(),
+                }
                 self.poly_id += 1
                 logger.critical(f"NEW POLYMORPH DISCOVERED: {name}")
                 # Trigger webhook/Slack here

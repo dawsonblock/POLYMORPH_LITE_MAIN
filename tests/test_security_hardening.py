@@ -8,7 +8,7 @@ Verifies:
 """
 import pytest
 from unittest.mock import Mock, MagicMock, patch
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 
 from retrofitkit.compliance.users import authenticate_user, create_user
@@ -67,7 +67,7 @@ class TestSecurityHardening:
             
             # 6th attempt should fail immediately due to lock
             # We manually set the lock to ensure the check works even if the previous step failed
-            mock_user.account_locked_until = datetime.utcnow() + timedelta(minutes=30)
+            mock_user.account_locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
             result = authenticate_user(mock_session, "test@example.com", "wrong")
             assert result is None
 

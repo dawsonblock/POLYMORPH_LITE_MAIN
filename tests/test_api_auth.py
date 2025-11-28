@@ -19,6 +19,7 @@ from jose import jwt
 from retrofitkit.api.auth import router
 from retrofitkit.compliance.users import Users
 from retrofitkit.compliance.tokens import SECRET, ALG
+from retrofitkit.compliance.audit import get_audit_logs
 
 
 @pytest.fixture
@@ -211,7 +212,7 @@ class TestLoginEndpoint:
     def test_token_expiration_set(self, client, test_user):
         """Test that token has proper expiration set."""
         import time
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         response = client.post("/login", json={
             "email": test_user["email"],
@@ -228,8 +229,9 @@ class TestLoginEndpoint:
         assert exp_timestamp > current_timestamp
 
         # Check expiration is within expected range (30 minutes)
-        expected_exp = datetime.utcnow() + timedelta(minutes=30)
-        actual_exp = datetime.utcfromtimestamp(exp_timestamp)
+        now_utc = datetime.now(timezone.utc)
+        expected_exp = now_utc + timedelta(minutes=30)
+        actual_exp = datetime.fromtimestamp(exp_timestamp, timezone.utc)
 
         # Allow 1 minute tolerance for test execution time
         assert abs((actual_exp - expected_exp).total_seconds()) < 60
@@ -243,6 +245,15 @@ class TestMFAAuthentication:
         users = Users(db=db_session)
         secret = users.enable_mfa(test_user["email"])
 
+        # MFA enablement should be audited
+        assert isinstance(secret, str)
+        logs = get_audit_logs(
+            db_session,
+            event_type="MFA_ENABLED",
+            actor=test_user["email"],
+        )
+        assert len(logs) >= 1
+
         # Note: Current API doesn't support mfa_token parameter
         # This test documents current behavior
         response = client.post("/login", json={
@@ -252,41 +263,96 @@ class TestMFAAuthentication:
 
         # Current implementation returns 401 because API doesn't pass mfa_token
         # This should be enhanced to support MFA in the API endpoint
+        # The test expects 401.
         assert response.status_code == 401
+
+
+class TestAccountLockout:
+    """Test cases for account lockout behavior and audit logging."""
+
+    def test_account_locked_after_failed_attempts(self, client, test_user, db_session, temp_db_dir):
+        """Account is locked after repeated failed login attempts and audited."""
+
+        # Trigger 4 failed attempts (incrementing failed_login_attempts)
+        for _ in range(4):
+            resp = client.post(
+                "/login",
+                json={
+                    "email": test_user["email"],
+                    "password": "WrongPassword",
+                },
+            )
+            assert resp.status_code == 401
+
+        # 5th attempt with wrong password should cause lockout in the backend
+        resp = client.post(
+            "/login",
+            json={
+                "email": test_user["email"],
+                "password": "WrongPassword",
+            },
+        )
+
+        assert resp.status_code == 423
+        assert "Account locked until" in resp.json()["detail"]
+
+        # Next attempt with correct password should also return 423 LOCKED
+        resp = client.post(
+            "/login",
+            json={
+                "email": test_user["email"],
+                "password": test_user["password"],
+            },
+        )
+
+        assert resp.status_code == 423
+        assert "Account locked until" in resp.json()["detail"]
+
+        # Verify ACCOUNT_LOCKED audit event exists
+        logs = get_audit_logs(
+            db_session,
+            event_type="ACCOUNT_LOCKED",
+            actor="system",
+        )
+        assert any(
+            entry["subject"] == f"user:{test_user['email']}" for entry in logs
+        )
 
 
 class TestAuditTrail:
     """Test cases for authentication audit logging."""
 
-    def test_successful_login_audited(self, client, test_user, temp_db_dir):
+    def test_successful_login_audited(self, client, test_user, db_session, temp_db_dir):
         """Test that successful logins are recorded in audit trail."""
-        from retrofitkit.compliance.audit import Audit
-
+        
         response = client.post("/login", json={
             "email": test_user["email"],
             "password": test_user["password"]
         })
 
         assert response.status_code == 200
+        logs = get_audit_logs(
+            db_session,
+            event_type="LOGIN_SUCCESS",
+            actor=test_user["email"],
+        )
+        assert len(logs) >= 1
 
-        # Verify audit trail contains LOGIN_SUCCESS event
-        audit = Audit()
-        # Note: Would need to add query methods to Audit class to properly verify
-
-    def test_failed_login_audited(self, client, test_user, temp_db_dir):
+    def test_failed_login_audited(self, client, test_user, db_session, temp_db_dir):
         """Test that failed logins are recorded in audit trail."""
-        from retrofitkit.compliance.audit import Audit
-
+        
         response = client.post("/login", json={
             "email": test_user["email"],
             "password": "WrongPassword"
         })
 
         assert response.status_code == 401
-
-        # Verify audit trail contains LOGIN_FAILED event
-        audit = Audit()
-        # Note: Would need to add query methods to Audit class to properly verify
+        logs = get_audit_logs(
+            db_session,
+            event_type="LOGIN_FAILED",
+            actor=test_user["email"],
+        )
+        assert len(logs) >= 1
 
 
 class TestSecurityRequirements:

@@ -58,6 +58,16 @@
 
 ---
 
+## Backend Modernization (Pydantic v2 + FastAPI)
+
+- Migrated backend models and APIs to Pydantic v2 (`ConfigDict`, `model_config`, `model_dump()`).
+- Standardized timestamps on timezone-aware UTC datetimes (`datetime.now(timezone.utc)` and `utcnow()` helpers in SQLAlchemy models).
+- Replaced legacy `datetime.utcnow()` and `datetime.utcfromtimestamp()` usages in runtime code and tests.
+- Clarified device registry keys for DAQ vs Raman simulators and updated orchestrator mapping to avoid collisions.
+- Marked hardware-dependent tests with `pytest.mark.hardware` so they are skipped by default in CI unless explicitly enabled.
+
+---
+
 ## Executive Summary
 
 This roadmap transforms POLYMORPH-LITE from a sophisticated lab automation platform into a **commercially viable, investor-ready Lab Operating System** with:
@@ -1421,14 +1431,12 @@ class CertificateAuthority:
             .issuer_name(self.ca_cert.subject) \
             .public_key(key.public_key()) \
             .serial_number(x509.random_serial_number()) \
-            .not_valid_before(datetime.utcnow()) \
-            .not_valid_after(datetime.utcnow() + timedelta(days=365)) \
+            .not_valid_before(datetime.now(timezone.utc)) \
+            .not_valid_after(datetime.now(timezone.utc) + timedelta(days=365)) \
             .sign(self.ca_key, hashes.SHA256())
 
         return cert, key
 ```
-
-### Deliverables - Phase 4
 - [ ] Multi-tenant database schema (organizations, labs, nodes)
 - [ ] Cloud controller service with WebSocket communication
 - [ ] Remote device hub with gRPC

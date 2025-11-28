@@ -3,12 +3,16 @@ Sample management models for LIMS functionality.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, JSON, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from retrofitkit.db.base import Base
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class Project(Base):
@@ -24,8 +28,8 @@ class Project(Base):
 
     extra_data = Column(JSON, default=dict)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     created_by = Column(String(255), nullable=False)
 
     # Relationships
@@ -46,8 +50,8 @@ class Container(Base):
 
     extra_data = Column(JSON, default=dict)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     samples = relationship("Sample", back_populates="container")
@@ -65,8 +69,8 @@ class Batch(Base):
 
     extra_data = Column(JSON, default=dict)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     created_by = Column(String(255), nullable=False)
 
     # Relationships
@@ -96,8 +100,8 @@ class Sample(Base):
 
     # Audit fields
     created_by = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     updated_by = Column(String(255), nullable=True)
 
     # Relationships
@@ -120,7 +124,7 @@ class SampleLineage(Base):
     relationship_type = Column(String(100), nullable=True)  # split, aliquot, derivative, etc.
 
     extra_data = Column(JSON, default=dict)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     created_by = Column(String(255), nullable=False)
 
     # Relationships

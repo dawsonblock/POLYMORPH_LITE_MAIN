@@ -3,11 +3,15 @@ Device models for hardware tracking and status.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Float, Date, DateTime, JSON
 from sqlalchemy.dialects.postgresql import UUID
 
 from retrofitkit.db.base import Base
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class Device(Base):
@@ -25,8 +29,8 @@ class Device(Base):
     is_active = Column(String(10), default='true')  # Using string for SQLite compatibility
 
     extra_data = Column(JSON, default=dict)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 class DeviceStatus(Base):
@@ -47,4 +51,4 @@ class DeviceStatus(Base):
     health_score = Column(Float, nullable=True)  # 0.0 - 1.0
 
     extra_data = Column(JSON, default=dict)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)

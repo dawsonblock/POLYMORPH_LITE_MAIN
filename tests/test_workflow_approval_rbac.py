@@ -105,7 +105,7 @@ class TestWorkflowApprovalLogic:
 
     def test_approval_sets_metadata(self):
         """Approval should set approved_by, approved_at, and is_approved flag."""
-        from datetime import datetime
+        from datetime import datetime, timezone
         
         mock_workflow = Mock()
         mock_workflow.is_approved = False
@@ -113,7 +113,7 @@ class TestWorkflowApprovalLogic:
         # Simulate approval
         mock_workflow.is_approved = True
         mock_workflow.approved_by = "admin@example.com"
-        mock_workflow.approved_at = datetime.utcnow()
+        mock_workflow.approved_at = datetime.now(timezone.utc)
         
         assert mock_workflow.is_approved is True
         assert mock_workflow.approved_by == "admin@example.com"

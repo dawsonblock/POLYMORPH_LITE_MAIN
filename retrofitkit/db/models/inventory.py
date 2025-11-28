@@ -3,12 +3,20 @@ Inventory management models for stock tracking.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Date, DateTime, ForeignKey, JSON, Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from retrofitkit.db.base import Base
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def utc_today():
+    return datetime.now(timezone.utc).date()
 
 
 class Vendor(Base):
@@ -20,8 +28,8 @@ class Vendor(Base):
     name = Column(String(255), nullable=False)
     contact_info = Column(JSON, default=dict)  # email, phone, address, etc.
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     stock_lots = relationship("StockLot", back_populates="vendor")
@@ -47,8 +55,8 @@ class InventoryItem(Base):
 
     extra_data = Column(JSON, default=dict)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     created_by = Column(String(255), nullable=False)
 
     # Relationships
@@ -71,7 +79,7 @@ class StockLot(Base):
     quantity_remaining = Column(Integer, nullable=False)
 
     # Dates
-    received_date = Column(Date, default=datetime.utcnow, index=True)
+    received_date = Column(Date, default=utc_today, index=True)
     expiration_date = Column(Date, nullable=True, index=True)
 
     # Status
@@ -79,8 +87,8 @@ class StockLot(Base):
 
     extra_data = Column(JSON, default=dict)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     item = relationship("InventoryItem", back_populates="stock_lots")

@@ -7,6 +7,7 @@ register themselves with the global registry.
 
 # DAQ backends
 # from .daq import ni  # noqa: F401 # NI driver not fully implemented in this context yet, skipping to avoid import error if file missing
+from .daq import simulator  # noqa: F401
 from .daq import redpitaya  # noqa: F401
 
 # Raman backends

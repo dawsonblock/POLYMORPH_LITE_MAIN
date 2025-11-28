@@ -3,11 +3,15 @@ Calibration tracking models for instruments.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Date, DateTime, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 
 from retrofitkit.db.base import Base
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class CalibrationEntry(Base):
@@ -32,4 +36,4 @@ class CalibrationEntry(Base):
 
     extra_data = Column(JSON, default=dict)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)

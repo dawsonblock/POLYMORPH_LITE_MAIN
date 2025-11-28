@@ -3,12 +3,16 @@ Role-Based Access Control (RBAC) models.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from retrofitkit.db.base import Base
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class Role(Base):
@@ -20,7 +24,7 @@ class Role(Base):
     description = Column(Text, nullable=True)
     permissions = Column(JSON, default=dict)  # {"resource": ["read", "write", "delete"]}
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     user_roles = relationship("UserRole", back_populates="role", cascade="all, delete-orphan")
@@ -32,7 +36,7 @@ class UserRole(Base):
 
     user_email = Column(String(255), ForeignKey('users.email'), primary_key=True)
     role_id = Column(UUID(as_uuid=True), ForeignKey('roles.id'), primary_key=True)
-    assigned_at = Column(DateTime, default=datetime.utcnow)
+    assigned_at = Column(DateTime, default=utcnow)
     assigned_by = Column(String(255), nullable=True)
 
     # Relationships

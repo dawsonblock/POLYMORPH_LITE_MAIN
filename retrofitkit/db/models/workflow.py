@@ -3,12 +3,17 @@ Workflow and run execution models.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, JSON, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from retrofitkit.db.base import Base
+
+
+def utcnow() -> datetime:
+    """Return current UTC time as a timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 
 class WorkflowVersion(Base):
@@ -30,7 +35,7 @@ class WorkflowVersion(Base):
 
     # Audit
     created_by = Column(String(255), ForeignKey('users.email'), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     approved_by = Column(String(255), nullable=True)
     approved_at = Column(DateTime, nullable=True)
 
@@ -57,7 +62,7 @@ class WorkflowExecution(Base):
     workflow_version_id = Column(UUID(as_uuid=True), ForeignKey('workflow_versions.id'), nullable=False, index=True)
 
     # Execution details
-    started_at = Column(DateTime, default=datetime.utcnow, index=True)
+    started_at = Column(DateTime, default=utcnow, index=True)
     completed_at = Column(DateTime, nullable=True)
     status = Column(String(50), default='created', index=True)  # created, running, completed, failed, aborted
 
@@ -88,7 +93,7 @@ class WorkflowSampleAssignment(Base):
     workflow_execution_id = Column(UUID(as_uuid=True), ForeignKey('workflow_executions.id'), nullable=False, index=True)
     sample_id = Column(UUID(as_uuid=True), ForeignKey('samples.id'), nullable=False, index=True)
 
-    assigned_at = Column(DateTime, default=datetime.utcnow)
+    assigned_at = Column(DateTime, default=utcnow)
     assigned_by = Column(String(255), nullable=False)
 
     # Relationships
@@ -103,7 +108,7 @@ class ConfigSnapshot(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     snapshot_id = Column(String(255), unique=True, nullable=False, index=True)
 
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=utcnow, index=True)
     config_data = Column(JSON, nullable=False)
     config_hash = Column(String(64), nullable=False, index=True)
 

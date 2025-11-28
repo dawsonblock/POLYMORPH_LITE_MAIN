@@ -7,10 +7,10 @@ The registry provides:
 - Runtime device inventory
 """
 from typing import Dict, Type, Any, List, Optional, TYPE_CHECKING
-from retrofitkit.drivers.base import DeviceCapabilities, DeviceKind
 
 if TYPE_CHECKING:
-    from retrofitkit.drivers.base import DeviceBase
+    # Imported only for static type checking to avoid runtime import cycles.
+    from retrofitkit.drivers.base import DeviceBase, DeviceCapabilities, DeviceKind
 
 
 class DeviceRegistry:
@@ -66,7 +66,7 @@ class DeviceRegistry:
         """
         self._drivers.pop(name, None)
 
-    def list_drivers(self) -> Dict[str, DeviceCapabilities]:
+    def list_drivers(self) -> Dict[str, "DeviceCapabilities"]:
         """
         Get all registered drivers and their capabilities.
         
@@ -78,7 +78,7 @@ class DeviceRegistry:
             for name, driver_cls in self._drivers.items()
         }
 
-    def find_by_kind(self, kind: DeviceKind) -> List[str]:
+    def find_by_kind(self, kind: "DeviceKind") -> List[str]:
         """
         Find all drivers of a specific kind.
         
