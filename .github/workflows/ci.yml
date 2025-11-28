@@ -271,7 +271,6 @@ jobs:
             ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-        continue-on-error: true
 
       - name: Build and push frontend
         uses: docker/build-push-action@v5
@@ -284,4 +283,3 @@ jobs:
             ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-        continue-on-error: true
