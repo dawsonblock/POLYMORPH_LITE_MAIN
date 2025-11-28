@@ -1,0 +1,73 @@
+# Prometheus Configuration for POLYMORPH-LITE
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'polymorph-lite'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - 'alertmanager:9093'
+
+# Load rules once and periodically evaluate them
+# rule_files:
+#   - "alerts/*.yml"
+
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Scrape POLYMORPH backend metrics
+  - job_name: 'polymorph-backend'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['backend:8001']
+        labels:
+          service: 'backend-api'
+          component: 'polymorph'
+
+  # Scrape PostgreSQL metrics (if postgres_exporter is enabled)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'database'
+          component: 'postgresql'
+    # Optional: Enable only if you set up postgres_exporter
+    # scrape_interval: 30s
+
+  # Scrape Redis metrics (if redis_exporter is enabled)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'cache'
+          component: 'redis'
+    # Optional: Enable only if you set up redis_exporter
+    # scrape_interval: 30s
+
+  # Node exporter for system metrics (optional)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'system'
+          component: 'node-exporter'
+    # Optional: Enable only if you set up node_exporter
+
+  # AI Service metrics (if available)
+  - job_name: 'ai-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['ai-service:3000']
+        labels:
+          service: 'ai-inference'
+          component: 'ai-service'
+    # Optional: Only if AI service exposes metrics
