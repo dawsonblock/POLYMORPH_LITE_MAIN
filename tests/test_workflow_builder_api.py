@@ -385,3 +385,300 @@ def test_resume_workflow_signals_orchestrator_when_not_testing_env(
     assert response.status_code == 200
     assert "resumed" in response.json()["message"].lower()
     assert called["run_id"] == "RUN-ORC-RESUME"
+
+
+def test_list_workflow_executions_with_filters(mock_db_session, mock_current_user):
+    # Prepare mocked executions
+    exec1 = MagicMock()
+    exec1.run_id = "RUN-1"
+    exec1.id = uuid.uuid4()
+    exec1.workflow_version_id = uuid.uuid4()
+    exec1.started_at = datetime.now(timezone.utc)
+    exec1.completed_at = None
+    exec1.status = "running"
+    exec1.operator = "op@example.com"
+    exec1.results = {}
+    exec1.error_message = None
+
+    # Configure query chain
+    query = MagicMock()
+    mock_db_session.query.return_value = query
+    query.join.return_value = query
+    query.filter.return_value = query
+    query.order_by.return_value.limit.return_value.offset.return_value.all.return_value = [
+        exec1
+    ]
+
+    params = {
+        "workflow_name": "TestWorkflow",
+        "status": "running",
+        "operator": "op@example.com",
+    }
+
+    response = client.get("/api/workflow-builder/executions", params=params)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["run_id"] == "RUN-1"
+
+
+def test_get_workflow_execution_not_found(mock_db_session, mock_current_user):
+    mock_db_session.query.return_value.filter.return_value.first.return_value = None
+
+    response = client.get("/api/workflow-builder/executions/RUN-UNKNOWN")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_get_workflow_execution_happy_path(mock_db_session, mock_current_user):
+    exec1 = MagicMock()
+    exec1.run_id = "RUN-1"
+    exec1.id = uuid.uuid4()
+    exec1.workflow_version_id = uuid.uuid4()
+    exec1.started_at = datetime.now(timezone.utc)
+    exec1.completed_at = None
+    exec1.status = "running"
+    exec1.operator = mock_current_user["email"]
+    exec1.results = {"foo": "bar"}
+    exec1.error_message = None
+
+    mock_db_session.query.return_value.filter.return_value.first.return_value = exec1
+
+    response = client.get("/api/workflow-builder/executions/RUN-1")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["run_id"] == "RUN-1"
+    assert body["status"] == "running"
+    assert body["operator"] == mock_current_user["email"]
+    assert body["results"]["foo"] == "bar"
+
+
+def test_list_workflow_executions_with_date_filters(mock_db_session, mock_current_user):
+    exec1 = MagicMock()
+    exec1.run_id = "RUN-1"
+    exec1.id = uuid.uuid4()
+    exec1.workflow_version_id = uuid.uuid4()
+    exec1.started_at = datetime.now(timezone.utc)
+    exec1.completed_at = None
+    exec1.status = "completed"
+    exec1.operator = "user@example.com"
+    exec1.results = {}
+    exec1.error_message = None
+
+    query = MagicMock()
+    mock_db_session.query.return_value = query
+    query.join.return_value = query
+    query.filter.return_value = query
+    query.order_by.return_value.limit.return_value.offset.return_value.all.return_value = [
+        exec1
+    ]
+
+    started_after = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    started_before = datetime(2025, 1, 2, tzinfo=timezone.utc)
+
+    params = {
+        "started_after": started_after.isoformat(),
+        "started_before": started_before.isoformat(),
+    }
+
+    response = client.get("/api/workflow-builder/executions", params=params)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["run_id"] == "RUN-1"
+
+
+def test_ui_recent_executions_endpoint(mock_db_session, mock_current_user):
+    exec1 = MagicMock()
+    exec1.run_id = "RUN-1"
+    exec1.id = uuid.uuid4()
+    exec1.workflow_version_id = uuid.uuid4()
+    exec1.started_at = datetime.now(timezone.utc)
+    exec1.completed_at = None
+    exec1.status = "running"
+    exec1.operator = "user@example.com"
+    exec1.results = {}
+    exec1.error_message = None
+    exec1.workflow_version = MagicMock(workflow_name="TestWorkflow", version="1")
+
+    exec2 = MagicMock()
+    exec2.run_id = "RUN-2"
+    exec2.id = uuid.uuid4()
+    exec2.workflow_version_id = uuid.uuid4()
+    exec2.started_at = datetime.now(timezone.utc)
+    exec2.completed_at = None
+    exec2.status = "completed"
+    exec2.operator = "user@example.com"
+    exec2.results = {}
+    exec2.error_message = None
+    exec2.workflow_version = MagicMock(workflow_name="TestWorkflow", version="1")
+
+    query = MagicMock()
+    mock_db_session.query.return_value = query
+    query.join.return_value = query
+    query.filter.return_value = query
+    query.order_by.return_value.limit.return_value.all.return_value = [
+        exec1,
+        exec2,
+    ]
+
+    params = {"workflow_name": "TestWorkflow", "limit": 2}
+
+    response = client.get("/api/workflow-builder/ui/recent-executions", params=params)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 2
+    assert {item["run_id"] for item in body} == {"RUN-1", "RUN-2"}
+    for item in body:
+        assert item["workflow_name"] == "TestWorkflow"
+        assert item["workflow_version"] == "1"
+
+
+
+def test_workflow_execution_summary_endpoint(mock_db_session, mock_current_user):
+    exec1 = MagicMock()
+    exec1.status = "running"
+    exec1.started_at = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    exec1.completed_at = datetime(2025, 1, 1, 0, 5, 0, tzinfo=timezone.utc)  # 300s
+
+    exec2 = MagicMock()
+    exec2.status = "completed"
+    exec2.started_at = datetime(2025, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
+    exec2.completed_at = datetime(2025, 1, 1, 1, 10, 0, tzinfo=timezone.utc)  # 600s
+
+    exec3 = MagicMock()
+    exec3.status = "completed"
+    exec3.started_at = datetime(2025, 1, 1, 2, 0, 0, tzinfo=timezone.utc)
+    exec3.completed_at = datetime(2025, 1, 1, 2, 20, 0, tzinfo=timezone.utc)  # 1200s
+
+    query = MagicMock()
+    mock_db_session.query.return_value = query
+    query.join.return_value.filter.return_value.all.return_value = [
+        exec1,
+        exec2,
+        exec3,
+    ]
+
+    response = client.get(
+        "/api/workflow-builder/workflows/TestWorkflow/executions/summary"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["workflow_name"] == "TestWorkflow"
+    assert body["total"] == 3
+    assert body["by_status"]["running"] == 1
+    assert body["by_status"]["completed"] == 2
+
+    # Average duration over runs with both started_at and completed_at
+    # Durations: 300, 600, 1200 -> average = 700
+    assert round(body["average_duration_seconds"]) == 700
+
+    # Last run is exec3 (latest started_at)
+    assert body["last_run_status"] == "completed"
+    assert body["last_run_started_at"].startswith(
+        exec3.started_at.strftime("%Y-%m-%dT%H:%M:%S")
+    )
+
+
+def test_ui_workflow_summary_card_endpoint(mock_db_session, mock_current_user):
+    exec1 = MagicMock()
+    exec1.status = "running"
+    exec1.started_at = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    exec1.completed_at = datetime(2025, 1, 1, 0, 5, 0, tzinfo=timezone.utc)
+
+    exec2 = MagicMock()
+    exec2.status = "completed"
+    exec2.started_at = datetime(2025, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
+    exec2.completed_at = datetime(2025, 1, 1, 1, 10, 0, tzinfo=timezone.utc)
+
+    exec3 = MagicMock()
+    exec3.status = "completed"
+    exec3.started_at = datetime(2025, 1, 1, 2, 0, 0, tzinfo=timezone.utc)
+    exec3.completed_at = datetime(2025, 1, 1, 2, 20, 0, tzinfo=timezone.utc)
+
+    query = MagicMock()
+    mock_db_session.query.return_value = query
+    query.join.return_value.filter.return_value.all.return_value = [
+        exec1,
+        exec2,
+        exec3,
+    ]
+
+    response = client.get(
+        "/api/workflow-builder/ui/workflows/TestWorkflow/card"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["workflow_name"] == "TestWorkflow"
+    assert body["total_runs"] == 3
+    assert body["running_count"] == 1
+    assert body["completed_count"] == 2
+    # Average duration ~ 700 seconds
+    assert round(body["average_duration_seconds"]) == 700
+    assert body["last_run_status"] == "completed"
+
+
+def test_ui_workflow_dashboard_cards(mock_db_session, mock_current_user, monkeypatch):
+    # Distinct workflow names returned from WorkflowVersion
+    query = MagicMock()
+    mock_db_session.query.return_value = query
+    query.distinct.return_value.all.return_value = [("WF-A",), ("WF-B",)]
+
+    from retrofitkit.api import workflow_builder as wb
+
+    async def fake_get_workflow_execution_summary(workflow_name: str):
+        if workflow_name == "WF-A":
+            return wb.WorkflowExecutionSummaryResponse(
+                workflow_name="WF-A",
+                total=3,
+                by_status={"running": 1, "completed": 2},
+                average_duration_seconds=100.0,
+                last_run_status="completed",
+                last_run_started_at=datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+                last_run_completed_at=datetime(2025, 1, 1, 0, 10, 0, tzinfo=timezone.utc),
+            )
+        else:
+            return wb.WorkflowExecutionSummaryResponse(
+                workflow_name="WF-B",
+                total=1,
+                by_status={"failed": 1},
+                average_duration_seconds=None,
+                last_run_status="failed",
+                last_run_started_at=None,
+                last_run_completed_at=None,
+            )
+
+    monkeypatch.setattr(
+        wb, "get_workflow_execution_summary", fake_get_workflow_execution_summary
+    )
+
+    response = client.get("/api/workflow-builder/ui/workflows/cards")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert {card["workflow_name"] for card in body} == {"WF-A", "WF-B"}
+
+    wf_a = next(card for card in body if card["workflow_name"] == "WF-A")
+    assert wf_a["total_runs"] == 3
+    assert wf_a["running_count"] == 1
+    assert wf_a["completed_count"] == 2
+    assert wf_a["failed_count"] == 0
+    assert wf_a["aborted_count"] == 0
+    assert wf_a["average_duration_seconds"] == 100.0
+    assert wf_a["last_run_status"] == "completed"
+
+    wf_b = next(card for card in body if card["workflow_name"] == "WF-B")
+    assert wf_b["total_runs"] == 1
+    assert wf_b["running_count"] == 0
+    assert wf_b["completed_count"] == 0
+    assert wf_b["failed_count"] == 1
+    assert wf_b["aborted_count"] == 0
+    assert wf_b["average_duration_seconds"] is None
+    assert wf_b["last_run_status"] == "failed"

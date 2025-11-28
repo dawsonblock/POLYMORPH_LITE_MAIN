@@ -91,6 +91,45 @@ class WorkflowExecutionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class WorkflowExecutionSummaryResponse(BaseModel):
+    workflow_name: str
+    total: int
+    by_status: Dict[str, int]
+    average_duration_seconds: Optional[float] = None
+    last_run_status: Optional[str] = None
+    last_run_started_at: Optional[datetime] = None
+    last_run_completed_at: Optional[datetime] = None
+
+
+class WorkflowExecutionTableRow(BaseModel):
+    """UI-focused representation of a workflow execution for tables."""
+
+    run_id: str
+    workflow_name: str
+    workflow_version: str
+    status: str
+    operator: str
+    started_at: datetime
+    completed_at: Optional[datetime]
+    total_duration_seconds: Optional[float]
+    orchestrator_run_id: Optional[str]
+
+
+class WorkflowSummaryCard(BaseModel):
+    """UI-focused summary card for a workflow's execution history."""
+
+    workflow_name: str
+    total_runs: int
+    running_count: int
+    completed_count: int
+    failed_count: int
+    aborted_count: int
+    average_duration_seconds: Optional[float] = None
+    last_run_status: Optional[str] = None
+    last_run_started_at: Optional[datetime] = None
+    last_run_completed_at: Optional[datetime] = None
+
+
 # ============================================================================
 # WORKFLOW DEFINITION ENDPOINTS
 # ============================================================================
@@ -868,10 +907,13 @@ async def get_workflow_execution(run_id: str):
 async def list_workflow_executions(
     workflow_name: Optional[str] = None,
     status: Optional[str] = None,
+    operator: Optional[str] = None,
+    started_after: Optional[datetime] = None,
+    started_before: Optional[datetime] = None,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
 ):
-    """List workflow executions with optional filtering."""
+    """List workflow executions with optional filtering for UI consumption."""
     session = get_session()
 
     try:
@@ -886,6 +928,15 @@ async def list_workflow_executions(
         if status:
             query = query.filter(WorkflowExecution.status == status)
 
+        if operator:
+            query = query.filter(WorkflowExecution.operator == operator)
+
+        if started_after:
+            query = query.filter(WorkflowExecution.started_at >= started_after)
+
+        if started_before:
+            query = query.filter(WorkflowExecution.started_at <= started_before)
+
         executions = query.order_by(
             WorkflowExecution.started_at.desc()
         ).limit(limit).offset(offset).all()
@@ -894,6 +945,186 @@ async def list_workflow_executions(
 
     finally:
         session.close()
+
+
+@router.get("/ui/recent-executions", response_model=List[WorkflowExecutionTableRow])
+async def list_recent_workflow_executions(
+    workflow_name: Optional[str] = None,
+    limit: int = 20,
+):
+    session = get_session()
+
+    try:
+        query = session.query(WorkflowExecution)
+
+        if workflow_name:
+            query = query.join(WorkflowVersion).filter(
+                WorkflowVersion.workflow_name == workflow_name
+            )
+
+        executions = query.order_by(
+            WorkflowExecution.started_at.desc()
+        ).limit(limit).all()
+
+        rows: List[WorkflowExecutionTableRow] = []
+        for execution in executions:
+            wf = getattr(execution, "workflow_version", None)
+            wf_name = getattr(wf, "workflow_name", "")
+            wf_version = str(getattr(wf, "version", ""))
+
+            started_at = getattr(execution, "started_at", None)
+            completed_at = getattr(execution, "completed_at", None)
+            duration = None
+            if started_at and completed_at:
+                duration = (completed_at - started_at).total_seconds()
+
+            results = getattr(execution, "results", None) or {}
+            orchestrator_run_id = (
+                results.get("orchestrator_run_id")
+                if isinstance(results, dict)
+                else None
+            )
+
+            rows.append(
+                WorkflowExecutionTableRow(
+                    run_id=execution.run_id,
+                    workflow_name=wf_name,
+                    workflow_version=wf_version,
+                    status=getattr(execution, "status", "unknown"),
+                    operator=getattr(execution, "operator", ""),
+                    started_at=started_at,
+                    completed_at=completed_at,
+                    total_duration_seconds=duration,
+                    orchestrator_run_id=orchestrator_run_id,
+                )
+            )
+
+        return rows
+
+    finally:
+        session.close()
+
+
+@router.get(
+    "/workflows/{workflow_name}/executions/summary",
+    response_model=WorkflowExecutionSummaryResponse,
+)
+async def get_workflow_execution_summary(workflow_name: str):
+    session = get_session()
+
+    try:
+        query = session.query(WorkflowExecution).join(WorkflowVersion).filter(
+            WorkflowVersion.workflow_name == workflow_name
+        )
+
+        executions = query.all()
+
+        by_status: Dict[str, int] = {}
+        durations: List[float] = []
+        last_run = None
+
+        for execution in executions:
+            status = getattr(execution, "status", None) or "unknown"
+            by_status[status] = by_status.get(status, 0) + 1
+
+            started_at = getattr(execution, "started_at", None)
+            completed_at = getattr(execution, "completed_at", None)
+
+            if started_at and completed_at:
+                durations.append((completed_at - started_at).total_seconds())
+
+            if started_at and (last_run is None or started_at > getattr(last_run, "started_at", None)):
+                last_run = execution
+
+        total = len(executions)
+
+        average_duration = sum(durations) / len(durations) if durations else None
+
+        last_run_status = getattr(last_run, "status", None) if last_run else None
+        last_run_started_at = getattr(last_run, "started_at", None) if last_run else None
+        last_run_completed_at = getattr(last_run, "completed_at", None) if last_run else None
+
+        return WorkflowExecutionSummaryResponse(
+            workflow_name=workflow_name,
+            total=total,
+            by_status=by_status,
+            average_duration_seconds=average_duration,
+            last_run_status=last_run_status,
+            last_run_started_at=last_run_started_at,
+            last_run_completed_at=last_run_completed_at,
+        )
+
+    finally:
+        session.close()
+
+
+@router.get(
+    "/ui/workflows/{workflow_name}/card",
+    response_model=WorkflowSummaryCard,
+)
+async def get_workflow_summary_card(workflow_name: str):
+    """Return a flattened summary card view for workflow dashboards."""
+
+    summary = await get_workflow_execution_summary(workflow_name)
+
+    by_status = summary.by_status or {}
+
+    return WorkflowSummaryCard(
+        workflow_name=summary.workflow_name,
+        total_runs=summary.total,
+        running_count=by_status.get("running", 0),
+        completed_count=by_status.get("completed", 0),
+        failed_count=by_status.get("failed", 0),
+        aborted_count=by_status.get("aborted", 0),
+        average_duration_seconds=summary.average_duration_seconds,
+        last_run_status=summary.last_run_status,
+        last_run_started_at=summary.last_run_started_at,
+        last_run_completed_at=summary.last_run_completed_at,
+    )
+
+
+@router.get(
+    "/ui/workflows/cards",
+    response_model=List[WorkflowSummaryCard],
+)
+async def list_workflow_summary_cards():
+    """Return summary cards for all workflows for dashboard views."""
+
+    # First collect distinct workflow names from definitions
+    session = get_session()
+
+    try:
+        rows = (
+            session.query(WorkflowVersion.workflow_name)
+            .distinct()
+            .all()
+        )
+        workflow_names = [row[0] for row in rows if row and row[0]]
+    finally:
+        session.close()
+
+    cards: List[WorkflowSummaryCard] = []
+
+    # Re-use the existing per-workflow summary logic for each workflow
+    for name in workflow_names:
+        summary = await get_workflow_execution_summary(name)
+        by_status = summary.by_status or {}
+        cards.append(
+            WorkflowSummaryCard(
+                workflow_name=summary.workflow_name,
+                total_runs=summary.total,
+                running_count=by_status.get("running", 0),
+                completed_count=by_status.get("completed", 0),
+                failed_count=by_status.get("failed", 0),
+                aborted_count=by_status.get("aborted", 0),
+                average_duration_seconds=summary.average_duration_seconds,
+                last_run_status=summary.last_run_status,
+                last_run_started_at=summary.last_run_started_at,
+                last_run_completed_at=summary.last_run_completed_at,
+            )
+        )
+
+    return cards
 
 
 @router.post("/executions/{run_id}/abort")
