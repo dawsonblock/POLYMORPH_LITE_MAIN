@@ -13,6 +13,8 @@ import {
   Bell,
   User,
   LogOut,
+  GitBranch,
+  Activity,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -26,6 +28,8 @@ import useAuthStore from '@/stores/auth-store'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Workflows', href: '/workflows', icon: GitBranch },
+  { name: 'Runs', href: '/runs', icon: Activity },
   { name: 'System Monitor', href: '/system', icon: Monitor },
   { name: 'Recipe Manager', href: '/recipes', icon: FlaskConical },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },

@@ -10,6 +10,10 @@ import { Analytics } from '@/pages/analytics'
 import { Compliance } from '@/pages/compliance'
 import { Settings } from '@/pages/settings'
 import { LoginPage } from '@/pages/login'
+import { WorkflowsPage } from '@/pages/workflows'
+import { RunsPage } from '@/pages/runs'
+import { RunDetailsPage } from '@/pages/run-details'
+import { WorkflowDetailsPage } from '@/pages/workflow-details'
 
 import { useWebSocket } from '@/hooks/use-websocket'
 import useAuthStore from '@/stores/auth-store'
@@ -45,6 +49,10 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/workflows" element={<WorkflowsPage />} />
+          <Route path="/workflows/:workflowName" element={<WorkflowDetailsPage />} />
+          <Route path="/runs" element={<RunsPage />} />
+          <Route path="/runs/:runId" element={<RunDetailsPage />} />
           <Route path="/system" element={<SystemMonitor />} />
           <Route path="/recipes" element={<RecipeManager />} />
           <Route path="/analytics" element={<Analytics />} />
