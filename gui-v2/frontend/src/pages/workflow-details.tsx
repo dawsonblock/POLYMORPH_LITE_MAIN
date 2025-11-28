@@ -1,9 +1,16 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useRecentExecutions, useWorkflowCard } from '@/hooks/use-workflows'
+import { Button } from '@/components/ui/button'
+import {
+  useRecentExecutions,
+  useWorkflowCard,
+  useExecuteWorkflow,
+  useWorkflowExecutionSummary,
+} from '@/hooks/use-workflows'
 
 export function WorkflowDetailsPage() {
   const params = useParams()
@@ -14,6 +21,10 @@ export function WorkflowDetailsPage() {
     workflow_name: workflowName,
     limit: 20,
   })
+  const { data: summary } = useWorkflowExecutionSummary(workflowName)
+  const [paramsJson, setParamsJson] = useState('{}')
+  const [metadataJson, setMetadataJson] = useState('{}')
+  const execute = useExecuteWorkflow()
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading workflow...</p>
@@ -32,6 +43,36 @@ export function WorkflowDetailsPage() {
 
   const successPct = Math.round((card.success_rate ?? 0) * 100)
 
+  const handleStartRun = () => {
+    let params: any = {}
+    let metadata: any = {}
+    try {
+      params = paramsJson ? JSON.parse(paramsJson) : {}
+    } catch {
+      alert('Parameters JSON is invalid')
+      return
+    }
+    try {
+      metadata = metadataJson ? JSON.parse(metadataJson) : {}
+    } catch {
+      alert('Metadata JSON is invalid')
+      return
+    }
+
+    execute.mutate(
+      {
+        workflow_name: workflowName!,
+        parameters: params,
+        metadata,
+      },
+      {
+        onSuccess: newRun => {
+          window.location.href = `/runs/${newRun.run_id}`
+        },
+      },
+    )
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -43,6 +84,14 @@ export function WorkflowDetailsPage() {
           <h1 className="text-3xl font-bold tracking-tight">{card.workflow_name}</h1>
           <p className="text-muted-foreground">
             Detailed view with recent runs and performance metrics.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            <Link
+              to={`/runs?workflow_name=${encodeURIComponent(card.workflow_name)}&status=failed`}
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              View failed runs in Runs
+            </Link>
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
@@ -129,7 +178,80 @@ export function WorkflowDetailsPage() {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Runs by operator</CardTitle>
+            <CardDescription>Distribution of executions by operator.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {summary && Object.keys(summary.runs_per_operator).length > 0 ? (
+              <div className="space-y-2 text-xs">
+                {Object.entries(summary.runs_per_operator)
+                  .sort(([, a], [, b]) => (b as number) - (a as number))
+                  .map(([operator, count]) => {
+                    const max = Math.max(...Object.values(summary.runs_per_operator)) || 1
+                    const width = `${(Number(count) / max) * 100}%`
+                    return (
+                      <div key={operator} className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="truncate text-muted-foreground">{operator}</span>
+                          <span className="font-medium">{count}</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/40">
+                          <div className="h-full rounded-full bg-primary/80" style={{ width }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No operator breakdown available yet.</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Start new run</CardTitle>
+          <CardDescription>
+            Launch a new execution of this workflow with optional parameters and metadata.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium uppercase text-muted-foreground">
+                Parameters (JSON)
+              </label>
+              <textarea
+                className="h-28 w-full resize-none rounded-md border border-border bg-muted/40 p-2 font-mono text-[11px] text-foreground focus:outline-none"
+                value={paramsJson}
+                onChange={e => setParamsJson(e.target.value)}
+                aria-label="Workflow parameters JSON"
+                placeholder='{"input_volume_ml": 5, "temperature_c": 25}'
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium uppercase text-muted-foreground">
+                Metadata (JSON)
+              </label>
+              <textarea
+                className="h-28 w-full resize-none rounded-md border border-border bg-muted/40 p-2 font-mono text-[11px] text-foreground focus:outline-none"
+                value={metadataJson}
+                onChange={e => setMetadataJson(e.target.value)}
+                aria-label="Run metadata JSON"
+                placeholder='{"batch": "BATCH-001", "sample_id": "S1"}'
+              />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={handleStartRun} disabled={execute.isPending}>
+              {execute.isPending ? 'Starting…' : 'Start run'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

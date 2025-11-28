@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
+import { useLocation } from 'react-router-dom'
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,13 +12,19 @@ import type { ExecutionsFilter } from '@/api/workflow-builder'
 type StatusFilter = 'all' | 'running' | 'completed' | 'failed'
 
 export function RunsPage() {
-  const [workflowName, setWorkflowName] = useState('')
-  const [operator, setOperator] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [metadataKey, setMetadataKey] = useState('')
-  const [metadataValue, setMetadataValue] = useState('')
-  const [startedAfter, setStartedAfter] = useState('')
-  const [startedBefore, setStartedBefore] = useState('')
+  const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+
+  const [workflowName, setWorkflowName] = useState(() => searchParams.get('workflow_name') ?? '')
+  const [operator, setOperator] = useState(() => searchParams.get('operator') ?? '')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    const raw = searchParams.get('status') as StatusFilter | null
+    return raw && ['all', 'running', 'completed', 'failed'].includes(raw) ? raw : 'all'
+  })
+  const [metadataKey, setMetadataKey] = useState(() => searchParams.get('metadata_key') ?? '')
+  const [metadataValue, setMetadataValue] = useState(() => searchParams.get('metadata_value') ?? '')
+  const [startedAfter, setStartedAfter] = useState(() => searchParams.get('started_after') ?? '')
+  const [startedBefore, setStartedBefore] = useState(() => searchParams.get('started_before') ?? '')
 
   const effectiveFilter: ExecutionsFilter = useMemo(
     () => ({

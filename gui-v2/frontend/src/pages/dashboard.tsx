@@ -13,16 +13,18 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { useWebSocket } from '@/hooks/use-websocket'
+import { useRecentExecutions } from '@/hooks/use-workflows'
+
+type StatusFilter = 'all' | 'running' | 'completed' | 'failed'
 
 export function Dashboard() {
-  const { lastMessage } = useWebSocket()
   const [systemStats, setSystemStats] = useState({
     cpu: 0,
     memory: 0,
     disk: 0,
     uptime: '0h 0m'
   })
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   // Mock data updates (replace with real websocket data later)
   useEffect(() => {
@@ -50,6 +52,44 @@ export function Dashboard() {
   const item = {
     hidden: { y: 20, opacity: 0 },
     show: { y: 0, opacity: 1 }
+  }
+
+  const { data: recentRuns, isLoading: isLoadingRecent, error: recentError } = useRecentExecutions({
+    limit: 5,
+  })
+
+  const rawRecentRuns = recentRuns ?? []
+  const filteredRecentRuns =
+    statusFilter === 'all'
+      ? rawRecentRuns
+      : rawRecentRuns.filter(run => run.status === statusFilter)
+
+  const durationValues = filteredRecentRuns
+    .map(run => run.total_duration_seconds)
+    .filter((v): v is number => v != null)
+    .sort((a, b) => a - b)
+
+  const totalFiltered = filteredRecentRuns.length
+  const completedFiltered = filteredRecentRuns.filter(run => run.status === 'completed').length
+
+  let successRateDisplay: string | null = null
+  let medianDisplay: string | null = null
+  let p95Display: string | null = null
+
+  if (totalFiltered > 0) {
+    successRateDisplay = `${Math.round((completedFiltered / totalFiltered) * 100)}%`
+  }
+
+  if (durationValues.length > 0) {
+    const mid = Math.floor(durationValues.length / 2)
+    const median =
+      durationValues.length % 2 === 1
+        ? durationValues[mid]
+        : (durationValues[mid - 1] + durationValues[mid]) / 2
+    const p95Index = Math.floor(0.95 * (durationValues.length - 1))
+    const p95 = durationValues[p95Index]
+    medianDisplay = `${median.toFixed(1)}s`
+    p95Display = `${p95.toFixed(1)}s`
   }
 
   return (
@@ -194,7 +234,106 @@ export function Dashboard() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Recent workflow runs */}
+        <motion.div variants={item} className="col-span-3">
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle>Recent workflow runs</CardTitle>
+              <CardDescription>Latest executions across all workflows.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingRecent && (
+                <p className="text-sm text-muted-foreground">Loading recent runs...</p>
+              )}
+              {recentError && (
+                <p className="text-xs text-destructive">
+                  {(recentError as Error).message}
+                </p>
+              )}
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex gap-1">
+                  {(['all', 'running', 'completed', 'failed'] as StatusFilter[]).map(s => {
+                    const isActive = statusFilter === s
+                    return (
+                      <Button
+                        key={s}
+                        type="button"
+                        variant={isActive ? 'default' : 'outline'}
+                        size="sm"
+                        className="text-[11px]"
+                        onClick={() => setStatusFilter(s)}
+                      >
+                        {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                      </Button>
+                    )
+                  })}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  {successRateDisplay && <span>Success {successRateDisplay}</span>}
+                  {medianDisplay && (
+                    <span className={successRateDisplay ? 'ml-2' : ''}>Median {medianDisplay}</span>
+                  )}
+                  {p95Display && <span className="ml-2">P95 {p95Display}</span>}
+                </div>
+              </div>
+              {filteredRecentRuns.length > 0 ? (
+                <div className="space-y-2 text-xs">
+                  {filteredRecentRuns.map(run => (
+                    <div
+                      key={run.run_id}
+                      className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-2 py-1.5"
+                    >
+                      <div className="space-y-0.5">
+                        <a
+                          href={`/runs/${run.run_id}`}
+                          className="font-mono text-[11px] text-primary underline-offset-2 hover:underline"
+                        >
+                          {run.run_id.slice(0, 8)}…
+                        </a>
+                        <p className="text-[11px] text-muted-foreground">
+                          {run.workflow_name} · {run.operator ?? 'Unknown'}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <DashboardStatusBadge status={run.status} />
+                        <span className="text-[10px] text-muted-foreground">
+                          {run.started_at ?? '—'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-1 text-right text-[11px]">
+                    <a
+                      href={`/runs${
+                        statusFilter === 'all' ? '' : `?status=${encodeURIComponent(statusFilter)}`
+                      }`}
+                      className="text-primary underline-offset-2 hover:underline"
+                    >
+                      View all in Runs
+                    </a>
+                  </div>
+                </div>
+              ) : !isLoadingRecent && !recentError ? (
+                <p className="text-sm text-muted-foreground">No recent workflow runs.</p>
+              ) : null}
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     </motion.div>
   )
+}
+
+function DashboardStatusBadge({ status }: { status: string }) {
+  if (status === 'completed') {
+    return <Badge variant="success">Completed</Badge>
+  }
+  if (status === 'failed') {
+    return <Badge variant="error">Failed</Badge>
+  }
+  if (status === 'running') {
+    return <Badge variant="default">Running</Badge>
+  }
+  return <Badge variant="outline">{status}</Badge>
 }
