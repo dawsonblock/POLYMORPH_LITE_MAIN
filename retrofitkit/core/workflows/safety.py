@@ -33,7 +33,7 @@ class PolicyBase(Protocol):
         Raises:
             RuntimeError: If policy violation detected
         """
-        ...
+        pass
 
 
 class LoggingPolicy:

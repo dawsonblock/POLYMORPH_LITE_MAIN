@@ -22,10 +22,11 @@ class WorkflowExecutor:
     """
     Executes a Recipe step-by-step.
     """
-    def __init__(self, config, db_logger: DatabaseLogger, ai_client=None):
+    def __init__(self, config, db_logger: DatabaseLogger, ai_client=None, gating_engine=None):
         self.config = config
         self.logger = db_logger
         self.ai_client = ai_client
+        self.gating_engine = gating_engine
         self.step_results = []  # Track results of each step for context
         self.router = get_router()
         self.interlocks = None
@@ -174,6 +175,22 @@ class WorkflowExecutor:
             self.interlocks.check_safe()
 
         data = await driver.acquire_spectrum(exposure_time=params.get("exposure_time"))
+        
+        # Feed to Gating Engine
+        if self.gating_engine:
+            # Convert to dict if needed, as GatingEngine expects dict
+            # Assuming driver returns Spectrum object or dict
+            spectrum_dict = data.to_dict() if hasattr(data, "to_dict") else data
+            
+            should_stop = self.gating_engine.update(spectrum_dict)
+            if should_stop:
+                logger.info("Gating Engine triggered STOP condition.")
+                self.stop()
+                # We can also return a flag in the result
+                if isinstance(data, dict):
+                    data["gating_stop"] = True
+                # If Spectrum object, we might need to attach it to meta, but for now let's just stop.
+
         return data # Contains wavelengths, intensities, metadata
 
     async def _handle_compute(self, params: Dict[str, Any]):

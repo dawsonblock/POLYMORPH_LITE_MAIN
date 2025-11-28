@@ -11,7 +11,8 @@ from retrofitkit.db.session import get_db
 def client(db_session):
     """Create test client with DB session override."""
     app.dependency_overrides[get_db] = lambda: db_session
-    return TestClient(app)
+    yield TestClient(app)
+    app.dependency_overrides = {}
 
 # Mock data for auth
 LOGIN_PAYLOAD = {
@@ -37,17 +38,26 @@ async def test_golden_run_headless_gui(client):
     # We can override the get_current_user dependency for simplicity in this test
     # to avoid dealing with real JWT generation/validation complexities here.
     
-    from retrofitkit.api.security import get_current_user
-    from retrofitkit.compliance.tokens import get_current_user as get_compliance_user
+    from retrofitkit.api.security import get_current_user as get_security_user
+    from retrofitkit.api.dependencies import get_current_user as get_dependency_user
+    from types import SimpleNamespace
     
-    mock_user = {
+    # Mock user as dict for legacy security
+    mock_user_dict = {
         "email": "operator@example.com",
         "role": "Operator",
         "permissions": ["run:execute", "audit:read"]
     }
     
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-    app.dependency_overrides[get_compliance_user] = lambda: mock_user
+    # Mock user as object for new dependencies
+    mock_user_obj = SimpleNamespace(
+        email="operator@example.com",
+        role="Operator",
+        permissions=["run:execute", "audit:read"]
+    )
+    
+    app.dependency_overrides[get_security_user] = lambda: mock_user_dict
+    app.dependency_overrides[get_dependency_user] = lambda: mock_user_obj
     
     # 2. Check Status
     response = client.get("/api/status")
@@ -94,23 +104,31 @@ async def test_golden_run_headless_gui(client):
         
         # Step 3b: Approve (as Operator)
         # The requester must also approve explicitly in this implementation
-        app.dependency_overrides[get_current_user] = lambda: mock_user
+        app.dependency_overrides[get_security_user] = lambda: mock_user_dict
+        app.dependency_overrides[get_dependency_user] = lambda: mock_user_obj
         resp = client.post("/api/approve", json={"request_id": req_id})
         assert resp.status_code == 200
 
         # Step 3c: Approve (as QA)
-        mock_qa = {
+        mock_qa_obj = SimpleNamespace(
+            email="qa@example.com",
+            role="QA",
+            permissions=["run:approve"]
+        )
+        mock_qa_dict = {
             "email": "qa@example.com",
             "role": "QA",
             "permissions": ["run:approve"]
         }
-        app.dependency_overrides[get_current_user] = lambda: mock_qa
+        app.dependency_overrides[get_security_user] = lambda: mock_qa_dict
+        app.dependency_overrides[get_dependency_user] = lambda: mock_qa_obj
         
         resp = client.post("/api/approve", json={"request_id": req_id})
         assert resp.status_code == 200
         
         # Step 3d: Execute (as Operator)
-        app.dependency_overrides[get_current_user] = lambda: mock_user
+        app.dependency_overrides[get_security_user] = lambda: mock_user_dict
+        app.dependency_overrides[get_dependency_user] = lambda: mock_user_obj
         
         # Note: /api/run is async, TestClient handles async endpoints but the Orchestrator.run is async.
         # TestClient uses Starlette's TestClient which runs in a thread. 

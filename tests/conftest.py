@@ -77,5 +77,6 @@ def db_session():
     # This ensures a clean state for the next test even if commits happened
     with engine.connect() as conn:
         for table in reversed(Base.metadata.sorted_tables):
+            # print(f"DEBUG: Deleting table {table.name}")
             conn.execute(table.delete())
         conn.commit()

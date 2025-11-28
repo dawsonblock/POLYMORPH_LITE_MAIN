@@ -51,11 +51,11 @@ class DeviceBase(Protocol):
 
     async def connect(self) -> None:
         """Establish connection to hardware device."""
-        ...
+        pass
 
     async def disconnect(self) -> None:
         """Close connection to hardware device."""
-        ...
+        pass
 
     async def health(self) -> Dict[str, Any]:
         """
@@ -64,7 +64,7 @@ class DeviceBase(Protocol):
         Returns:
             Dict with at least {"status": "ok"|"warning"|"error"}
         """
-        ...
+        pass
 
 
 @runtime_checkable
@@ -76,7 +76,7 @@ class SpectrometerDevice(DeviceBase, Protocol):
     """
     async def acquire_spectrum(self, **kwargs) -> "Spectrum":  # type: ignore[name-defined]
         """Acquire a spectrum with device-specific parameters."""
-        ...
+        pass
 
 
 @runtime_checkable
@@ -88,19 +88,19 @@ class DAQDevice(DeviceBase, Protocol):
     """
     async def read_ai(self, channel: int = 0) -> float:
         """Read analog input voltage from channel."""
-        ...
+        pass
 
     async def write_ao(self, channel: int, value: float) -> None:
         """Write analog output voltage to channel."""
-        ...
+        pass
 
     async def read_di(self, line: int) -> bool:
         """Read digital input state."""
-        ...
+        pass
 
     async def write_do(self, line: int, state: bool) -> None:
         """Write digital output state."""
-        ...
+        pass
 
 
 @runtime_checkable
@@ -112,23 +112,23 @@ class MotionDevice(DeviceBase, Protocol):
     """
     async def move_to(self, position: float, **kwargs) -> None:
         """Move to absolute position."""
-        ...
+        pass
 
     async def move_relative(self, distance: float, **kwargs) -> None:
         """Move relative to current position."""
-        ...
+        pass
 
     async def home(self) -> None:
         """Home the stage to reference position."""
-        ...
+        pass
 
     async def get_position(self) -> float:
         """Get current position."""
-        ...
+        pass
 
     async def stop(self) -> None:
         """Emergency stop."""
-        ...
+        pass
 
 
 @runtime_checkable
@@ -140,23 +140,23 @@ class LaserDevice(DeviceBase, Protocol):
     """
     async def set_power(self, power_mw: float) -> None:
         """Set laser power in milliwatts."""
-        ...
+        pass
 
     async def get_power(self) -> float:
         """Get current laser power."""
-        ...
+        pass
 
     async def enable(self) -> None:
         """Enable laser output (open shutter)."""
-        ...
+        pass
 
     async def disable(self) -> None:
         """Disable laser output (close shutter)."""
-        ...
+        pass
 
     async def is_enabled(self) -> bool:
         """Check if laser output is enabled."""
-        ...
+        pass
 
 # --- Safety Integration ---
 
@@ -178,7 +178,9 @@ class SafetyAwareMixin:
         self.config = config
         try:
             self.interlocks = get_interlocks(config)
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"SafetyAwareMixin: Failed to initialize interlocks: {e}")
             self.interlocks = None
 
     async def ensure_safe(self):

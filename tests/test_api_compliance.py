@@ -45,11 +45,12 @@ def mock_db_session():
         
         yield session
 
-from retrofitkit.compliance.tokens import get_current_user
+from retrofitkit.api.dependencies import get_current_user
 
 @pytest.fixture
 def mock_current_user():
-    user = {"email": "test@example.com", "role": "admin"}
+    from types import SimpleNamespace
+    user = SimpleNamespace(email="test@example.com", role="admin")
     app.dependency_overrides[get_current_user] = lambda: user
     yield user
     app.dependency_overrides = {}
@@ -88,7 +89,7 @@ def test_get_run_details_not_found(mock_db_session, mock_current_user):
     response = client.get("/api/compliance/run/RUN-UNKNOWN")
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    assert "not found" in response.json()["error"]["message"].lower()
 
 
 def test_get_run_details_happy_path(mock_db_session, mock_current_user):

@@ -373,6 +373,37 @@ async def resume_workflow_execution(
         session.close()
 
 
+@router.get("/workflows", response_model=List[str])
+async def list_workflows():
+    """List all unique workflow names."""
+    session = get_session()
+    try:
+        # Get distinct workflow names
+        names = session.query(WorkflowVersion.workflow_name).distinct().all()
+        return [n[0] for n in names]
+    finally:
+        session.close()
+
+
+@router.get("/executions/{run_id}", response_model=WorkflowExecutionResponse)
+async def get_execution(run_id: str):
+    """Get workflow execution details."""
+    session = get_session()
+    try:
+        execution = session.query(WorkflowExecution).filter(
+            WorkflowExecution.run_id == run_id
+        ).first()
+
+        if not execution:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Execution '{run_id}' not found"
+            )
+        return execution
+    finally:
+        session.close()
+
+
 @router.get("/workflows/{workflow_name}", response_model=List[WorkflowDefinitionResponse])
 async def list_workflow_versions(workflow_name: str):
     """List all versions of a workflow."""
@@ -746,6 +777,24 @@ def _graph_to_recipe(workflow_version: WorkflowVersion, parameters: Dict[str, An
             steps.append(RecipeStep(
                 type="hold",
                 params={"seconds": float(merged_params.get("seconds", 1.0))}
+            ))
+        elif node_type == "ai-evaluate":
+            steps.append(RecipeStep(
+                type="ai_decision",
+                params={
+                    "critical": merged_params.get("critical", True),
+                    "model": merged_params.get("model", "default")
+                }
+            ))
+        elif node_type == "gate":
+            # Simple gate: if condition met, stop or branch
+            # For now, we map to a decision step or just a check
+            steps.append(RecipeStep(
+                type="decision",
+                params={
+                    "condition": merged_params.get("condition", "True"),
+                    # In a real graph, we'd map edges to branches
+                }
             ))
         # Skip Start/End nodes - they're just UI markers
 

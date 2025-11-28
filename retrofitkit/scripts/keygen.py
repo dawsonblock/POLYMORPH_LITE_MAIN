@@ -2,7 +2,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 import os
 
-BASE = "/mnt/data/Polymorph4_Retrofit_Kit_v1/config/keys"
+BASE = os.getenv("P4_KEYS_DIR", "data/keys")
 PRIV = os.path.join(BASE, "private.pem")
 PUB = os.path.join(BASE, "public.pem")
 

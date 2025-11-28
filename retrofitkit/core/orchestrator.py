@@ -10,6 +10,7 @@ from retrofitkit.data.storage import DataStore
 from retrofitkit.metrics.exporter import Metrics
 from retrofitkit.core.data_models import Spectrum
 from retrofitkit.core.registry import registry
+from retrofitkit.core.safety.interlocks import get_interlocks
 import retrofitkit.drivers  # noqa: F401
 
 # Import drivers to trigger auto-registration
@@ -54,6 +55,10 @@ class Orchestrator:
         if hasattr(ctx.config, 'gating') and hasattr(ctx.config.gating, 'rules'):
              from retrofitkit.core.gating import GatingEngine
              self.gating_engine = GatingEngine(ctx.config.gating.rules)
+
+        # Safety Interlocks
+        self.interlocks = get_interlocks(ctx.config)
+        self.interlocks.set_daq(self.daq)
 
     @property
     def status(self) -> Dict[str, Any]:
@@ -162,6 +167,10 @@ class Orchestrator:
                     await asyncio.sleep(0.1)
                     await self.daq.toggle_watchdog(False)
 
+                # Poll Interlocks
+                if self.interlocks:
+                    await self.interlocks.check_status()
+
                 await asyncio.sleep(1.0)
             except asyncio.CancelledError:
                 break
@@ -191,7 +200,7 @@ class Orchestrator:
 
         # Initialize new engine components
         db_logger = DatabaseLogger(get_session)
-        executor = WorkflowExecutor(self.ctx.config, db_logger, self.ai_client)
+        executor = WorkflowExecutor(self.ctx.config, db_logger, self.ai_client, self.gating_engine)
         self._executor = executor
 
         # Update metrics and state

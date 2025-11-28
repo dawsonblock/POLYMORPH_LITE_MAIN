@@ -37,7 +37,7 @@ def test_activate_workflow_insufficient_permissions(mock_db_session, mock_curren
     response = client.post("/api/workflow-builder/workflows/TestWorkflow/v/1/activate")
     
     assert response.status_code == 403
-    assert "Insufficient permissions" in response.json()["detail"]
+    assert "Insufficient permissions" in response.json()["error"]["message"]
 
 def test_activate_workflow_success(mock_db_session, mock_current_user):
     # Mock user with "admin" role
@@ -86,7 +86,7 @@ def test_execute_workflow_unapproved_returns_403(mock_db_session, mock_current_u
     )
 
     assert response.status_code == 403
-    assert "must be approved" in response.json()["detail"].lower()
+    assert "must be approved" in response.json()["error"]["message"].lower()
 
 
 def test_execute_workflow_missing_workflow_returns_404(mock_db_session, mock_current_user):
@@ -102,7 +102,7 @@ def test_execute_workflow_missing_workflow_returns_404(mock_db_session, mock_cur
     )
 
     assert response.status_code == 404
-    assert "workflow" in response.json()["detail"].lower()
+    assert "workflow" in response.json()["error"]["message"].lower()
 
 
 def test_execute_workflow_happy_path_creates_execution(mock_db_session, mock_current_user):
@@ -284,7 +284,7 @@ def test_abort_workflow_missing_execution_returns_404(mock_db_session, mock_curr
     )
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    assert "not found" in response.json()["error"]["message"].lower()
 
 
 def test_abort_workflow_with_invalid_status_returns_400(mock_db_session, mock_current_user):
@@ -299,7 +299,7 @@ def test_abort_workflow_with_invalid_status_returns_400(mock_db_session, mock_cu
     )
 
     assert response.status_code == 400
-    assert "cannot abort" in response.json()["detail"].lower()
+    assert "cannot abort" in response.json()["error"]["message"].lower()
 
 
 def test_abort_workflow_signals_orchestrator_when_not_testing_env(
@@ -341,7 +341,7 @@ def test_pause_workflow_missing_execution_returns_404(mock_db_session, mock_curr
     response = client.post("/api/workflow-builder/executions/RUN-UNKNOWN/pause")
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    assert "not found" in response.json()["error"]["message"].lower()
 
 
 def test_pause_workflow_with_invalid_status_returns_400(mock_db_session, mock_current_user):
@@ -353,7 +353,7 @@ def test_pause_workflow_with_invalid_status_returns_400(mock_db_session, mock_cu
     response = client.post("/api/workflow-builder/executions/RUN-COMPLETED/pause")
 
     assert response.status_code == 400
-    assert "cannot pause" in response.json()["detail"].lower()
+    assert "cannot pause" in response.json()["error"]["message"].lower()
 
 
 def test_pause_workflow_signals_orchestrator_when_not_testing_env(
@@ -390,7 +390,7 @@ def test_resume_workflow_missing_execution_returns_404(mock_db_session, mock_cur
     response = client.post("/api/workflow-builder/executions/RUN-UNKNOWN/resume")
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    assert "not found" in response.json()["error"]["message"].lower()
 
 
 def test_resume_workflow_with_invalid_status_returns_400(mock_db_session, mock_current_user):
@@ -402,7 +402,7 @@ def test_resume_workflow_with_invalid_status_returns_400(mock_db_session, mock_c
     response = client.post("/api/workflow-builder/executions/RUN-RUNNING/resume")
 
     assert response.status_code == 400
-    assert "cannot resume" in response.json()["detail"].lower()
+    assert "cannot resume" in response.json()["error"]["message"].lower()
 
 
 def test_resume_workflow_signals_orchestrator_when_not_testing_env(
@@ -508,7 +508,7 @@ def test_get_workflow_execution_not_found(mock_db_session, mock_current_user):
     response = client.get("/api/workflow-builder/executions/RUN-UNKNOWN")
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    assert "not found" in response.json()["error"]["message"].lower()
 
 
 def test_get_workflow_execution_happy_path(mock_db_session, mock_current_user):
@@ -796,7 +796,7 @@ def test_rerun_workflow_execution_missing_original_returns_404(
     )
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    assert "not found" in response.json()["error"]["message"].lower()
 
 
 def test_rerun_workflow_execution_unapproved_workflow_returns_403(
@@ -815,7 +815,7 @@ def test_rerun_workflow_execution_unapproved_workflow_returns_403(
     )
 
     assert response.status_code == 403
-    assert "approved" in response.json()["detail"].lower()
+    assert "approved" in response.json()["error"]["message"].lower()
 
 
 def test_rerun_workflow_execution_happy_path(
