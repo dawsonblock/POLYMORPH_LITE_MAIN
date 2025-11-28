@@ -65,7 +65,7 @@
 - Indexed columns for faster lookups
 
 ### Code Quality
-- Reduced `database/models.py` from 600 → 44 lines (compatibility shim)
+- Removed deprecated `database/models.py` (fully migrated to `retrofitkit/db/`)
 - Organized models into domain-specific files
 - Eliminated duplicate ORM definitions
 
@@ -189,7 +189,6 @@ If you need to preserve v2.0 data:
 
 - Frontend LIMS pages not yet implemented (API ready)
 - Workflow builder → orchestrator integration incomplete
-- Old `database/models.py` still exists as compatibility shim (can be removed later)
 
 ---
 
@@ -200,7 +199,7 @@ If you need to preserve v2.0 data:
 - Advanced audit reports
 - Multi-site organization features
 - Token revocation model
-- Comprehensive test coverage
+- Comprehensive test coverage (Achieved in v3.0.0)
 
 ---
 
