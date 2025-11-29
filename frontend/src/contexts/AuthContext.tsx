@@ -1,16 +1,18 @@
 // eslint-disable-next-line react-refresh/only-export-components
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { authApi } from '../api/auth';
 import type { LoginRequest, User } from '../types/api';
 
 interface AuthContextType {
     user: User | null;
-    loading: boolean;
-    login: (credentials: LoginRequest) => Promise<void>;
+    login: (data: LoginRequest) => Promise<void>;
     logout: () => void;
+    loading: boolean;
     isAuthenticated: boolean;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
