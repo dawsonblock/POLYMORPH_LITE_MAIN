@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Optional, Dict, Any
 import yaml
 
@@ -16,6 +16,17 @@ class Recipe(BaseModel):
     version: str = "1.0"
     metadata: Dict[str, Any] = {}
     steps: List[Step]
+
+    @field_validator("steps")
+    @classmethod
+    def validate_steps(cls, v):
+        if len(v) > 50:
+            raise ValueError("Workflow exceeds maximum length of 50 steps.")
+        
+        for step in v:
+            if step.type in ["loop", "parallel"]:
+                raise ValueError(f"Step type '{step.type}' is not supported in this version.")
+        return v
 
     @staticmethod
     def from_yaml(path: str) -> "Recipe":

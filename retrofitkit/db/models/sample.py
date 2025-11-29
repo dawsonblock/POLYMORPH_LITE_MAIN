@@ -91,7 +91,7 @@ class Sample(Base):
     container_id = Column(UUID(as_uuid=True), ForeignKey('containers.id'), nullable=True, index=True)
     parent_sample_id = Column(UUID(as_uuid=True), ForeignKey('samples.id'), nullable=True, index=True)
     batch_id = Column(UUID(as_uuid=True), ForeignKey('batches.id'), nullable=True, index=True)
-    org_id = Column(String(255), nullable=True, index=True)
+    org_id = Column(String(255), ForeignKey('organizations.org_id'), nullable=True, index=True)
 
     # Status tracking
     status = Column(String(50), default='active', index=True)  # active, consumed, disposed, quarantined

@@ -4,7 +4,7 @@ Device models for hardware tracking and status.
 
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Float, Date, DateTime, JSON
+from sqlalchemy import Column, String, Float, Date, DateTime, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 
 from retrofitkit.db.base import Base
@@ -38,7 +38,7 @@ class DeviceStatus(Base):
     __tablename__ = 'device_status'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    device_id = Column(String(255), unique=True, nullable=False, index=True)
+    device_id = Column(String(255), ForeignKey('devices.device_id', ondelete='CASCADE'), unique=True, nullable=False, index=True)
 
     # Status
     status = Column(String(50), default='operational', index=True)  # operational, maintenance, offline, error

@@ -113,6 +113,10 @@ class HoribaRaman(ProductionHardwareDriver):
         """
         if horiba_sdk is None:
             # Simulation mode
+            import os
+            if os.environ.get("USE_REAL_HARDWARE") == "1":
+                raise RuntimeError("USE_REAL_HARDWARE=1 but Horiba SDK not found.")
+
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(

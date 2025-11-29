@@ -9,6 +9,7 @@ from retrofitkit.drivers.daq.base import DAQBase
 from retrofitkit.drivers.production_base import ProductionHardwareDriver
 from retrofitkit.drivers.base import DeviceCapabilities, DAQDevice, DeviceKind
 from retrofitkit.core.registry import registry
+from retrofitkit.core.hardware_utils import hardware_call
 
 try:
     import nidaqmx
@@ -114,6 +115,7 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
             t.ao_channels.add_ao_voltage_chan(f"{self.dev}/{self.ao}")
             t.write(self._last_v)
 
+    @hardware_call(timeout=1.0)
     async def set_voltage(self, volts: float):
         await self._run_blocking(self._set_voltage_blocking, volts, timeout=1.0)
 
@@ -124,6 +126,7 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
             t.ai_channels.add_ai_voltage_chan(f"{self.dev}/{self.ai}")
             return float(t.read())
 
+    @hardware_call(timeout=1.0)
     async def read_ai(self) -> float:
         return await self._run_blocking(self._read_ai_blocking, timeout=1.0)
 
@@ -143,6 +146,7 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
             val = t.read()
         return bool(val)
 
+    @hardware_call(timeout=0.5)
     async def read_di(self, line: int) -> bool:
         return await self._run_blocking(self._read_di_blocking, line, timeout=0.5)
 
@@ -154,10 +158,12 @@ class NIDAQ(ProductionHardwareDriver, DAQBase, DAQDevice):
             t.do_channels.add_do_chan(f"{self.dev}/{name}", line_grouping=LineGrouping.CHAN_PER_LINE)
             t.write(bool(on))
 
+    @hardware_call(timeout=1.0)
     async def write_do(self, line: int, on: bool):
         await self._run_blocking(self._write_do_blocking, line, on, timeout=1.0)
 
     # Optional: call this from an async heartbeat to toggle a DO line
+    @hardware_call(timeout=1.0)
     async def toggle_watchdog(self, v: bool):
         def _toggle():
             if not self._use_real_hardware:

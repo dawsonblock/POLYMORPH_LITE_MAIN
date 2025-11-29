@@ -56,6 +56,14 @@ class AIServiceClient:
             else:
                 return {}
 
+        # Input Sanitization
+        if not spectrum or not isinstance(spectrum, list):
+                raise ValueError("AI Input Error: Spectrum must be a non-empty list.")
+        
+        import math
+        if any(not isinstance(x, (int, float)) or math.isnan(x) or math.isinf(x) for x in spectrum):
+                raise ValueError("AI Input Error: Spectrum contains non-numeric or invalid (NaN/Inf) values.")
+
         try:
             async with httpx.AsyncClient() as client:
                 payload = {"spectrum": spectrum}
@@ -65,11 +73,21 @@ class AIServiceClient:
                 response = await client.post(url, json=payload, timeout=2.0)
 
                 if response.status_code == 200:
+                    data = response.json()
+                    if not isinstance(data, dict):
+                        raise ValueError("AI Output Error: Invalid response format.")
+                    
+                    # Validate concentration if present
+                    if "concentration" in data:
+                        val = data["concentration"]
+                        if not isinstance(val, (int, float)) or math.isnan(val) or math.isinf(val):
+                            raise ValueError(f"AI Output Error: Invalid concentration value: {val}")
+                            
                     if self._circuit_open:
                         logger.info("AI Circuit Breaker: Recovered.")
                         self._failures = 0
                         self._circuit_open = False
-                    return dict(response.json())
+                    return dict(data)
                 else:
                     self._record_failure()
                     msg = f"AI Service Error: {response.status_code}"

@@ -81,6 +81,16 @@ else:
         max_overflow=settings.max_overflow
     )
 
+from sqlalchemy import event
+
+# Enable foreign keys for SQLite
+if "sqlite" in settings.database_url:
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
 # Create SessionLocal class
 SessionLocal = sessionmaker(
     autocommit=False,
@@ -103,3 +113,33 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+from contextlib import contextmanager
+from retrofitkit.core.error_codes import ErrorCode
+import logging
+
+logger = logging.getLogger(__name__)
+
+@contextmanager
+def safe_db_commit(db: Session):
+    """
+    Context manager for atomic DB transactions.
+    
+    Usage:
+        with safe_db_commit(db):
+            db.add(new_item)
+            # commit is automatic
+            
+    On error:
+        - Rolls back transaction
+        - Logs error
+        - Re-raises exception
+    """
+    try:
+        yield
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"DB Transaction Failed: {e}", extra={"error_code": ErrorCode.DB_INTEGRITY_ERROR})
+        raise e

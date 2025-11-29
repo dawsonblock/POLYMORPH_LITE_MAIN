@@ -332,6 +332,14 @@ class PolymorphConfig:
         if self.daq.backend == "redpitaya" and not self.daq.redpitaya_host:
             issues.setdefault('daq', []).append("Red Pitaya host is required when using Red Pitaya backend")
 
+        # Check for default secrets in production
+        if self.system.environment == Environment.PRODUCTION:
+            if self.security.jwt_secret_key == "your-secret-key-change-this":
+                issues.setdefault('security', []).append("CRITICAL: Default JWT secret key in use in PRODUCTION")
+            
+            if self.security.jwt_algorithm == "HS256" and len(self.security.jwt_secret_key) < 32:
+                 issues.setdefault('security', []).append("CRITICAL: JWT secret key too short for HS256 in PRODUCTION")
+
         return issues
 
 

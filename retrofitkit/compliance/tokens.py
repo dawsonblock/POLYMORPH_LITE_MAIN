@@ -13,17 +13,15 @@ from sqlalchemy.orm import Session
 
 from retrofitkit.db.models.user import User
 
+from retrofitkit.core.config import get_config
+
+settings = get_config()
+
 # JWT Configuration
-SECRET = "dev-secret-key-change-in-production"
-ALG = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# OAuth2 scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-
-# Constants
-SECRET_KEY = SECRET
-JWT_SECRET_KEY = SECRET
+SECRET_KEY = settings.security.jwt_secret_key
+JWT_SECRET_KEY = settings.security.jwt_secret_key
+ALG = settings.security.jwt_algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.security.jwt_exp_minutes
 
 
 def create_access_token(data: dict, expires_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES) -> str:

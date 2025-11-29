@@ -69,6 +69,10 @@ class AndorRaman(ProductionHardwareDriver):
             self.logger.info("Andor SDK detected, using real hardware backend.")
         except Exception:
             self._sdk = None
+            import os
+            if os.environ.get("USE_REAL_HARDWARE") == "1":
+                raise RuntimeError("USE_REAL_HARDWARE=1 but Andor SDK not found.")
+            
             self.logger.warning(
                 "Andor SDK not available, AndorRaman running in SIMULATOR mode."
             )

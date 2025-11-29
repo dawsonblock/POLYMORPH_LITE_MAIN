@@ -97,7 +97,12 @@ class RedPitayaDAQ(SafetyAwareMixin):
 
     def __init__(self, config):
         super().__init__(config)
-        self.id = "redpitaya_daq"
+        self.id = f"redpitaya_{self.host}"
+        
+        # Warn about limitations
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Red Pitaya driver initialized for {self.host}. Note: This build supports AO only. AI/DI/DO are NOT implemented. Use NI DAQ for full IO.")
         # Instance-level capabilities (can be same as class-level)
         self.capabilities = self.__class__.capabilities
         self.host = config.daq.redpitaya_host

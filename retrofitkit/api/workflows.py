@@ -180,19 +180,27 @@ async def execute_workflow(
 
 
 @router.delete("/{workflow_id}")
-async def delete_workflow(workflow_id: str):
+async def delete_workflow(workflow_id: str, confirm: bool = False):
     """
     Delete a workflow.
     
     Args:
         workflow_id: Workflow identifier
+        confirm: Explicit confirmation flag
         
     Returns:
         Success message
         
     Raises:
         404: If workflow not found
+        400: If confirm is False
     """
+    if not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Destructive action requires confirmation. Set confirm=True."
+        )
+
     if workflow_id not in _workflows:
         raise HTTPException(
             status_code=404,
