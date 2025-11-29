@@ -1,0 +1,123 @@
+id: tier1_daq_raman_sweep
+name: "Tier-1 DAQ+Raman Synchronized Sweep"
+version: "1.0"
+description: |
+  Combined DAQ voltage sweep with synchronized Raman spectroscopy acquisition.
+  Tier-1 hardware: NI DAQ (USB-6343) + Ocean Optics spectrometer.
+  
+  This workflow:
+  1. Discovers and validates Tier-1 devices
+  2. Sweeps DAQ voltage output while monitoring analog input
+  3. Captures Raman spectrum at each voltage step
+  4. Sends combined data to AI for polymorph detection
+  5. Logs all data with audit trail
+
+metadata:
+  hardware_profile: "tier1"
+  required_devices:
+    - "ni_daq"
+    - "ocean_optics"
+  estimated_duration_minutes: 15
+  compliance_level: "21_cfr_11"
+  
+steps:
+  - id: discover_devices
+    type: device_discovery
+    description: "Discover and validate Tier-1 hardware"
+    params:
+      required_types:
+        - "ni_daq"
+        - "ocean_optics"
+      validation: "strict"
+    on_error: "abort"
+    
+  - id: initialize_daq
+    type: daq_init
+    description: "Initialize NI DAQ with safe defaults"
+    params:
+      device: "${devices.daq}"
+      ao_channel: "ao0"
+      ai_channel: "ai0"
+      sample_rate: 1000
+      voltage_range: [-10.0, 10.0]
+    on_error: "abort"
+    
+  - id: initialize_raman
+    type: raman_init
+    description: "Initialize Ocean Optics spectrometer"
+    params:
+      device: "${devices.raman}"
+      integration_time_ms: 100
+      averages: 3
+      boxcar_width: 0
+    on_error: "abort"
+    
+  - id: voltage_sweep
+    type: loop
+    description: "Sweep voltage with synchronized Raman capture"
+    params:
+      variable: "voltage"
+      start: 0.0
+      stop: 5.0
+      step: 0.5
+      max_iterations: 50  # Safety limit
+    steps:
+      - id: set_voltage
+        type: daq_set_ao
+        description: "Set DAQ analog output"
+        params:
+          channel: "ao0"
+          voltage: "${voltage}"
+          
+      - id: read_voltage
+        type: daq_read_ai
+        description: "Read back analog input"
+        params:
+          channel: "ai0"
+          samples: 100
+          
+      - id: capture_raman
+        type: raman_acquire
+        description: "Capture Raman spectrum"
+        params:
+          device: "${devices.raman}"
+          metadata:
+            voltage_setpoint: "${voltage}"
+            voltage_readback: "${steps.read_voltage.mean}"
+            
+      - id: ai_analysis
+        type: ai_inference
+        description: "Analyze spectrum for polymorphs"
+        params:
+          spectrum: "${steps.capture_raman.intensities}"
+          metadata:
+            voltage: "${voltage}"
+            wavelengths: "${steps.capture_raman.wavelengths}"
+        optional: true  # Don't fail if AI unavailable
+        
+      - id: log_data
+        type: audit_log
+        description: "Log combined measurement"
+        params:
+          event: "DAQ_RAMAN_MEASUREMENT"
+          data:
+            voltage_setpoint: "${voltage}"
+            voltage_readback: "${steps.read_voltage.mean}"
+            raman_peak_intensity: "${steps.capture_raman.max_intensity}"
+            ai_prediction: "${steps.ai_analysis.result}"
+            
+  - id: safety_shutdown
+    type: daq_set_ao
+    description: "Return voltage to safe zero state"
+    params:
+      channel: "ao0"
+      voltage: 0.0
+    always_run: true  # Run even if workflow fails
+    
+  - id: generate_report
+    type: report_generation
+    description: "Generate combined DAQ+Raman report"
+    params:
+      template: "tier1_sweep"
+      data: "${workflow.results}"
+      format: "pdf"

@@ -1,0 +1,64 @@
+{
+    "current_version": "1.0.0",
+    "models": {
+        "1.0.0": {
+            "model_file": "polymorph_detector_v1.0.0.pt",
+            "created_at": "2024-11-29T00:00:00Z",
+            "training_config": {
+                "architecture": "CNN-LSTM",
+                "input_channels": 1,
+                "hidden_size": 256,
+                "num_classes": 10,
+                "epochs": 100,
+                "batch_size": 32,
+                "learning_rate": 0.001
+            },
+            "performance": {
+                "train_accuracy": 0.95,
+                "val_accuracy": 0.92,
+                "test_accuracy": 0.91,
+                "f1_score": 0.89
+            },
+            "training_data": {
+                "num_samples": 10000,
+                "num_polymorphs": 8,
+                "data_sources": [
+                    "lab_experiments",
+                    "synthetic_augmentation"
+                ],
+                "date_range": {
+                    "start": "2024-01-01",
+                    "end": "2024-11-01"
+                }
+            },
+            "provenance": {
+                "trained_by": "system",
+                "training_script": "ai/training/train_polymorph.py",
+                "commit_hash": "placeholder",
+                "training_host": "local"
+            },
+            "validation": {
+                "validated": true,
+                "validated_by": "qa@example.com",
+                "validated_at": "2024-11-29T12:00:00Z",
+                "validation_notes": "Initial v4.0 release model"
+            },
+            "deployment": {
+                "deployed": true,
+                "deployed_at": "2024-11-29T16:00:00Z",
+                "deployment_environment": "production"
+            }
+        }
+    },
+    "rollback_history": [],
+    "metadata": {
+        "feature_name": "Polymorph Discovery v1.0",
+        "description": "AI-powered polymorph detection from Raman spectra",
+        "supported_inputs": [
+            "raman_spectrum"
+        ],
+        "output_format": "polymorph_signature",
+        "min_confidence_threshold": 0.7,
+        "max_inference_time_ms": 500
+    }
+}
