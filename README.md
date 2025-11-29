@@ -24,46 +24,42 @@
 
 POLYMORPH-LITE transforms legacy analytical instruments into intelligent, AI-powered laboratory systems. Built for pharmaceutical R&D, quality control, and GMP environments with enterprise-grade database architecture and 21 CFR Part 11–aligned compliance features.
 
-### 🆕 What's New in v3.0
+### 🆕 What's New in v3.2 (Production Ready)
 
 <table>
 <tr>
 <td width="50%">
 
-**💾 Unified Database**
-- PostgreSQL with 27 normalized tables
-- Alembic auto-migrations
-- Eliminated split-brain architecture
-- Production-grade data integrity
+**☁️ Cloud Native**
+- **Terraform**: Modular AWS infrastructure (VPC, EKS, RDS)
+- **Kubernetes**: Production-grade manifests with GPU support
+- **CI/CD**: Automated build & deploy pipelines
 
 </td>
 <td width="50%">
 
-**🔐 Enhanced Security**
-- Role-Based Access Control (RBAC)
-- JWT authentication
-- Cryptographic audit trail
-- Password history & account locking
+**📜 Compliance Suite**
+- **21 CFR Part 11**: IQ/OQ/PQ templates & SOPs
+- **Validation**: Generated risk assessments & reports
+- **Audit**: Cryptographic audit trails
 
 </td>
 </tr>
 <tr>
 <td>
 
-**🧪 LIMS Features**
-- Sample tracking with lineage
-- Inventory management
-- Calibration logging
-- Project/batch organization
+**🖥️ Operator UI**
+- **Wizard**: Guided experiment execution
+- **Real-Time**: Live spectral visualization
+- **Reporting**: PDF export & auto-save
 
 </td>
 <td>
 
-**🚀 DevOps Ready**
-- One-command Docker deployment
-- Auto-migrations on startup
-- Health monitoring scripts
-- Database backup utilities
+**🧠 Concrete AI**
+- **RamanCNN**: PyTorch model for spectral analysis
+- **Training**: Synthetic data generation & training scripts
+- **Serving**: BentoML with retraining endpoints
 
 </td>
 </tr>
@@ -92,10 +88,11 @@ POLYMORPH-LITE transforms legacy analytical instruments into intelligent, AI-pow
 - **Note**: As of v3.0.0, the workflow engine supports linear sequences only. Loops and conditional branching are planned for future releases.
 - **Visual Builder**: Drag-and-drop interface for creating recipes.
 - **Safety Integration**: Pre-execution safety checks and runtime monitoring.
+- **Operator Wizard**: Step-by-step execution guide with real-time feedback.
 
 ### 🤖 AI Integration
 - **BentoML Inference**: Optimized AI model serving
-- **Circuit Breaker**: Resilient failure handling
+- **RamanCNN**: 1D CNN for spectral concentration analysis
 - **Real-Time Analysis**: <50ms inference latency
 - **Auto-Detection**: Crystallization event recognition
 
@@ -116,9 +113,11 @@ POLYMORPH-LITE provides technical features that support 21 CFR Part 11 requireme
 > the technical foundation to support compliant operations when properly validated and deployed  
 > according to your organization's quality system.
 
-### 🎨 Modern Interface (Coming Soon)
-- **Note**: The v2 frontend has been deprecated and removed. A new, modern React-based LIMS interface is currently under development for v3.1.
-- **Current Access**: Use the API documentation (`/docs`) and CLI tools for interaction.
+### 🎨 Modern Interface
+- **React 18 + MUI v6**: Responsive, dark-mode enabled UI.
+- **Operator Wizard**: Dedicated route (`/run`) for executing experiments.
+- **Real-Time Charts**: High-performance plotting for spectral data.
+
 
 ---
 
@@ -323,22 +322,20 @@ python scripts/generate_keys.py
 
 ## 🛣️ Roadmap
 
-### ✅ v3.0 (Current)
-- Unified PostgreSQL database
-- Complete LIMS functionality
-- RBAC with 4 roles
-- Production deployment tools
+### ✅ v3.2 (Current - Production Ready)
+- **Hardware**: Real drivers (NI/Ocean Optics) with simulation fallback
+- **Infrastructure**: Terraform + Kubernetes + CI/CD
+- **Compliance**: Part 11 Documentation Suite (IQ/OQ/PQ)
+- **UI**: Operator Wizard & Real-time Charts
+- **AI**: PyTorch Raman Predictor
 
-### 🔄 v3.1 (Next)
-- [ ] Frontend LIMS UI pages
-- [ ] Workflow builder → orchestrator integration
-- [ ] Advanced analytics dashboards
+### 🔄 v3.3 (Next)
 - [ ] Multi-tenant organization features
+- [ ] Advanced analytics dashboards
+- [ ] Mobile app for lab monitoring
 
 ### 🔮 Future
 - [ ] SSO integration (SAML, OAuth)
-- [ ] Mobile app for lab monitoring
-- [ ] Advanced AI models
 - [ ] Cloud deployment guides (AWS, Azure, GCP)
 
 ---

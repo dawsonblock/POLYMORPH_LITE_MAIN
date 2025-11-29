@@ -1,0 +1,58 @@
+name: Hardware Pipeline Test
+version: 1.0
+description: "End-to-end test of the Tier-1 hardware stack (NI DAQ + Ocean Optics)"
+tags: ["hardware", "test", "tier1"]
+
+steps:
+  - id: init_check
+    name: "Initialize Hardware"
+    type: "action"
+    action: "log"
+    params:
+      message: "Starting hardware initialization..."
+
+  - id: check_daq
+    name: "Check DAQ Health"
+    type: "action"
+    action: "device_health"
+    params:
+      device_id: "ni_daq_Dev1"
+
+  - id: check_raman
+    name: "Check Raman Health"
+    type: "action"
+    action: "device_health"
+    params:
+      device_id: "ocean_optics_0"
+
+  - id: set_laser
+    name: "Set Laser Power (DAQ AO)"
+    type: "action"
+    action: "set_voltage"
+    params:
+      device_id: "ni_daq_Dev1"
+      value: 2.5 # 2.5V control signal
+
+  - id: acquire_spectrum
+    name: "Acquire Raman Spectrum"
+    type: "action"
+    action: "acquire_spectrum"
+    params:
+      device_id: "ocean_optics_0"
+      integration_time_ms: 100
+
+  - id: safety_check
+    name: "Verify Safety Interlock"
+    type: "action"
+    action: "read_di"
+    params:
+      device_id: "ni_daq_Dev1"
+      line: 0 # Door interlock
+
+  - id: shutdown
+    name: "Shutdown Laser"
+    type: "action"
+    action: "set_voltage"
+    params:
+      device_id: "ni_daq_Dev1"
+      value: 0.0

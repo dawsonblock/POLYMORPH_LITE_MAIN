@@ -267,7 +267,7 @@ async def attach_certificate(
 
 
 @router.get("/{calibration_id}", response_model=CalibrationResponse)
-async def get_calibration_entry(calibration_id: UUID4, session: Session = Depends(get_db)):
+async def get_calibration_entry(calibration_id: UUID4, session: Session = Depends(get_db)) -> CalibrationEntry:
     """Get specific calibration entry details."""
 
     try:
@@ -290,7 +290,7 @@ async def get_calibration_entry(calibration_id: UUID4, session: Session = Depend
 # ============================================================================
 
 @router.get("/status/{device_id}", response_model=DeviceStatusResponse)
-async def get_device_status(device_id: str, session: Session = Depends(get_db)):
+async def get_device_status(device_id: str, session: Session = Depends(get_db)) -> DeviceStatus:
     """Get current status of a device."""
 
     try:
@@ -314,7 +314,7 @@ async def list_device_statuses(
     limit: int = 100,
     offset: int = 0,
     session: Session = Depends(get_db)
-):
+) -> List[DeviceStatus]:
     """List all device statuses."""
 
     try:
@@ -337,7 +337,7 @@ async def update_device_status(
     health_score: Optional[float] = None,
     current_user: dict = Depends(get_current_user),
     session: Session = Depends(get_db)
-):
+) -> Dict[str, str]:
     """Update device operational status."""
     audit = Audit()
 
@@ -355,10 +355,10 @@ async def update_device_status(
             )
             session.add(device_status)
         else:
-            device_status.status = new_status
+            device_status.status = new_status  # type: ignore
             if health_score is not None:
-                device_status.health_score = health_score
-            device_status.updated_at = datetime.now(timezone.utc)
+                device_status.health_score = health_score  # type: ignore
+            device_status.updated_at = datetime.now(timezone.utc)  # type: ignore
 
         session.commit()
 

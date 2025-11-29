@@ -8,6 +8,7 @@ This is a reference implementation showing how to:
 """
 import asyncio
 import time
+import os
 from typing import Dict, Any, Optional
 
 from retrofitkit.drivers.base import SpectrometerDevice, DeviceCapabilities, DeviceKind
@@ -25,7 +26,9 @@ class OceanOpticsSpectrometer(SpectrometerDevice):
     Ocean Optics USB spectrometer driver.
     
     Supports all seabreeze-compatible devices (USB2000, HR4000, QE65000, etc.).
-    Falls back to simulation mode if no hardware present.
+    Controlled by USE_REAL_HARDWARE env var:
+    - If "1": Forces real hardware connection (raises error if missing).
+    - If "0" or unset: Forces simulation mode.
     """
 
     # Class-level capabilities for registry
@@ -55,6 +58,12 @@ class OceanOpticsSpectrometer(SpectrometerDevice):
         self._device = None
         self._t0 = time.time()
         self._connected = False
+        
+        # Check environment flag
+        self._use_real_hardware = os.environ.get("USE_REAL_HARDWARE") == "1"
+        
+        if self._use_real_hardware and sb is None:
+            raise RuntimeError("USE_REAL_HARDWARE=1 but seabreeze SDK is not installed.")
 
     async def connect(self) -> None:
         """
@@ -63,16 +72,15 @@ class OceanOpticsSpectrometer(SpectrometerDevice):
         Raises:
             RuntimeError: If device not found
         """
-        if sb is None:
+        if not self._use_real_hardware:
             # Simulation mode
             self._connected = True
             return
 
+        # Real hardware mode
         devices = sb.list_devices()
         if not devices:
-            # Simulation mode
-            self._connected = True
-            return
+            raise RuntimeError("USE_REAL_HARDWARE=1 but no Ocean Optics devices found.")
 
         if self._device_index >= len(devices):
             raise RuntimeError(
@@ -108,7 +116,7 @@ class OceanOpticsSpectrometer(SpectrometerDevice):
         if not self._connected:
             return {"status": "disconnected"}
 
-        if self._device is None:
+        if not self._use_real_hardware:
             return {
                 "status": "ok",
                 "mode": "simulation",
@@ -148,7 +156,7 @@ class OceanOpticsSpectrometer(SpectrometerDevice):
         await asyncio.sleep(self._integration_time_ms / 1000.0)
 
         # Simulation mode if no hardware
-        if self._device is None:
+        if not self._use_real_hardware:
             # Simple simulated Raman peak
             import numpy as np
             wavelengths = np.linspace(400, 900, 1024)

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polymorph-frontend
+  labels:
+    app: polymorph-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: polymorph-frontend
+  template:
+    metadata:
+      labels:
+        app: polymorph-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: polymorph-frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "200m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: polymorph-frontend
+spec:
+  selector:
+    app: polymorph-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP

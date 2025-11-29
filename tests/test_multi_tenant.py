@@ -135,25 +135,27 @@ def test_check_org_permission_viewer():
     assert check_org_permission(user, "org-1", "admin") is False
 
 
-def test_org_scoped_session_query(session, org_context_org1):
+def test_org_scoped_session_query(db_session, org_context_org1):
     """Test OrgScopedSession query scoping."""
-    scoped_session = OrgScopedSession(session, org_context_org1)
+    scoped_session = OrgScopedSession(db_session, org_context_org1)
     
     # Create samples in different orgs
     sample1 = Sample(
         sample_id="SAMPLE-1",
         lot_number="LOT-1",
-        org_id="org-1"
+        org_id="org-1",
+        created_by="test_user"
     )
     sample2 = Sample(
         sample_id="SAMPLE-2",
         lot_number="LOT-2",
-        org_id="org-2"
+        org_id="org-2",
+        created_by="test_user"
     )
     
-    session.add(sample1)
-    session.add(sample2)
-    session.commit()
+    db_session.add(sample1)
+    db_session.add(sample2)
+    db_session.commit()
     
     # Query through scoped session should only return org-1 samples
     samples = scoped_session.query(Sample).all()
@@ -161,18 +163,19 @@ def test_org_scoped_session_query(session, org_context_org1):
     assert samples[0].org_id == "org-1"
 
 
-def test_org_scoped_session_add(session, org_context_org1):
+def test_org_scoped_session_add(db_session, org_context_org1):
     """Test OrgScopedSession automatically sets org_id."""
-    scoped_session = OrgScopedSession(session, org_context_org1)
+    scoped_session = OrgScopedSession(db_session, org_context_org1)
     
     # Create sample without org_id
     sample = Sample(
         sample_id="SAMPLE-3",
-        lot_number="LOT-3"
+        lot_number="LOT-3",
+        created_by="test_user"
     )
     
     scoped_session.add(sample)
-    session.commit()
+    db_session.commit()
     
     # Should have org_id set automatically
     assert sample.org_id == "org-1"
@@ -218,18 +221,18 @@ def test_multi_tenant_middleware_public_endpoint():
     assert response.status_code == 200
 
 
-def test_scope_to_org(session, org_context_org1):
+def test_scope_to_org(db_session, org_context_org1):
     """Test scope_to_org helper function."""
     # Create samples in different orgs
-    sample1 = Sample(sample_id="S1", lot_number="L1", org_id="org-1")
-    sample2 = Sample(sample_id="S2", lot_number="L2", org_id="org-2")
+    sample1 = Sample(sample_id="S1", lot_number="L1", org_id="org-1", created_by="test_user")
+    sample2 = Sample(sample_id="S2", lot_number="L2", org_id="org-2", created_by="test_user")
     
-    session.add(sample1)
-    session.add(sample2)
-    session.commit()
+    db_session.add(sample1)
+    db_session.add(sample2)
+    db_session.commit()
     
     # Query all samples
-    query = session.query(Sample)
+    query = db_session.query(Sample)
     
     # Scope to org-1
     scoped_query = scope_to_org(query, org_context_org1, Sample)
@@ -240,25 +243,25 @@ def test_scope_to_org(session, org_context_org1):
     assert samples[0].org_id == "org-1"
 
 
-def test_org_isolation_integration(session):
+def test_org_isolation_integration(db_session):
     """Integration test for org isolation."""
     # Create two org contexts
     org1_context = OrgContext("org-1", "Lab 1", "user1@lab1.com")
     org2_context = OrgContext("org-2", "Lab 2", "user2@lab2.com")
     
     # Create scoped sessions
-    org1_session = OrgScopedSession(session, org1_context)
-    org2_session = OrgScopedSession(session, org2_context)
+    org1_session = OrgScopedSession(db_session, org1_context)
+    org2_session = OrgScopedSession(db_session, org2_context)
     
     # Org 1 creates a sample
-    sample1 = Sample(sample_id="ORG1-SAMPLE", lot_number="LOT1")
+    sample1 = Sample(sample_id="ORG1-SAMPLE", lot_number="LOT1", created_by="user1@lab1.com")
     org1_session.add(sample1)
-    session.commit()
+    db_session.commit()
     
     # Org 2 creates a sample
-    sample2 = Sample(sample_id="ORG2-SAMPLE", lot_number="LOT2")
+    sample2 = Sample(sample_id="ORG2-SAMPLE", lot_number="LOT2", created_by="user2@lab2.com")
     org2_session.add(sample2)
-    session.commit()
+    db_session.commit()
     
     # Org 1 should only see their sample
     org1_samples = org1_session.query(Sample).all()

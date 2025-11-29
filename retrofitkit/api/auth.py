@@ -13,7 +13,7 @@ from retrofitkit.db.session import get_db
 from sqlalchemy.orm import Session
 
 @router.post("/login")
-def login(payload: Login, db: Session = Depends(get_db)):
+def login(payload: Login, db: Session = Depends(get_db)) -> dict:
     user = Users(db=db).authenticate(payload.email, payload.password)
 
     if user and user.get("mfa_required"):

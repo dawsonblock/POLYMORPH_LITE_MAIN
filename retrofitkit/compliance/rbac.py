@@ -9,7 +9,7 @@ from retrofitkit.db.models.user import User
 import uuid
 
 
-def seed_default_roles(db: Session):
+def seed_default_roles(db: Session) -> None:
     """
     Create default roles if they don't exist.
     
@@ -129,7 +129,7 @@ def get_user_roles(db: Session, user_email: str) -> Set[str]:
         return set()
 
     roles =db.query(Role).filter(Role.id.in_(role_ids)).all()
-    return {role.role_name for role in roles}
+    return {str(role.role_name) for role in roles}
 
 
 def user_has_role(db: Session, user_email: str, required_role: str) -> bool:

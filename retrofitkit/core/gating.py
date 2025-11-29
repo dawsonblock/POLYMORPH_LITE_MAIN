@@ -2,9 +2,9 @@ from typing import Dict, Any
 from collections import deque
 
 class GatingEngine:
-    def __init__(self, rules):
+    def __init__(self, rules: list[Dict[str, Any]]) -> None:
         self.rules = rules
-        self.window = deque(maxlen=50)
+        self.window: deque[Dict[str, Any]] = deque(maxlen=50)
 
     def update(self, spectrum: Dict[str, Any]) -> bool:
         # spectrum: {"t": seconds, "wavelengths": [...], "intensities": [...], "peak_nm": f, "peak_intensity": I}

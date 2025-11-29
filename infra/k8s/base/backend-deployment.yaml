@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polymorph-backend
+  labels:
+    app: polymorph-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: polymorph-backend
+  template:
+    metadata:
+      labels:
+        app: polymorph-backend
+    spec:
+      containers:
+      - name: backend
+        image: polymorph-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: database-url
+        - name: REDIS_URL
+          value: "redis://redis-service:6379"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: polymorph-backend
+spec:
+  selector:
+    app: polymorph-backend
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP

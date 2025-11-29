@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polymorph-ai
+  labels:
+    app: polymorph-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: polymorph-ai
+  template:
+    metadata:
+      labels:
+        app: polymorph-ai
+    spec:
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      containers:
+      - name: ai-service
+        image: polymorph-ai:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        env:
+        - name: MODEL_VERSION
+          value: "v1.0.0"
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+            nvidia.com/gpu: 1
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+            nvidia.com/gpu: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: polymorph-ai
+spec:
+  selector:
+    app: polymorph-ai
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: ClusterIP

@@ -128,8 +128,8 @@ def authenticate_user(
             return None
         else:
             # Lock expired, reset
-            user.account_locked_until = None
-            user.failed_login_attempts = 0
+            user.account_locked_until = None  # type: ignore
+            user.failed_login_attempts = 0  # type: ignore
             db.commit()
 
     # Verify password
@@ -143,7 +143,7 @@ def authenticate_user(
 
             # Check if should lock
             if user.failed_login_attempts >= 5:
-                user.account_locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
+                user.account_locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)  # type: ignore
                 logging.warning(f"DEBUG: Locking account for {email} until {user.account_locked_until}")
                 write_audit_event(
                     db=db,
@@ -179,8 +179,8 @@ def authenticate_user(
 
     # Success - reset counters if there were previous failed attempts or a lock
     if user.failed_login_attempts > 0 or user.account_locked_until:
-        user.failed_login_attempts = 0
-        user.account_locked_until = None
+        user.failed_login_attempts = 0  # type: ignore
+        user.account_locked_until = None  # type: ignore
         db.commit()
         write_audit_event(
             db=db,
@@ -218,8 +218,8 @@ def authenticate_user(
             return None
 
     # Reset failed login attempts
-    user.failed_login_attempts = 0
-    user.account_locked_until = None
+    user.failed_login_attempts = 0  # type: ignore
+    user.account_locked_until = None  # type: ignore
     db.commit()
 
     write_audit_event(
@@ -254,7 +254,7 @@ def enable_mfa(db: Session, email: str) -> Optional[str]:
         return None
 
     secret = pyotp.random_base32()
-    user.mfa_secret = secret
+    user.mfa_secret = secret  # type: ignore
     db.commit()
 
     write_audit_event(
@@ -276,7 +276,7 @@ class Users:
     def __init__(self, db: Optional[Session] = None):
         self.db = db
 
-    def create(self, email: str, name: str, role: str, password: str):
+    def create(self, email: str, name: str, role: str, password: str) -> None:
         """Create user - legacy interface."""
         if self.db:
             create_user(self.db, email, password, name, role)
@@ -287,13 +287,13 @@ class Users:
             return enable_mfa(self.db, email) or ""
         return ""
 
-    def authenticate(self, email: str, password: str, mfa_token: Optional[str] = None):
+    def authenticate(self, email: str, password: str, mfa_token: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Authenticate - legacy interface."""
         if self.db:
             return authenticate_user(self.db, email, password, mfa_token)
         return None
 
-    def get_by_email(self, email: str):
+    def get_by_email(self, email: str) -> Optional[User]:
         """Get user by email - legacy interface."""
         if self.db:
             return get_user_by_email(self.db, email)

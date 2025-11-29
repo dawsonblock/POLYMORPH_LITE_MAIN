@@ -1,0 +1,82 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: polymorph-repo
+  EKS_CLUSTER_NAME: polymorph-lite-prod
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push Backend image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/polymorph-backend:$IMAGE_TAG -f backend/Dockerfile .
+        docker push $ECR_REGISTRY/polymorph-backend:$IMAGE_TAG
+        docker tag $ECR_REGISTRY/polymorph-backend:$IMAGE_TAG $ECR_REGISTRY/polymorph-backend:latest
+        docker push $ECR_REGISTRY/polymorph-backend:latest
+
+    - name: Build, tag, and push Frontend image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/polymorph-frontend:$IMAGE_TAG -f frontend/Dockerfile .
+        docker push $ECR_REGISTRY/polymorph-frontend:$IMAGE_TAG
+        docker tag $ECR_REGISTRY/polymorph-frontend:$IMAGE_TAG $ECR_REGISTRY/polymorph-frontend:latest
+        docker push $ECR_REGISTRY/polymorph-frontend:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
+    - name: Deploy to EKS
+      run: |
+        cd infra/k8s/base
+        kustomize edit set image polymorph-backend=polymorph-backend:${{ github.sha }}
+        kustomize edit set image polymorph-frontend=polymorph-frontend:${{ github.sha }}
+        kubectl apply -k .
+        kubectl rollout status deployment/polymorph-backend
+        kubectl rollout status deployment/polymorph-frontend

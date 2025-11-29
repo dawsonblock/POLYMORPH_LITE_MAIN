@@ -1,5 +1,5 @@
 class DAQBase:
-    def set_voltage(self, volts: float):
+    def set_voltage(self, volts: float) -> None:
         raise NotImplementedError
 
     def read_ai(self) -> float:
