@@ -4,7 +4,7 @@ Safety Interlock Controller.
 Monitors critical safety inputs (E-Stop, Door) and enforces safe operation.
 """
 import logging
-from typing import Callable, List, Optional, Dict
+from typing import Callable, List, Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
