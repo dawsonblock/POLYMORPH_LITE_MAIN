@@ -1,20 +1,62 @@
 system:
+  name: Polymorph4 Retrofit Kit - Tier-1 Production
   mode: production
+  timezone: UTC
+  data_dir: ./data
+  logs_dir: ./logs
+
+security:
+  password_policy:
+    min_length: 12
+    require_upper: true
+    require_digit: true
+    require_symbol: true
+  two_person_signoff: true
+  jwt_exp_minutes: 480
+  rsa_private_key: config/keys/private.pem
+  rsa_public_key: config/keys/public.pem
+
 daq:
-  backend: ni
+  backend: ni_daq  # Tier-1: National Instruments
   ni:
     device_name: Dev1
     ao_voltage_channel: ao0
     ai_voltage_channel: ai0
     di_lines:
-    - port0/line0
-    - port0/line1
+      - port0/line0
+      - port0/line1
     do_watchdog_line: port0/line2
+  simulator:
+    noise_std: 0.003
+    estop: false
+    door_open: false
+
 raman:
-  provider: ocean
+  provider: ocean_optics  # Tier-1: Ocean Optics
+  integration_time_ms: 20.0
+  device_index: 0
   vendor:
     ocean_index: 0
+
+ai:
+  service_url: http://localhost:3000
+  timeout_seconds: 30
+  circuit_breaker:
+    failure_threshold: 5
+    recovery_timeout: 60
+
+gating:
+  rules:
+    - name: peak_threshold
+      line_nm: 532.0
+      threshold: 1500.0
+      direction: above
+    - name: slope_stop
+      window_s: 2.0
+      slope_threshold: -30.0
+
 safety:
   interlocks:
     estop_line: 0
     door_line: 1
+  watchdog_seconds: 2.0
