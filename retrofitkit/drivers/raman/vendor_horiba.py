@@ -1,4 +1,62 @@
 # retrofitkit/drivers/raman/vendor_horiba.py
+"""
+Horiba Raman Driver - SIMULATION ONLY
+
+This driver is a SIMULATION-ONLY implementation for Horiba LabRAM spectrometers.
+
+IMPLEMENTATION STATUS:
+=====================
+❌ Real SDK integration: NOT IMPLEMENTED
+✅ Simulation mode: AVAILABLE (returns synthetic spectra)
+
+SIMULATION FEATURES:
+===================
+- Returns synthetic Raman spectra with realistic structure
+- Simulates peak at 532nm (typical Raman excitation)
+- Includes metadata (integration time, averages, etc.)
+- Suitable for workflow testing and development
+
+TO ENABLE REAL HARDWARE:
+=======================
+1. Install horiba_sdk package:
+   ```
+   pip install horiba_sdk
+   ```
+
+2. Implement _acquire_real() method with SDK calls:
+   ```python
+   async def _acquire_real(self, integration_time_ms, averages, center_wavelength_nm):
+       # Initialize Horiba SDK
+       # Configure spectrometer
+       # Acquire spectrum
+       # Return Spectrum object
+       pass
+   ```
+
+3. Update capabilities with actual device model
+
+DEPLOYMENT NOTES:
+================
+- For production Raman spectroscopy, use Ocean Optics driver (vendor_ocean_optics.py)
+- This driver is suitable for workflow testing only
+- Tier-1 stack recommendation: NI DAQ + Ocean Optics
+
+EXAMPLE USAGE:
+=============
+```python
+from retrofitkit.drivers.raman.vendor_horiba import HoribaRaman
+
+# Initialize (simulation mode)
+raman = HoribaRaman(config)
+
+# Acquire spectrum (returns simulated data)
+spectrum = await raman.acquire_spectrum(
+    integration_time_ms=100.0,
+    averages=1,
+    center_wavelength_nm=532.0
+)
+```
+"""
 
 import time
 from typing import Optional
@@ -37,12 +95,42 @@ class HoribaRaman(ProductionHardwareDriver):
         averages: int = 1,
         center_wavelength_nm: Optional[float] = None
     ) -> Spectrum:
+        """
+        Acquire Raman spectrum.
+        
+        CURRENT IMPLEMENTATION: SIMULATION ONLY
+        
+        Args:
+            integration_time_ms: Integration time in milliseconds
+            averages: Number of spectra to average
+            center_wavelength_nm: Center wavelength (optional)
+            
+        Returns:
+            Spectrum object (simulated data)
+            
+        Raises:
+            NotImplementedError: If horiba_sdk is present but not integrated
+        """
         if horiba_sdk is None:
+            # Simulation mode
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Horiba SDK not available. Running in SIMULATION mode. "
+                "For production Raman spectroscopy, use Ocean Optics driver (vendor_ocean_optics.py)."
+            )
             return await self._acquire_simulated(integration_time_ms, averages, center_wavelength_nm)
         else:
-            # TODO: implement real SDK calls
-            print("WARNING: Horiba SDK present but integration not implemented. Falling back to simulation.")
-            return await self._acquire_simulated(integration_time_ms, averages, center_wavelength_nm)
+            # SDK present but not integrated
+            raise NotImplementedError(
+                "Horiba SDK detected but integration not implemented. "
+                "To enable real hardware:\n"
+                "1. Implement _acquire_real() method in vendor_horiba.py\n"
+                "2. Add SDK initialization and configuration\n"
+                "3. Update tests\n"
+                "\n"
+                "For production use, consider Ocean Optics driver (vendor_ocean_optics.py) instead."
+            )
 
     async def _acquire_simulated(
         self,

@@ -1,7 +1,73 @@
 """
-Red Pitaya DAQ Driver.
+Red Pitaya DAQ Driver - PRODUCTION LIMITATIONS
 
-Implements control via SCPI (Standard Commands for Programmable Instruments) over TCP/IP.
+This driver provides ANALOG OUTPUT ONLY via SCPI over TCP/IP.
+
+SUPPORTED FEATURES:
+==================
+✅ write_ao(channel, value): Set analog output voltage (AOUT0-3)
+   - SCPI command: ANALOG:PIN AOUT{channel},{value}
+   - Validated and production-ready
+   - Voltage range: Typically -1.8V to +1.8V (check your model)
+
+NOT SUPPORTED IN THIS BUILD:
+============================
+❌ read_ai(): Analog input
+   - Raises RuntimeError with clear message
+   - Use NI DAQ (ni.py) for analog input requirements
+
+❌ read_di(): Digital input
+   - Raises RuntimeError with clear message
+   - Use NI DAQ (ni.py) for digital input requirements
+
+❌ write_do(): Digital output
+   - Raises RuntimeError with clear message
+   - Use NI DAQ (ni.py) for digital output requirements
+
+DEPLOYMENT RECOMMENDATIONS:
+===========================
+For production deployments:
+1. Use Red Pitaya ONLY for analog output control
+2. Use NI DAQ (ni.py) for all AI/DI/DO requirements
+3. Tier-1 stack recommendation: NI DAQ + Ocean Optics (see docs/HARDWARE_DRIVERS.md)
+
+IMPLEMENTATION STATUS:
+=====================
+- AO: PRODUCTION-READY (SCPI validated)
+- AI/DI/DO: NOT IMPLEMENTED (clear runtime errors)
+
+TO ENABLE FULL SUPPORT:
+======================
+Implement SCPI commands in the unimplemented methods:
+- read_ai(): Use "ANALOG:PIN? AIN{channel}" SCPI query
+- read_di(): Use appropriate digital I/O SCPI commands
+- write_do(): Use appropriate digital I/O SCPI commands
+
+See Red Pitaya SCPI documentation: https://redpitaya.readthedocs.io/
+
+HARDWARE REQUIREMENTS:
+=====================
+- Red Pitaya STEMlab (125-14 or 125-10)
+- Network connection to Red Pitaya
+- SCPI server running on Red Pitaya (default port 5000)
+
+EXAMPLE USAGE:
+=============
+```python
+from retrofitkit.drivers.daq.redpitaya import RedPitayaDAQ
+
+# Initialize
+daq = RedPitayaDAQ(config)
+await daq.connect()
+
+# Set analog output
+await daq.write_ao(channel=0, value=1.5)  # ✅ Works
+
+# These will raise RuntimeError:
+# await daq.read_ai(channel=0)  # ❌ Not implemented
+# await daq.read_di(line=0)     # ❌ Not implemented
+# await daq.write_do(line=0, state=True)  # ❌ Not implemented
+```
 """
 import asyncio
 import logging
