@@ -1,0 +1,169 @@
+# Prometheus Alert Rules for POLYMORPH-LITE
+# Monitors workflow health, device status, and AI service performance
+
+groups:
+  - name: workflow_alerts
+    interval: 30s
+    rules:
+      # Alert when workflow failure rate is high
+      - alert: HighWorkflowFailureRate
+        expr: |
+          (
+            rate(workflow_executions_total{status="failed"}[5m])
+            /
+            rate(workflow_executions_total[5m])
+          ) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          component: workflow
+        annotations:
+          summary: "High workflow failure rate detected"
+          description: "{{ $value | humanizePercentage }} of workflows are failing in the last 5 minutes"
+
+      # Alert when workflow duration is abnormally long
+      - alert: SlowWorkflowExecution
+        expr: |
+          histogram_quantile(0.95, 
+            rate(workflow_duration_seconds_bucket[5m])
+          ) > 300
+        for: 10m
+        labels:
+          severity: warning
+          component: workflow
+        annotations:
+          summary: "Workflows taking longer than expected"
+          description: "95th percentile workflow duration is {{ $value }}s (threshold: 300s)"
+
+      # Alert when no workflows have run recently
+      - alert: NoRecentWorkflows
+        expr: |
+          (time() - max(workflow_last_execution_timestamp)) > 3600
+        for: 1h
+        labels:
+          severity: info
+          component: workflow
+        annotations:
+          summary: "No workflows executed recently"
+          description: "No workflow executions in the last hour"
+
+  - name: device_alerts
+    interval: 30s
+    rules:
+      # Alert when device is offline
+      - alert: DeviceOffline
+        expr: device_status{status="offline"} == 1
+        for: 2m
+        labels:
+          severity: critical
+          component: hardware
+        annotations:
+          summary: "Device {{ $labels.device_id }} is offline"
+          description: "Device has been offline for more than 2 minutes"
+
+      # Alert when device health is degraded
+      - alert: DeviceHealthDegraded
+        expr: device_health_score < 0.7
+        for: 5m
+        labels:
+          severity: warning
+          component: hardware
+        annotations:
+          summary: "Device {{ $labels.device_id }} health degraded"
+          description: "Health score is {{ $value }} (threshold: 0.7)"
+
+      # Alert when calibration is overdue
+      - alert: CalibrationOverdue
+        expr: |
+          (time() - device_last_calibration_timestamp) > (86400 * 30)
+        for: 1h
+        labels:
+          severity: warning
+          component: compliance
+        annotations:
+          summary: "Device {{ $labels.device_id }} calibration overdue"
+          description: "Last calibration was {{ $value | humanizeDuration }} ago"
+
+  - name: ai_service_alerts
+    interval: 30s
+    rules:
+      # Alert when AI service latency is high
+      - alert: HighAILatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(ai_inference_duration_seconds_bucket[5m])
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: ai
+        annotations:
+          summary: "AI service latency is high"
+          description: "95th percentile latency is {{ $value }}s (threshold: 5s)"
+
+      # Alert when AI circuit breaker is open
+      - alert: AICircuitBreakerOpen
+        expr: ai_circuit_breaker_open == 1
+        for: 1m
+        labels:
+          severity: critical
+          component: ai
+        annotations:
+          summary: "AI circuit breaker is OPEN"
+          description: "AI service is unavailable, circuit breaker triggered"
+
+      # Alert when AI confidence is consistently low
+      - alert: LowAIConfidence
+        expr: |
+          avg_over_time(ai_prediction_confidence[10m]) < 0.6
+        for: 10m
+        labels:
+          severity: warning
+          component: ai
+        annotations:
+          summary: "AI predictions have low confidence"
+          description: "Average confidence is {{ $value }} over last 10 minutes"
+
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # Alert when API response time is slow
+      - alert: SlowAPIResponses
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket[5m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "API responses are slow"
+          description: "95th percentile response time is {{ $value }}s"
+
+      # Alert when error rate is high
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(http_requests_total{status=~"5.."}[5m])
+            /
+            rate(http_requests_total[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "High API error rate"
+          description: "{{ $value | humanizePercentage }} of requests are failing"
+
+      # Alert when database connections are exhausted
+      - alert: DatabaseConnectionPoolExhausted
+        expr: db_connection_pool_active / db_connection_pool_size > 0.9
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "{{ $value | humanizePercentage }} of connections in use"

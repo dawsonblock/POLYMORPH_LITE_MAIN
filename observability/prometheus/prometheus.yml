@@ -1,0 +1,49 @@
+# Prometheus Configuration for POLYMORPH-LITE
+# Scrapes metrics from backend API and services
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'polymorph-lite'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load alert rules
+rule_files:
+  - "alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Backend API metrics
+  - job_name: 'polymorph-backend'
+    static_configs:
+      - targets: ['backend:8001']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Optional: BentoML AI service metrics
+  - job_name: 'bentoml-service'
+    static_configs:
+      - targets: ['ai-service:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    # Only scrape if AI service is running
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: ai-service:3000

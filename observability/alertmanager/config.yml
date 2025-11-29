@@ -1,0 +1,47 @@
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: true
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+
+receivers:
+  - name: 'default'
+    # Default receiver - logs only
+    webhook_configs:
+      - url: 'http://localhost:9093/webhook'
+        send_resolved: true
+
+  - name: 'critical-alerts'
+    # Critical alerts - add email/Slack/PagerDuty here
+    webhook_configs:
+      - url: 'http://localhost:9093/webhook/critical'
+        send_resolved: true
+    # Example email config (uncomment and configure):
+    # email_configs:
+    #   - to: 'ops@yourlab.com'
+    #     from: 'alertmanager@polymorph.local'
+    #     smarthost: 'smtp.gmail.com:587'
+    #     auth_username: 'alerts@yourlab.com'
+    #     auth_password: 'your-app-password'
+
+  - name: 'warning-alerts'
+    # Warning alerts - less urgent
+    webhook_configs:
+      - url: 'http://localhost:9093/webhook/warning'
+        send_resolved: true
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
