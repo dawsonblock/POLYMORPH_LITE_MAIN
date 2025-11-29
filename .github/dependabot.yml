@@ -14,7 +14,7 @@ updates:
     
   # Frontend dependencies
   - package-ecosystem: "npm"
-    directory: "/gui-v2/frontend"
+    directory: "/frontend"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
