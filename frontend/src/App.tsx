@@ -9,6 +9,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import SampleList from './pages/Samples/SampleList';
 import InventoryList from './pages/Inventory/InventoryList';
 import WorkflowList from './pages/Workflows/WorkflowList';
+import RamanControlRoom from './pages/RamanControlRoom';
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -73,6 +74,7 @@ function App() {
                 <Route path="samples" element={<SampleList />} />
                 <Route path="inventory" element={<InventoryList />} />
                 <Route path="workflows" element={<WorkflowList />} />
+                <Route path="raman" element={<RamanControlRoom />} />
               </Route>
             </Routes>
           </BrowserRouter>
