@@ -164,6 +164,18 @@ module = [
 ]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = [
+    "retrofitkit.core.*",
+    "retrofitkit.api.*",
+    "retrofitkit.drivers.*",
+    "retrofitkit.compliance.*",
+    "retrofitkit.metrics.*",
+]
+disallow_untyped_defs = true
+warn_return_any = true
+no_implicit_optional = true
+
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q --strict-markers --strict-config"

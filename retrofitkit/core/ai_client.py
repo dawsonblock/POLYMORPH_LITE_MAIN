@@ -69,7 +69,7 @@ class AIServiceClient:
                         logger.info("AI Circuit Breaker: Recovered.")
                         self._failures = 0
                         self._circuit_open = False
-                    return response.json()
+                    return dict(response.json())
                 else:
                     self._record_failure()
                     msg = f"AI Service Error: {response.status_code}"
@@ -90,7 +90,7 @@ class AIServiceClient:
             if critical: raise AIFailsafeError(msg)
             return {}
 
-    def _record_failure(self):
+    def _record_failure(self) -> None:
         """Record a failure and potentially open the circuit."""
         self._failures += 1
         self._last_failure_time = time.time()
