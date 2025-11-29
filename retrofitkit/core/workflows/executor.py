@@ -9,7 +9,9 @@ Integrates:
 """
 import asyncio
 import logging
-from typing import Dict, Any
+import hashlib
+import json
+from typing import Dict, Any, Optional
 
 from retrofitkit.core.recipe import Recipe, Step
 from retrofitkit.core.driver_router import get_router
@@ -39,22 +41,44 @@ class WorkflowExecutor:
         self._pause_event = asyncio.Event()
         self._pause_event.set() # Start unpaused
 
-    async def execute(self, recipe: Recipe, operator_email: str, run_metadata: Dict[str, Any] = None, on_start=None):
+    async def execute(self, recipe: Recipe, operator_email: str, run_metadata: Dict[str, Any] = None, on_start=None, resume_from_checkpoint: bool = False):
         """
-        Execute a recipe.
+        Execute a recipe with checkpoint/resume support.
+        
+        Args:
+            recipe: Recipe to execute
+            operator_email: Email of operator
+            run_metadata: Optional metadata dict
+            on_start: Optional callback when run starts
+            resume_from_checkpoint: If True, attempt to resume from last checkpoint
         """
-        # 1. Initialize Run
-        try:
-            # Assuming recipe.id is the version ID or we have it.
-            # For now, let's assume recipe object has what we need or we pass version ID.
-            # Let's assume recipe.id is the UUID of the version.
-            run_id = self.logger.log_run_start(recipe.id, operator_email, run_metadata)
-
-            if on_start:
-                if asyncio.iscoroutinefunction(on_start):
-                    await on_start(run_id)
+        # Check for existing checkpoint if resume requested
+        start_step = 0
+        if resume_from_checkpoint and run_metadata and "execution_id" in run_metadata:
+            checkpoint = self.logger.load_latest_checkpoint(run_metadata["execution_id"])
+            if checkpoint:
+                # Verify recipe hasn't changed
+                recipe_hash = self._compute_recipe_hash(recipe)
+                if checkpoint["workflow_hash"] == recipe_hash:
+                    start_step = checkpoint["step_index"] + 1
+                    self.step_results = checkpoint["step_results"]
+                    logger.info(f"Resuming from step {start_step}")
                 else:
-                    on_start(run_id)
+                    raise ValueError(
+                        "Cannot resume: workflow definition has changed. "
+                        "Start a new run or use the original workflow definition."
+                    )
+        
+        # 1. Initialize Run (if not resuming)
+        try:
+            if start_step == 0:
+                run_id = self.logger.log_run_start(recipe.id, operator_email, run_metadata)
+
+                if on_start:
+                    if asyncio.iscoroutinefunction(on_start):
+                        await on_start(run_id)
+                    else:
+                        on_start(run_id)
 
         except Exception as e:
             logger.error(f"Failed to start run: {e}")
@@ -65,6 +89,11 @@ class WorkflowExecutor:
         # 2. Execute Steps
         try:
             for i, step in enumerate(recipe.steps):
+                # Skip completed steps if resuming
+                if i < start_step:
+                    logger.info(f"Skipping completed step {i}: {step.type}")
+                    continue
+                
                 # Check control flags
                 if self._stop_event.is_set():
                     logger.info("Execution stopped by user.")
@@ -92,6 +121,15 @@ class WorkflowExecutor:
                         pass
 
                     self.logger.log_step_complete(i, step.type, result)
+                    
+                    # Save checkpoint after each step
+                    self.logger.save_checkpoint(
+                        step_index=i,
+                        step_type=step.type,
+                        step_results=self.step_results,
+                        recipe_definition=recipe.to_dict()
+                    )
+                    
                 except Exception as step_err:
                     logger.error(f"Step {i} ({step.type}) failed: {step_err}")
                     self.logger.log_run_complete("failed", str(step_err))
@@ -261,3 +299,16 @@ class WorkflowExecutor:
 
     def resume(self):
         self._pause_event.set()
+    
+    def _compute_recipe_hash(self, recipe: Recipe) -> str:
+        """
+        Compute SHA-256 hash of recipe definition.
+        
+        Args:
+            recipe: Recipe object
+            
+        Returns:
+            SHA-256 hash string
+        """
+        recipe_json = json.dumps(recipe.to_dict(), sort_keys=True)
+        return hashlib.sha256(recipe_json.encode()).hexdigest()
