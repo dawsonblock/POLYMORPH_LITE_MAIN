@@ -58,7 +58,7 @@ opentelemetry-exporter-otlp==1.27.0
 jsonschema==4.23.0
 
 # PDF Generation (Compliance Reports)
-reportlab==4.2.5
+reportlab==4.4.5
 
 # Error Tracking
 sentry-sdk[fastapi]==2.16.0
