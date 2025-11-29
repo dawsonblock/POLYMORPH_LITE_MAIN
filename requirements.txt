@@ -76,7 +76,7 @@ httpx==0.27.2  # for testing
 
 # Development Tools
 pip-tools==7.4.1
-black==24.10.0
+black==25.11.0
 ruff==0.7.2
 mypy==1.13.0
 
