@@ -5,12 +5,12 @@ import {
     CardContent,
     Typography,
     Button,
+    Grid,
     Alert,
     Chip,
     LinearProgress,
     Paper,
 } from '@mui/material';
-import Grid from '@mui/material/Grid2';
 import {
     PlayArrow,
     Stop,
