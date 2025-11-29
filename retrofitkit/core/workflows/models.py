@@ -26,7 +26,7 @@ class WorkflowStep:
     params: Dict[str, Any] = field(default_factory=dict)
     children: List[str] = field(default_factory=list)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate step kind."""
         valid_kinds = ["action", "wait", "loop", "condition"]
         if self.kind not in valid_kinds:
@@ -54,7 +54,7 @@ class WorkflowDefinition:
     entry_step: str
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate workflow structure."""
         # Check entry step exists
         if self.entry_step not in self.steps:
