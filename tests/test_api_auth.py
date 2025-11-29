@@ -96,6 +96,8 @@ class TestLoginEndpoint:
         assert user["role"] == test_user["role"]
         assert user["isActive"] is True
         assert "id" in user
+        assert isinstance(user["id"], str)
+        assert len(user["id"]) > 0  # Should be a UUID string
 
         # Verify token is valid JWT
         token = data["access_token"]

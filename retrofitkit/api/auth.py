@@ -15,6 +15,10 @@ from sqlalchemy.orm import Session
 @router.post("/login")
 def login(payload: Login, db: Session = Depends(get_db)) -> dict:
     user = Users(db=db).authenticate(payload.email, payload.password)
+    
+    # Fetch DB user object for ID and lock status
+    from retrofitkit.db.models.user import User
+    db_user = db.query(User).filter(User.email == payload.email).first()
 
     if user and user.get("mfa_required"):
         # In a real implementation, we would return a specific code or structure
@@ -37,11 +41,9 @@ def login(payload: Login, db: Session = Depends(get_db)) -> dict:
         # For now, we'll stick to 401 to avoid enumeration, unless we want to be friendly.
         # Let's check explicitly for the specific error case.
 
-        from retrofitkit.db.models.user import User
-        from datetime import datetime, timezone
-
         # Reuse session
-        db_user = db.query(User).filter(User.email == payload.email).first()
+        # db_user already fetched above
+        from datetime import datetime, timezone
 
         # Normalize stored lockout timestamp to UTC-aware before comparison
         if db_user and db_user.account_locked_until:
@@ -64,7 +66,7 @@ def login(payload: Login, db: Session = Depends(get_db)) -> dict:
         "access_token": token,
         "token_type": "bearer",
         "user": {
-            "id": "1",  # Mock ID since we use email as PK
+            "id": user["email"],  # Using email as ID since it is the PK
             "username": user["name"],
             "email": user["email"],
             "role": user["role"],
