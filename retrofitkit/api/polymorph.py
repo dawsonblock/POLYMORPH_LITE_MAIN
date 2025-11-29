@@ -10,7 +10,7 @@ import time
 import httpx
 
 from retrofitkit.db.session import get_db
-from retrofitkit.compliance.users import get_current_user
+from retrofitkit.api.security import get_current_user
 from retrofitkit.core.config import get_config
 
 router = APIRouter(prefix="/api/polymorph", tags=["polymorph"])
