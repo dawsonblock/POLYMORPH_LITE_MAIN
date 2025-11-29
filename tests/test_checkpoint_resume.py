@@ -12,8 +12,9 @@ from retrofitkit.db.session import SessionLocal
 @pytest.fixture
 def test_recipe():
     """Create a simple test recipe."""
+    import uuid
     return Recipe(
-        id="test-checkpoint-recipe",
+        id=uuid.uuid4(),
         name="Checkpoint Test Recipe",
         steps=[
             Step(type="wait", params={"seconds": 0.1}),

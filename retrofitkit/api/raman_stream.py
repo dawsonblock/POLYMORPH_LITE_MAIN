@@ -3,7 +3,7 @@ Real-time Raman spectrum streaming API.
 
 Provides WebSocket endpoint for live spectrum data, AI predictions, and gating state.
 """
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict, Any, List
 import asyncio
 import json
@@ -11,7 +11,6 @@ import logging
 from datetime import datetime, timezone
 
 from retrofitkit.core.orchestrator import Orchestrator
-from retrofitkit.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/raman", tags=["raman"])
 logger = logging.getLogger(__name__)
