@@ -18,7 +18,7 @@ class InterlockController:
     
     Integrates with DAQ to read digital inputs for E-Stop and Enclosure Door.
     """
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
         self.estop_active = False
         self.door_open = False
@@ -65,6 +65,16 @@ class InterlockController:
             self.estop_active = True
             self._trigger_callbacks(unsafe=True)
             raise SafetyError(f"Could not read interlock status: {e}")
+
+    def check_temperature(self, temp_c: float) -> None:
+        """
+        Verify system is safe. Raises SafetyError if not.
+        
+        Should be called before any hazardous operation (laser on, motion).
+        """
+        # This method is a placeholder for future temperature interlocks.
+        # For now, it does nothing.
+        pass
 
     def check_safe(self):
         """

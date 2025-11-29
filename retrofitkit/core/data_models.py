@@ -29,7 +29,7 @@ class Spectrum:
     meta: Dict[str, Any] = field(default_factory=dict)
     timestamp: Optional[datetime] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate and set timestamp."""
         if self.timestamp is None:
             self.timestamp = datetime.now(timezone.utc)
@@ -84,7 +84,7 @@ class DAQTrace:
     meta: Dict[str, Any] = field(default_factory=dict)
     timestamp: Optional[datetime] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate and set timestamp."""
         if self.timestamp is None:
             self.timestamp = datetime.now(timezone.utc)
