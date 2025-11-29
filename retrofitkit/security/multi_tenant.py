@@ -40,7 +40,7 @@ async def get_org_context(request: Request) -> OrgContext:
             # org.org_id is automatically available
             ...
     """
-    org_context = getattr(request.state, 'org_context', None)
+    org_context: Optional[OrgContext] = getattr(request.state, 'org_context', None)
     if not org_context:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -233,5 +233,3 @@ def check_org_permission(
         return any(role in ["admin", "scientist", "technician"] for role in user_roles)
     else:  # read
         return True  # All authenticated users can read in their org
-        
-    return False

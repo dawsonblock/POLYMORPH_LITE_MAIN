@@ -26,11 +26,12 @@ from retrofitkit.security.rate_limit import (
 @pytest.fixture
 async def rate_limiter():
     """Create rate limiter for testing."""
+    # Use disabled mode for tests (no Redis required)
     limiter = await init_rate_limiter(
         redis_url="redis://localhost:6379",
         default_limit=10,
         default_window=60,
-        enabled=True
+        enabled=False  # Disabled for testing without Redis
     )
     yield limiter
     await shutdown_rate_limiter()
