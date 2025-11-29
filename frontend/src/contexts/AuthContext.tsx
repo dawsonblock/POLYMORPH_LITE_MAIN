@@ -1,5 +1,5 @@
-import React, { createContext, useState, useEffect } from 'react';
-import type { ReactNode } from 'react';
+// eslint-disable-next-line react-refresh/only-export-components
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authApi } from '../api/auth';
 import type { LoginRequest, User } from '../types/api';
 
@@ -23,9 +23,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (token) {
             // TODO: Fetch current user from API
             // For now, just set loading to false
-            setLoading(false);
+            setTimeout(() => setLoading(false), 0);
         } else {
-            setLoading(false);
+            setTimeout(() => setLoading(false), 0);
         }
     }, []);
 

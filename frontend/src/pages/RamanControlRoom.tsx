@@ -67,6 +67,36 @@ const RamanControlRoom: React.FC = () => {
 
     const wsRef = useRef<WebSocket | null>(null);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleWebSocketMessage = (message: any) => {
+        switch (message.type) {
+            case 'spectrum':
+                setSpectrum(message.data);
+                break;
+            case 'ai_prediction':
+                setAIPrediction(message.data);
+                break;
+            case 'gating_state':
+                setGatingState(message.data);
+                break;
+            case 'workflow_status':
+                setWorkflowStatus(message.data);
+                break;
+            case 'acquisition_started':
+                setAcquiring(true);
+                break;
+            case 'acquisition_stopped':
+            case 'emergency_stop':
+                setAcquiring(false);
+                break;
+            case 'error':
+                setError(message.data.message);
+                break;
+            default:
+                console.log('Unknown message type:', message.type);
+        }
+    };
+
     // WebSocket connection
     useEffect(() => {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -106,35 +136,6 @@ const RamanControlRoom: React.FC = () => {
             ws.close();
         };
     }, []);
-
-    const handleWebSocketMessage = (message: any) => {
-        switch (message.type) {
-            case 'spectrum':
-                setSpectrum(message.data);
-                break;
-            case 'ai_prediction':
-                setAIPrediction(message.data);
-                break;
-            case 'gating_state':
-                setGatingState(message.data);
-                break;
-            case 'workflow_status':
-                setWorkflowStatus(message.data);
-                break;
-            case 'acquisition_started':
-                setAcquiring(true);
-                break;
-            case 'acquisition_stopped':
-            case 'emergency_stop':
-                setAcquiring(false);
-                break;
-            case 'error':
-                setError(message.data.message);
-                break;
-            default:
-                console.log('Unknown message type:', message.type);
-        }
-    };
 
     const handleStartAcquisition = () => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -194,6 +195,14 @@ const RamanControlRoom: React.FC = () => {
                     label={acquiring ? 'Acquiring' : 'Idle'}
                     color={acquiring ? 'primary' : 'default'}
                 />
+                {!acquiring && connected && (
+                    <Chip
+                        label="System Ready"
+                        color="success"
+                        variant="outlined"
+                        sx={{ ml: 1 }}
+                    />
+                )}
             </Box>
 
             {/* Error Alert */}

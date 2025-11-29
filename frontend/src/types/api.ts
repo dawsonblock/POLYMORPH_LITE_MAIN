@@ -20,6 +20,7 @@ export interface Sample {
     sample_id: string;
     status: string;
     created_at: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     extra_data?: Record<string, any>;
     parent_id?: string;
 }
@@ -54,5 +55,6 @@ export interface WorkflowExecution {
 }
 
 export interface ApiError {
-    detail: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    details?: any;
 }

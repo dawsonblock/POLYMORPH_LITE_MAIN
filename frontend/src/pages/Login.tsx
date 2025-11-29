@@ -14,7 +14,8 @@ import { useAuth } from '../hooks/useAuth';
 export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [error, setError] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -27,6 +28,7 @@ export default function Login() {
         try {
             await login({ email, password });
             navigate('/');
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             setError(err.response?.data?.detail || 'Login failed. Please try again.');
         } finally {

@@ -4,6 +4,7 @@ export interface WorkflowNode {
     id: string;
     type: string;
     position: { x: number; y: number };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: Record<string, any>;
 }
 
@@ -23,6 +24,7 @@ export interface WorkflowDefinition {
     definition: {
         nodes: WorkflowNode[];
         edges: WorkflowEdge[];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         metadata: Record<string, any>;
     };
     definition_hash: string;
@@ -37,7 +39,9 @@ export interface WorkflowDefinition {
 export interface WorkflowExecutionCreate {
     workflow_name: string;
     workflow_version?: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     parameters?: Record<string, any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     metadata?: Record<string, any>;
 }
 
@@ -49,8 +53,10 @@ export interface WorkflowExecution {
     completed_at?: string;
     status: string;
     operator: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     results: Record<string, any>;
     error_message?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     run_metadata: Record<string, any>;
 }
 
@@ -84,6 +90,7 @@ export const workflowBuilderApi = {
         workflow_name: string;
         nodes: WorkflowNode[];
         edges: WorkflowEdge[];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         metadata?: Record<string, any>;
     }): Promise<WorkflowDefinition> => {
         const response = await apiClient.post('/api/workflow-builder/workflows', data);
