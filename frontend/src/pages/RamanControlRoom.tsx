@@ -5,12 +5,12 @@ import {
     CardContent,
     Typography,
     Button,
-    Grid,
     Alert,
     Chip,
     LinearProgress,
     Paper,
 } from '@mui/material';
+import Grid from '@mui/material/Grid2';
 import {
     PlayArrow,
     Stop,
@@ -205,7 +205,7 @@ const RamanControlRoom: React.FC = () => {
 
             <Grid container spacing={3}>
                 {/* Control Panel */}
-                <Grid item xs={12} md={3}>
+                <Grid size={{ xs: 12, md: 3 }}>
                     <Card>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>
@@ -280,7 +280,7 @@ const RamanControlRoom: React.FC = () => {
                 </Grid>
 
                 {/* Live Spectrum Chart */}
-                <Grid item xs={12} md={9}>
+                <Grid size={{ xs: 12, md: 9 }}>
                     <Card>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>
@@ -327,7 +327,7 @@ const RamanControlRoom: React.FC = () => {
                 </Grid>
 
                 {/* AI Predictions */}
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <Card>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>
@@ -368,7 +368,7 @@ const RamanControlRoom: React.FC = () => {
                 </Grid>
 
                 {/* Gating Engine State */}
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <Card>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>
