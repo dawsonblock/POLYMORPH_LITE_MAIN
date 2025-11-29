@@ -24,34 +24,70 @@ const steps = ['Select Workflow', 'Configure Hardware', 'Review Parameters', 'Ru
 const ExperimentWizard: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
     const [workflow, setWorkflow] = useState('');
+    const [workflows, setWorkflows] = useState<{ id: string, name: string }[]>([]);
+    const [executionId, setExecutionId] = useState<string | null>(null);
     const [hardwareReady, setHardwareReady] = useState({ daq: false, raman: false });
     const [isRunning, setIsRunning] = useState(false);
     const [progress, setProgress] = useState(0);
     const [chartData, setChartData] = useState<{ x: number; y: number }[]>([]);
+    const [error, setError] = useState<string | null>(null);
 
-    // Mock data simulation
+    // Fetch workflows on mount
+    useEffect(() => {
+        const fetchWorkflows = async () => {
+            try {
+                // In a real build, this would be:
+                // const res = await axios.get('/api/workflows');
+                // setWorkflows(res.data);
+
+                // For now, we simulate the API call but keep the code structure ready
+                setWorkflows([
+                    { id: 'hero_crystallization', name: 'Hero Crystallization' },
+                    { id: 'calibration', name: 'System Calibration' },
+                    { id: 'hardware_test', name: 'Hardware Test' }
+                ]);
+            } catch (err) {
+                console.error("Failed to fetch workflows", err);
+                setError("Failed to load workflows");
+            }
+        };
+        fetchWorkflows();
+    }, []);
+
+    // Poll execution status
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
-        if (isRunning && activeStep === 3) {
-            interval = setInterval(() => {
-                setProgress((prev) => {
-                    if (prev >= 100) {
-                        setIsRunning(false);
-                        clearInterval(interval);
-                        return 100;
-                    }
-                    return prev + 1;
-                });
+        if (isRunning && executionId) {
+            interval = setInterval(async () => {
+                try {
+                    // Real API call:
+                    // const res = await axios.get(`/api/workflows/executions/${executionId}`);
+                    // const status = res.data.status;
+                    // setProgress(res.data.progress);
+                    // if (status === 'completed') { ... }
 
-                setChartData((prev) => {
-                    const x = prev.length;
-                    const y = Math.sin(x * 0.1) * 10 + Math.random() * 2;
-                    return [...prev, { x, y }].slice(-100); // Keep last 100 points
-                });
+                    // Simulation for vNEXT demo (since backend might not be running in this env)
+                    setProgress((prev) => {
+                        if (prev >= 100) {
+                            setIsRunning(false);
+                            clearInterval(interval);
+                            return 100;
+                        }
+                        return prev + 1;
+                    });
+
+                    setChartData((prev) => {
+                        const x = prev.length;
+                        const y = Math.sin(x * 0.1) * 10 + Math.random() * 2;
+                        return [...prev, { x, y }].slice(-100);
+                    });
+                } catch (err) {
+                    console.error("Polling error", err);
+                }
             }, 100);
         }
         return () => clearInterval(interval);
-    }, [isRunning, activeStep]);
+    }, [isRunning, executionId]);
 
     const handleNext = () => {
         setActiveStep((prev) => prev + 1);
@@ -61,10 +97,25 @@ const ExperimentWizard: React.FC = () => {
         setActiveStep((prev) => prev - 1);
     };
 
-    const handleRun = () => {
-        setIsRunning(true);
-        setChartData([]);
-        setProgress(0);
+    const handleRun = async () => {
+        try {
+            setIsRunning(true);
+            setChartData([]);
+            setProgress(0);
+            setError(null);
+
+            // Real API call:
+            // const res = await axios.post(`/api/workflows/${workflow}/run`);
+            // setExecutionId(res.data.id);
+
+            // Simulation
+            setExecutionId("exec-" + Date.now());
+
+        } catch (err) {
+            console.error("Failed to start workflow", err);
+            setError("Failed to start workflow execution");
+            setIsRunning(false);
+        }
     };
 
     const handleDownloadReport = () => {
@@ -77,6 +128,7 @@ const ExperimentWizard: React.FC = () => {
             case 0:
                 return (
                     <Box sx={{ mt: 2 }}>
+                        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                         <FormControl fullWidth>
                             <InputLabel>Workflow</InputLabel>
                             <Select
@@ -84,9 +136,9 @@ const ExperimentWizard: React.FC = () => {
                                 label="Workflow"
                                 onChange={(e) => setWorkflow(e.target.value)}
                             >
-                                <MenuItem value="hero_crystallization">Hero Crystallization</MenuItem>
-                                <MenuItem value="calibration">System Calibration</MenuItem>
-                                <MenuItem value="hardware_test">Hardware Test</MenuItem>
+                                {workflows.map(w => (
+                                    <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+                                ))}
                             </Select>
                         </FormControl>
                     </Box>
@@ -117,7 +169,7 @@ const ExperimentWizard: React.FC = () => {
                             </Grid>
                         </Grid>
                         <Alert severity="info" sx={{ mt: 2 }}>
-                            Workflow: {workflow || "None Selected"}
+                            Workflow: {workflows.find(w => w.id === workflow)?.name || workflow}
                         </Alert>
                     </Box>
                 );
@@ -148,7 +200,8 @@ const ExperimentWizard: React.FC = () => {
                     <Box sx={{ mt: 2, textAlign: 'center' }}>
                         <Typography variant="h5" gutterBottom>Experiment Complete</Typography>
                         <Typography variant="body1">
-                            Workflow: {workflow}<br />
+                            Workflow: {workflows.find(w => w.id === workflow)?.name}<br />
+                            Execution ID: {executionId}<br />
                             Status: Success<br />
                             Data Points: {chartData.length}
                         </Typography>
@@ -186,7 +239,7 @@ const ExperimentWizard: React.FC = () => {
                 </Button>
                 <Box sx={{ flex: '1 1 auto' }} />
                 {activeStep < steps.length - 1 && activeStep !== 3 && (
-                    <Button onClick={handleNext}>
+                    <Button onClick={handleNext} disabled={!workflow && activeStep === 0}>
                         Next
                     </Button>
                 )}
