@@ -11,7 +11,10 @@ from typing import Dict, Any, Optional
 
 from retrofitkit.db.models.workflow import WorkflowExecution
 from retrofitkit.db.models.audit import AuditEvent
+from retrofitkit.db.models.workflow_checkpoint import WorkflowCheckpoint
 # from retrofitkit.compliance.audit import AuditLogger # Removed: not implemented yet
+import hashlib
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -153,5 +156,73 @@ class DatabaseLogger:
             session.commit()
         except Exception as e:
             logger.error(f"Failed to log audit event: {e}")
+        finally:
+            session.close()
+
+    def save_checkpoint(
+        self,
+        step_index: int,
+        step_type: str,
+        step_results: list,
+        recipe_definition: dict
+    ) -> None:
+        """
+        Save workflow checkpoint for resume capability.
+        
+        Args:
+            step_index: Current step index
+            step_type: Type of step completed
+            step_results: All results up to this point
+            recipe_definition: Complete recipe definition dict
+        """
+        # Compute recipe hash for safety
+        recipe_json = json.dumps(recipe_definition, sort_keys=True)
+        recipe_hash = hashlib.sha256(recipe_json.encode()).hexdigest()
+        
+        session = self.session_factory()
+        try:
+            checkpoint = WorkflowCheckpoint(
+                execution_id=self.execution_id,
+                step_index=step_index,
+                step_type=step_type,
+                step_results=step_results,
+                workflow_definition_hash=recipe_hash
+            )
+            session.add(checkpoint)
+            session.commit()
+            logger.info(f"Saved checkpoint at step {step_index}")
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Failed to save checkpoint: {e}")
+        finally:
+            session.close()
+
+    def load_latest_checkpoint(self, execution_id: uuid.UUID) -> Optional[dict]:
+        """
+        Load the most recent checkpoint for an execution.
+        
+        Args:
+            execution_id: Workflow execution ID
+            
+        Returns:
+            Dict with checkpoint data or None if no checkpoint exists
+        """
+        session = self.session_factory()
+        try:
+            checkpoint = (
+                session.query(WorkflowCheckpoint)
+                .filter(WorkflowCheckpoint.execution_id == execution_id)
+                .order_by(WorkflowCheckpoint.step_index.desc())
+                .first()
+            )
+            
+            if checkpoint:
+                return {
+                    "step_index": checkpoint.step_index,
+                    "step_type": checkpoint.step_type,
+                    "step_results": checkpoint.step_results,
+                    "workflow_hash": checkpoint.workflow_definition_hash
+                }
+            return None
         finally:
             session.close()

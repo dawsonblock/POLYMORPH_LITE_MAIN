@@ -23,3 +23,13 @@ class Recipe(BaseModel):
             d = yaml.safe_load(f)
         d["steps"] = [Step(**s) for s in d.get("steps", [])]
         return Recipe(**d)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert recipe to dictionary for serialization."""
+        return {
+            "id": str(self.id) if self.id else None,
+            "name": self.name,
+            "version": self.version,
+            "metadata": self.metadata,
+            "steps": [{"type": s.type, "params": s.params} for s in self.steps]
+        }
