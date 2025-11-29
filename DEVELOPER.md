@@ -61,7 +61,7 @@ API will be available at: `http://localhost:8001`
 ## Frontend Setup
 
 ```bash
-cd gui-v2/frontend
+cd frontend
 npm install
 npm run dev
 ```
@@ -104,7 +104,7 @@ pytest -v
 ### Frontend Tests
 
 ```bash
-cd gui-v2/frontend
+cd frontend
 
 # Unit tests
 npm test
@@ -190,7 +190,7 @@ retrofitkit/          # Main package
 └── compliance/      # Audit, signatures
 
 tests/               # Test suite
-gui-v2/frontend/     # React frontend
+frontend/     # React frontend
 scripts/             # Utility scripts
 alembic/             # Database migrations
 ```

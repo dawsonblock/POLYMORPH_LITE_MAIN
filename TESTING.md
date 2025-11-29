@@ -56,7 +56,7 @@ pytest tests/test_api_auth.py::TestLoginEndpoint::test_successful_login -v
 
 #### Frontend (TypeScript/Vitest)
 
-**Location:** `gui-v2/frontend/src/**/__tests__/`
+**Location:** `frontend/src/**/__tests__/`
 
 **Test Files:**
 - `pages/__tests__/login.test.tsx` - Login page component
@@ -66,7 +66,7 @@ pytest tests/test_api_auth.py::TestLoginEndpoint::test_successful_login -v
 **Running Frontend Tests:**
 
 ```bash
-cd gui-v2/frontend
+cd frontend
 
 # All tests
 npm test
@@ -110,7 +110,7 @@ pytest tests/test_integration_workflows.py -v
 
 ### 3. End-to-End (E2E) Tests
 
-**Location:** `gui-v2/frontend/e2e/`
+**Location:** `frontend/e2e/`
 
 **Framework:** Playwright
 
@@ -122,7 +122,7 @@ pytest tests/test_integration_workflows.py -v
 **Running E2E Tests:**
 
 ```bash
-cd gui-v2/frontend
+cd frontend
 
 # Install Playwright browsers (first time only)
 npx playwright install
@@ -149,7 +149,7 @@ npx playwright test --debug
 # View HTML report
 npx playwright show-report
 
-# Report location: gui-v2/frontend/playwright-report/
+# Report location: frontend/playwright-report/
 ```
 
 **Requirements:**
@@ -259,7 +259,7 @@ pytest tests/test_api_*.py --cov=retrofitkit/api --cov-report=html
 **Frontend:**
 
 ```bash
-cd gui-v2/frontend
+cd frontend
 
 # Coverage report
 npm test -- --coverage
@@ -312,7 +312,7 @@ mypy retrofitkit/ --ignore-missing-imports
 pytest tests/ -m "not integration" --cov=retrofitkit --cov-fail-under=30
 
 # Frontend CI steps
-cd gui-v2/frontend
+cd frontend
 npm run lint
 npx tsc --noEmit
 npm test -- --coverage --run
@@ -417,7 +417,7 @@ os.environ["P4_DATA_DIR"] = tempfile.mkdtemp()
 **3. Frontend Test Failures**
 ```bash
 # Clear node modules and reinstall
-cd gui-v2/frontend
+cd frontend
 rm -rf node_modules package-lock.json
 npm install
 

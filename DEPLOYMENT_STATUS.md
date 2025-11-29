@@ -537,7 +537,7 @@ def test_db():
 
 - [ ] Build frontend:
   ```bash
-  cd gui-v2/frontend
+  cd frontend
   npm install
   npm run build
   ```

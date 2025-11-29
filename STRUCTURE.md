@@ -38,7 +38,7 @@ POLYMORPH_LITE_MAIN/
 │   ├── generate_keys.py        # Cryptographic keys
 │   └── unified_cli.py          # CLI interface
 │
-├── gui-v2/                     # React frontend
+├── frontend/                   # React frontend
 │   ├── src/                    # React components
 │   ├── package.json            # Dependencies
 │   └── vite.config.ts          # Build config
@@ -81,7 +81,7 @@ POLYMORPH_LITE_MAIN/
 ### Scripts (`scripts/`)
 Production utilities for database management and system administration.
 
-### Frontend (`gui-v2/`)
+### Frontend (`frontend/`)
 React-based UI with real-time monitoring and LIMS features.
 
 ### Documentation (`docs/`)

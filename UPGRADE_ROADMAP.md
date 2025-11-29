@@ -7,7 +7,44 @@
 
 ---
 
-## 🎉 IMPLEMENTATION STATUS (Updated: 2025-11-27)
+## 🎉 IMPLEMENTATION STATUS (Updated: 2025-11-28)
+
+### ✅ **v3.1 Hardening Release** - **COMPLETE**
+
+**What's Been Delivered:**
+
+✅ **CI/CD Infrastructure** - **COMPLETE**
+- Fixed all frontend path references (gui-v2/frontend → frontend)
+- Updated GitHub Actions workflows (ci.yml, ci-enhanced.yml)
+- Updated Dependabot configuration
+- All CI jobs now correctly build and test frontend
+
+✅ **Type Safety Improvements** - **COMPLETE**
+- Stricter mypy configuration for core modules
+- Type hints added to ai_client.py
+- Identified 30+ remaining type errors for future work
+- Core modules now enforce type safety
+
+✅ **Backend Testing** - **COMPLETE**
+- AI Circuit Breaker: 9 comprehensive tests
+- Health/Metrics Endpoints: 8 tests
+- All tests passing with full coverage
+
+✅ **Frontend Testing Infrastructure** - **COMPLETE**
+- Vitest configured with jsdom
+- Testing Library setup complete
+- Login component: 3 tests passing
+- Ready for expansion to other components
+
+✅ **Documentation** - **COMPLETE**
+- Created HARDWARE_INTEGRATION.md guide
+- Updated all path references across docs
+- Aligned documentation with actual codebase
+
+**Deferred to Future Release:**
+- Visual Workflow Builder UI (recommended for separate feature branch)
+
+---
 
 ### ✅ **COMPLETED** - Phases 0-4 Backend Implementation
 
@@ -438,7 +475,7 @@ async def get_sample_history(sample_id: str):
     pass
 ```
 
-#### Frontend UI (`/gui-v2/frontend/src/pages/SamplesPage.tsx`)
+#### Frontend UI (`/frontend/src/pages/SamplesPage.tsx`)
 
 **Components to create:**
 - Sample list with search/filter
@@ -593,7 +630,7 @@ async def list_samples(user: User = Depends(get_current_user)):
 - **Zustand** - State management
 - **React Query** - Server state synchronization
 
-#### Components (`/gui-v2/frontend/src/components/workflow-builder/`)
+#### Components (`/frontend/src/components/workflow-builder/`)
 
 **1. WorkflowCanvas.tsx** (Week 7)
 ```tsx
@@ -1378,7 +1415,7 @@ async def azure_callback(request: Request):
 
 ### Cloud Dashboard (Month 11)
 
-**Frontend:** `/gui-v2/frontend/src/pages/CloudDashboard.tsx`
+**Frontend:** `/frontend/src/pages/CloudDashboard.tsx`
 
 **Features:**
 - Real-time map of all lab locations
@@ -1656,7 +1693,7 @@ POLYMORPH_LITE_MAIN/
 │   ├── app.py
 │   ├── scheduler.py
 │   └── security/
-├── gui-v2/frontend/src/
+├── frontend/src/
 │   ├── pages/
 │   │   ├── SamplesPage.tsx         # NEW
 │   │   ├── InventoryPage.tsx       # NEW
