@@ -3,7 +3,7 @@ Database models for Polymorph Discovery v1.0.
 """
 from sqlalchemy import Column, Integer, String, Float, Boolean, JSON, Text, ForeignKey, Index
 from sqlalchemy.orm import relationship
-from retrofitkit.db.models.base import Base
+from retrofitkit.db.base import Base
 
 
 class PolymorphEvent(Base):
@@ -20,7 +20,7 @@ class PolymorphEvent(Base):
     workflow_execution_id = Column(String(36), nullable=True)
     sample_id = Column(String(36), nullable=True)
     operator_email = Column(String(255), nullable=False)
-    metadata = Column(JSON, nullable=True)
+    event_metadata = Column(JSON, nullable=True)
     
     # Relationships
     signatures = relationship("PolymorphSignature", back_populates="event", cascade="all, delete-orphan")
@@ -68,7 +68,7 @@ class PolymorphReport(Base):
     generated_by = Column(String(255), nullable=False)
     signed = Column(Boolean, default=False)
     signature_hash = Column(String(64), nullable=True)
-    metadata = Column(JSON, nullable=True)
+    report_metadata = Column(JSON, nullable=True)
     
     # Relationships
     event = relationship("PolymorphEvent", back_populates="reports")

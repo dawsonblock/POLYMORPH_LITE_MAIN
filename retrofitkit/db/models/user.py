@@ -19,6 +19,7 @@ class User(Base):
     role = Column(String(100), nullable=False)  # Legacy field, will be replaced by RBAC
     password_hash = Column(LargeBinary, nullable=False)
     mfa_secret = Column(String(255), nullable=True)
+    is_active = Column(String(10), default='true')
 
     # CFR 11 compliance fields
     failed_login_attempts = Column(Integer, default=0)

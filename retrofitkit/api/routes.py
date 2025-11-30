@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from retrofitkit.api.dependencies import get_current_user, get_db
 from retrofitkit.core.workflow.runner import workflow_runner, WorkflowStatus
-from retrofitkit.core.models import AuditLog
+from retrofitkit.db.models.audit import AuditEvent as AuditLog
 from retrofitkit.config import settings
 import uuid
 

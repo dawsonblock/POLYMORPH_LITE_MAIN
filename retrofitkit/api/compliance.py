@@ -99,7 +99,7 @@ async def verify_audit_chain(
     - Chain completeness
     """
 
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         # Get audit logs ordered by ID
@@ -139,7 +139,7 @@ async def verify_audit_chain(
             verified_count += 1
 
         # Log verification attempt
-        audit.log(
+        await audit.log(
             "AUDIT_CHAIN_VERIFIED",
             current_user.email,
             "system",
@@ -361,9 +361,9 @@ async def generate_run_report_pdf(
         pdf_bytes = buffer.read()
 
         # Log report generation (non-blocking)
-        audit = Audit()
+        audit = Audit(session)
         try:
-            audit.log(
+            await audit.log(
                 "REPORT_GENERATED",
                 current_user.email,
                 run_id,
@@ -571,7 +571,7 @@ async def create_config_snapshot(
     Captures all critical configuration for compliance and reproducibility.
     """
 
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         # Gather actual system configuration
@@ -644,7 +644,7 @@ async def create_config_snapshot(
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "CONFIG_SNAPSHOT_CREATED",
                 current_user.email,
                 snapshot.snapshot_id,

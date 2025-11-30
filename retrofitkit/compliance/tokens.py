@@ -9,7 +9,7 @@ from jose import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-from retrofitkit.core.models import User
+
 from retrofitkit.config import settings
 
 # JWT Configuration

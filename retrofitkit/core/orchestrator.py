@@ -22,7 +22,7 @@ from retrofitkit.core.ai_client import AIServiceClient, AIFailsafeError
 class Orchestrator:
     def __init__(self, ctx: AppContext):
         self.ctx = ctx
-        self.audit = Audit()
+        # self.audit = Audit() # Audit requires db session, cannot be instantiated here
         self.store = DataStore(ctx.config.system.data_dir)
 
         # Create devices via DeviceRegistry (Option C path)

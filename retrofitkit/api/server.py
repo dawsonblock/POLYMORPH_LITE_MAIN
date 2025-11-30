@@ -8,6 +8,7 @@ import socketio
 from typing import Dict
 
 from retrofitkit.core.app import AppContext
+from retrofitkit.core.orchestrator import Orchestrator
 from retrofitkit.api.auth import router as auth_router
 from retrofitkit.api.routes import router as api_router
 from retrofitkit.core.database import init_db
@@ -267,9 +268,10 @@ register_exception_handlers(app)
 socket_app = socketio.ASGIApp(sio)
 app.mount("/socket.io", socket_app)
 
-# Add security middleware (order matters!)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, requests=100)
+# Add security headers middleware (order matters!)
+if settings.ENV != "testing":
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RateLimitMiddleware, requests=100)
 
 # CORS configuration
 app.add_middleware(
@@ -282,6 +284,7 @@ app.add_middleware(
 )
 
 ctx = AppContext.load()
+orc = Orchestrator(ctx)
 bus = EventBus()
 # raman_streamer = RamanStreamer(ctx, bus, device=orc.raman)
 _start_time = time.time()
@@ -301,12 +304,12 @@ from retrofitkit.drivers.raman import vendor_ocean_optics  # noqa: F401
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(api_router, prefix="/api", tags=["api"])
-# app.include_router(health_router, prefix="/api", tags=["health"])
-# app.include_router(devices_router, prefix="/api", tags=["devices"])
-# app.include_router(workflows_router, prefix="/api", tags=["workflows"])
-# app.include_router(samples_router, tags=["samples"])
-# app.include_router(inventory_router, tags=["inventory"])
-# app.include_router(calibration_router, tags=["calibration"])
+app.include_router(health_router, prefix="/api", tags=["health"])
+app.include_router(devices_router, prefix="/api", tags=["devices"])
+app.include_router(workflows_router, prefix="/api", tags=["workflows"])
+app.include_router(samples_router, tags=["samples"])
+app.include_router(inventory_router, tags=["inventory"])
+app.include_router(calibration_router, tags=["calibration"])
 app.include_router(workflow_builder_router, tags=["workflow-builder"])
 app.include_router(compliance_router, tags=["compliance"])
 app.include_router(polymorph_router, tags=["polymorph"])

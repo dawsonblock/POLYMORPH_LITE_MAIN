@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt, JWTError
 
 from retrofitkit.core.database import get_db_session
-from retrofitkit.core.models import User # Assuming User model is moved or aliased here
+from retrofitkit.db.models.user import User
 from retrofitkit.config import settings
 # from retrofitkit.compliance.rbac import get_user_roles # Keep if valid, or refactor
 

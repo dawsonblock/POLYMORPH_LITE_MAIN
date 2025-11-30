@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from retrofitkit.core.models import AuditLog
+from retrofitkit.db.models.audit import AuditEvent as AuditLog
 
 async def write_audit_event(
     db: AsyncSession,

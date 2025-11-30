@@ -174,7 +174,7 @@ async def create_workflow_definition(
     that can be rendered in a visual workflow builder.
     """
 
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         # Get next version number
@@ -243,7 +243,7 @@ async def pause_workflow_execution(
 ):
     """Pause a running workflow execution."""
 
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         execution = session.query(WorkflowExecution).filter(
@@ -269,7 +269,7 @@ async def pause_workflow_execution(
         try:
             import os
             if os.environ.get("P4_ENVIRONMENT") != "testing":
-                from retrofitkit.api.routes import orc as orchestrator
+                from retrofitkit.api.server import orc as orchestrator
 
                 orc_run_id = None
                 if execution.results and "orchestrator_run_id" in execution.results:
@@ -313,7 +313,7 @@ async def resume_workflow_execution(
 ):
     """Resume a paused workflow execution."""
 
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         execution = session.query(WorkflowExecution).filter(
@@ -339,7 +339,7 @@ async def resume_workflow_execution(
         try:
             import os
             if os.environ.get("P4_ENVIRONMENT") != "testing":
-                from retrofitkit.api.routes import orc as orchestrator
+                from retrofitkit.api.server import orc as orchestrator
 
                 orc_run_id = None
                 if execution.results and "orchestrator_run_id" in execution.results:
@@ -483,7 +483,7 @@ async def activate_workflow_version(
     Requires QA or Admin role.
     """
 
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         # Enforce role check: QA or Admin only
@@ -573,7 +573,7 @@ async def approve_workflow_version(
     Requires QA or Admin role (implement role check as needed).
     """
 
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         workflow = session.query(WorkflowVersion).filter(
@@ -658,7 +658,7 @@ async def delete_workflow_version(
     Cannot delete active or approved workflows.
     """
 
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         workflow = session.query(WorkflowVersion).filter(
@@ -834,7 +834,7 @@ async def execute_workflow(
     Creates a workflow execution record and triggers the orchestrator.
     """
 
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         # Get workflow version
@@ -885,6 +885,7 @@ async def execute_workflow(
             status="running",
             config_snapshot_id=config_snapshot.id,
             run_metadata=execution.metadata or {},
+            results={},
         )
 
         session.add(new_execution)
@@ -907,7 +908,7 @@ async def execute_workflow(
             try:
                 import os
                 if os.environ.get("P4_ENVIRONMENT") != "testing":
-                    from retrofitkit.api.routes import orc as orchestrator
+                    from retrofitkit.api.server import orc as orchestrator
 
                     # Attach workflow version ID so executor can log correctly
                     recipe.id = workflow.id
@@ -1359,7 +1360,7 @@ async def abort_workflow_execution(
 ):
     """Abort a running workflow execution."""
 
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         execution = session.query(WorkflowExecution).filter(
@@ -1388,7 +1389,7 @@ async def abort_workflow_execution(
         try:
             import os
             if os.environ.get("P4_ENVIRONMENT") != "testing":
-                from retrofitkit.api.routes import orc as orchestrator
+                from retrofitkit.api.server import orc as orchestrator
 
                 # Prefer underlying orchestrator run_id if it was recorded
                 orc_run_id = None

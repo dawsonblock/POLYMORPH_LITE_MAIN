@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, JSON, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
+from retrofitkit.db.types import GUID
 
 from retrofitkit.db.base import Base
 
@@ -20,7 +21,7 @@ class WorkflowVersion(Base):
     """Versioned workflow definitions."""
     __tablename__ = 'workflow_versions'
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     workflow_name = Column(String(255), nullable=False, index=True)
     version = Column(String(50), nullable=False)  # Using string for flexibility (e.g., "1.0.0")
 
@@ -55,11 +56,11 @@ class WorkflowExecution(Base):
     """Record of workflow execution / run."""
     __tablename__ = 'workflow_executions'
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     run_id = Column(String(255), unique=True, nullable=False, index=True)
 
     # Workflow reference
-    workflow_version_id = Column(UUID(as_uuid=True), ForeignKey('workflow_versions.id'), nullable=False, index=True)
+    workflow_version_id = Column(GUID(), ForeignKey('workflow_versions.id'), nullable=False, index=True)
 
     # Execution details
     started_at = Column(DateTime, default=utcnow, index=True)
@@ -74,7 +75,7 @@ class WorkflowExecution(Base):
     error_message = Column(Text, nullable=True)
 
     # Configuration snapshot
-    config_snapshot_id = Column(UUID(as_uuid=True), ForeignKey('config_snapshots.id'), nullable=True)
+    config_snapshot_id = Column(GUID(), ForeignKey('config_snapshots.id'), nullable=True)
 
     # Metadata (sample_id, device_id, etc.)
     run_metadata = Column(JSON, default=dict)
@@ -89,9 +90,9 @@ class WorkflowSampleAssignment(Base):
     """Link between workflows and samples."""
     __tablename__ = 'workflow_sample_assignments'
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    workflow_execution_id = Column(UUID(as_uuid=True), ForeignKey('workflow_executions.id'), nullable=False, index=True)
-    sample_id = Column(UUID(as_uuid=True), ForeignKey('samples.id'), nullable=False, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    workflow_execution_id = Column(GUID(), ForeignKey('workflow_executions.id'), nullable=False, index=True)
+    sample_id = Column(GUID(), ForeignKey('samples.id'), nullable=False, index=True)
 
     assigned_at = Column(DateTime, default=utcnow)
     assigned_by = Column(String(255), nullable=False)
@@ -105,7 +106,7 @@ class ConfigSnapshot(Base):
     """Immutable configuration snapshots for compliance."""
     __tablename__ = 'config_snapshots'
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     snapshot_id = Column(String(255), unique=True, nullable=False, index=True)
 
     timestamp = Column(DateTime, default=utcnow, index=True)

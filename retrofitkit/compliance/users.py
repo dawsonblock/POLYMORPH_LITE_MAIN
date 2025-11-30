@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from retrofitkit.core.models import User
+from retrofitkit.db.models.user import User
 from retrofitkit.compliance.audit import write_audit_event
 
 
@@ -29,15 +29,16 @@ async def create_user(
     """
     Create a new user.
     """
-    hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    # Hash password (store as bytes)
+    hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
 
     user = User(
         email=email,
-        full_name=full_name,
+        name=full_name,
         role=role if not is_superuser else "admin",
-        hashed_password=hashed_password,
+        password_hash=hashed_password,
         is_active="true",
-        is_superuser="true" if is_superuser else "false"
+        # is_superuser field does not exist in DB model, ignoring
     )
 
     db.add(user)
@@ -84,7 +85,8 @@ async def authenticate_user(
 
     # Verify password
     try:
-        if not bcrypt.checkpw(password.encode(), user.hashed_password.encode()):
+        # user.password_hash is bytes
+        if not bcrypt.checkpw(password.encode(), user.password_hash):
             await write_audit_event(
                 db=db,
                 actor_id=email,
@@ -117,7 +119,7 @@ async def authenticate_user(
 
     return {
         "email": user.email,
-        "name": user.full_name,
+        "name": user.name,
         "role": user.role
     }
 

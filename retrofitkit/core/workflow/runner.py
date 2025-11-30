@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from retrofitkit.core.models import WorkflowExecution, WorkflowVersion, AuditLog
+from retrofitkit.db.models.workflow import WorkflowExecution, WorkflowVersion
+from retrofitkit.db.models.audit import AuditEvent as AuditLog
 from retrofitkit.core.database import get_db_session
 from retrofitkit.config import settings
 
@@ -88,7 +89,7 @@ class WorkflowRunner:
         
         async with get_db_session() as session:
             # Verify workflow exists
-            stmt = select(WorkflowVersion).where(WorkflowVersion.id == workflow_version_id)
+            stmt = select(WorkflowVersion).where(WorkflowVersion.id == uuid.UUID(workflow_version_id))
             result = await session.execute(stmt)
             wf_version = result.scalar_one_or_none()
             
@@ -99,9 +100,9 @@ class WorkflowRunner:
 
             # Create Execution Record
             execution = WorkflowExecution(
-                id=str(uuid.uuid4()),
+                id=uuid.uuid4(),
                 run_id=run_id,
-                workflow_version_id=workflow_version_id,
+                workflow_version_id=uuid.UUID(workflow_version_id),
                 status=WorkflowStatus.RUNNING,
                 operator=operator,
                 results={"context": context, "history": [], "current_step_id": defn.start_step_id}
@@ -110,6 +111,7 @@ class WorkflowRunner:
             
             # Audit Log
             audit = AuditLog(
+                ts=time.time(),
                 event="WORKFLOW_STARTED",
                 actor=operator,
                 subject=run_id,
@@ -182,12 +184,40 @@ class WorkflowRunner:
             if execution.status != WorkflowStatus.WAITING_FOR_INPUT:
                 raise RuntimeError("Workflow is not waiting for input")
             
-            current_results = execution.results or {}
+            current_results = dict(execution.results or {})
             if current_results.get("current_step_id") != step_id:
                 raise RuntimeError(f"Input submitted for wrong step.")
 
+            # Load definition to find next step
+            stmt_ver = select(WorkflowVersion).where(WorkflowVersion.id == execution.workflow_version_id)
+            res_ver = await session.execute(stmt_ver)
+            wf_version = res_ver.scalar_one_or_none()
+            if not wf_version:
+                raise ValueError("Workflow version not found")
+            
+            defn = WorkflowDefinition(**wf_version.definition)
+            steps_map = {s.id: s for s in defn.steps}
+            current_step = steps_map.get(step_id)
+            
+            if not current_step:
+                raise ValueError(f"Step {step_id} not found")
+                
             # Update context
             current_results["context"].update(data)
+            
+            # Record history for the input step
+            history = current_results.get("history", [])
+            history.append({
+                "step_id": step_id,
+                "status": "completed",
+                "timestamp": time.time(),
+                "result": data
+            })
+            current_results["history"] = history
+            
+            # Advance to next step
+            current_results["current_step_id"] = current_step.next_step_id
+            
             execution.results = current_results
             execution.status = WorkflowStatus.RUNNING
             await session.commit()
@@ -207,7 +237,7 @@ class WorkflowRunner:
             res = execution.results or {}
             return WorkflowState(
                 run_id=execution.run_id,
-                workflow_id=execution.workflow_version_id,
+                workflow_id=str(execution.workflow_version_id),
                 status=WorkflowStatus(execution.status),
                 current_step_id=res.get("current_step_id"),
                 context=res.get("context", {}),

@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 import bcrypt
 
 from retrofitkit.core.database import get_db_session
-from retrofitkit.core.models import User, AuditLog
+from retrofitkit.db.models.user import User
+from retrofitkit.db.models.audit import AuditEvent as AuditLog
 from retrofitkit.compliance.tokens import create_access_token
 
 router = APIRouter()
@@ -32,7 +33,9 @@ async def login(payload: Login, db: AsyncSession = Depends(get_db_session)) -> d
     # Check password
     # Note: bcrypt is CPU bound, should ideally run in executor, but fine for MVP
     try:
-        if not bcrypt.checkpw(payload.password.encode(), user.hashed_password.encode()):
+        # User.password_hash is LargeBinary (bytes)
+        # payload.password is str
+        if not bcrypt.checkpw(payload.password.encode(), user.password_hash):
              raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials"
@@ -62,8 +65,8 @@ async def login(payload: Login, db: AsyncSession = Depends(get_db_session)) -> d
         "access_token": token,
         "token_type": "bearer",
         "user": {
-            "id": user.id,
-            "username": user.full_name or user.email,
+            "id": user.email, # Use email as ID since DB model uses email as PK
+            "username": user.name or user.email,
             "email": user.email,
             "role": user.role,
             "isActive": True
