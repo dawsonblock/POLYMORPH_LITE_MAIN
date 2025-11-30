@@ -6,11 +6,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Create Async Engine
+# Create Async Engine with optimized settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
-    future=True
+    future=True,
+    pool_size=20,  # Increase connection pool size
+    max_overflow=10,  # Allow 10 additional connections
+    pool_pre_ping=True,  # Verify connections before using
+    pool_recycle=3600,  # Recycle connections after 1 hour
 )
 
 # Create Async Session Factory

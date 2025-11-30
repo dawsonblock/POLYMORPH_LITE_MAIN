@@ -13,7 +13,7 @@ class WorkflowVersion(Base):
     workflow_name = Column(String, nullable=False, index=True)
     version = Column(String, nullable=False)
     definition = Column(JSON, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_active = Column(String, default="true") # "true" or "false"
 
 class WorkflowExecution(Base):
@@ -23,7 +23,7 @@ class WorkflowExecution(Base):
     run_id = Column(String, unique=True, index=True, nullable=False)
     workflow_version_id = Column(String, ForeignKey("workflow_versions.id"), nullable=False)
     status = Column(String, index=True, default="pending")
-    started_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     completed_at = Column(DateTime, nullable=True)
     results = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
