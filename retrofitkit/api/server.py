@@ -1,7 +1,7 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # type: ignore[import]
-from fastapi.responses import HTMLResponse, PlainTextResponse  # type: ignore[import]
-from fastapi.staticfiles import StaticFiles  # type: ignore[import]
-from fastapi.middleware.cors import CORSMiddleware  # type: ignore[import]
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 import socketio
@@ -9,15 +9,17 @@ from typing import Dict
 
 from retrofitkit.core.app import AppContext
 from retrofitkit.api.auth import router as auth_router
-from retrofitkit.api.routes import router as api_router, orc  # Import global orchestrator
-from retrofitkit.core.raman_stream import RamanStreamer
+from retrofitkit.api.routes import router as api_router
+from retrofitkit.core.database import init_db
+from retrofitkit.core.workflow.runner import workflow_runner
 from retrofitkit.core.events import EventBus
 from retrofitkit.__version__ import __version__
 from retrofitkit.metrics.exporter import Metrics
 from retrofitkit.security.headers import SecurityHeadersMiddleware, RateLimitMiddleware
 import time
 from datetime import datetime
-
+from retrofitkit.config import settings
+from retrofitkit.logging import logger
 
 # Socket.IO server
 sio = socketio.AsyncServer(
@@ -54,9 +56,83 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Starting POLYMORPH-LITE v8.0...")
+    await init_db()
+    
+    # Start metrics exporter
+    Metrics.start()
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down...")
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    lifespan=lifespan
+)
+
+# Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
+# Socket.IO
+app_sio = socketio.ASGIApp(sio, app)
+
+# Routers
+app.include_router(auth_router, prefix="/auth", tags=["Auth"])
+app.include_router(api_router, prefix="/api/v1", tags=["API"])
+
+@app.get("/")
+async def root():
+    return {
+        "app": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "status": "running",
+        "docs": "/docs"
+    }
+
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    await manager.connect(websocket, client_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Echo for now
+            await manager.broadcast({"client": client_id, "message": data})
+    except WebSocketDisconnect:
+        manager.disconnect(client_id)
+
 # Background tasks
 async def system_monitor_task():
     """Generate system status updates"""
+    while True:
+        try:
+            # Broadcast status every 5 seconds
+            await manager.broadcast({
+                "type": "status",
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": "ok"
+            })
+            await asyncio.sleep(5)
+        except Exception as e:
+            logger.error(f"Monitor error: {e}")
+            await asyncio.sleep(5)
+
+@app.on_event("startup")
+async def start_monitor():
+    asyncio.create_task(system_monitor_task())
     while True:
         try:
             # Get real status from Orchestrator
@@ -151,20 +227,27 @@ async def data_generation_task():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await raman_streamer.start()
+    logger.info("Starting POLYMORPH-LITE v8.0...")
+    await init_db()
+    
+    # Start metrics exporter
+    Metrics.start()
+    
+    # await raman_streamer.start()
 
     # Start background tasks
     monitor_task = asyncio.create_task(system_monitor_task())
-    data_task = asyncio.create_task(data_generation_task())
-    spectra_task = asyncio.create_task(broadcast_spectra_task())
+    # data_task = asyncio.create_task(data_generation_task())
+    # spectra_task = asyncio.create_task(broadcast_spectra_task())
 
     yield
 
     # Shutdown
+    logger.info("Shutting down...")
     monitor_task.cancel()
-    data_task.cancel()
-    spectra_task.cancel()
-    await raman_streamer.stop()
+    # data_task.cancel()
+    # spectra_task.cancel()
+    # await raman_streamer.stop()
 
 # Create FastAPI application
 app = FastAPI(
@@ -200,7 +283,7 @@ app.add_middleware(
 
 ctx = AppContext.load()
 bus = EventBus()
-raman_streamer = RamanStreamer(ctx, bus, device=orc.raman)
+# raman_streamer = RamanStreamer(ctx, bus, device=orc.raman)
 _start_time = time.time()
 
 from retrofitkit.api.health import router as health_router
@@ -213,21 +296,20 @@ from retrofitkit.api.workflow_builder import router as workflow_builder_router
 from retrofitkit.api.compliance import router as compliance_router
 from retrofitkit.api.polymorph import router as polymorph_router  # v4.0: Polymorph Discovery
 
-
 # Import drivers to trigger registry auto-registration
 from retrofitkit.drivers.raman import vendor_ocean_optics  # noqa: F401
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(api_router, prefix="/api", tags=["api"])
-app.include_router(health_router, prefix="/api", tags=["health"])
-app.include_router(devices_router, prefix="/api", tags=["devices"])
-app.include_router(workflows_router, prefix="/api", tags=["workflows"])
-app.include_router(samples_router, tags=["samples"])  # Prefix already in router definition
-app.include_router(inventory_router, tags=["inventory"])  # Prefix already in router definition
-app.include_router(calibration_router, tags=["calibration"])  # Prefix already in router definition
-app.include_router(workflow_builder_router, tags=["workflow-builder"])  # Prefix already in router definition
-app.include_router(compliance_router, tags=["compliance"])  # Prefix already in router definition
-app.include_router(polymorph_router, tags=["polymorph"])  # v4.0: Polymorph Discovery endpoints
+# app.include_router(health_router, prefix="/api", tags=["health"])
+# app.include_router(devices_router, prefix="/api", tags=["devices"])
+# app.include_router(workflows_router, prefix="/api", tags=["workflows"])
+# app.include_router(samples_router, tags=["samples"])
+# app.include_router(inventory_router, tags=["inventory"])
+# app.include_router(calibration_router, tags=["calibration"])
+app.include_router(workflow_builder_router, tags=["workflow-builder"])
+app.include_router(compliance_router, tags=["compliance"])
+app.include_router(polymorph_router, tags=["polymorph"])
 
 app.mount(
     "/static",

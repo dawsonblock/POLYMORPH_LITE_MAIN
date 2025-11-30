@@ -8,20 +8,15 @@ from typing import Dict, Any
 from jose import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
 
-
-from retrofitkit.db.models.user import User
-
-from retrofitkit.core.config import get_config
-
-settings = get_config()
+from retrofitkit.core.models import User
+from retrofitkit.config import settings
 
 # JWT Configuration
-SECRET_KEY = settings.security.jwt_secret_key
-JWT_SECRET_KEY = settings.security.jwt_secret_key
-ALG = settings.security.jwt_algorithm
-ACCESS_TOKEN_EXPIRE_MINUTES = settings.security.jwt_exp_minutes
+SECRET_KEY = settings.SECRET_KEY
+JWT_SECRET_KEY = settings.SECRET_KEY
+ALG = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 
 def create_access_token(data: dict, expires_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES) -> str:

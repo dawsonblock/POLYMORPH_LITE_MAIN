@@ -1,101 +1,75 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from typing import List
-from retrofitkit.api.security import get_current_user
-from retrofitkit.core.app import AppContext
-from retrofitkit.core.orchestrator import Orchestrator
-from retrofitkit.core.recipe import Recipe
-from retrofitkit.compliance.audit import Audit
-from retrofitkit.compliance import approvals as Approvals
-from retrofitkit.data.storage import DataStore
+from typing import List, Dict, Any
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from retrofitkit.api.dependencies import get_current_user, get_db
+from retrofitkit.core.workflow.runner import workflow_runner, WorkflowStatus
+from retrofitkit.core.models import AuditLog
+from retrofitkit.config import settings
+import uuid
 
 router = APIRouter()
-ctx = AppContext.load()
-orc = Orchestrator(ctx)
-store = DataStore(ctx.config.system.data_dir)
 
 class RunRequest(BaseModel):
-    recipe_path: str
-    simulation: bool = False
+    workflow_version_id: str
+    context: Dict[str, Any] = {}
 
-class RunBatchRequest(BaseModel):
-    recipe_paths: List[str]
-    simulation: bool = False
-
-class Approval(BaseModel):
-    request_id: int
-
-class PackageReq(BaseModel):
+class RunResponse(BaseModel):
     run_id: str
-
-from retrofitkit.core.safety.interlocks import get_interlocks
+    status: str
 
 @router.get("/status")
-def status(user=Depends(get_current_user)):
-    """Get current system status (dynamic)."""
-
-    # Get safety status
-    interlocks = get_interlocks(ctx.config)
-    safety_status = "unknown"
-    if interlocks:
-        if interlocks.estop_active: safety_status = "ESTOP"
-        elif interlocks.door_open: safety_status = "DOOR_OPEN"
-        else: safety_status = "SAFE"
-    else:
-        safety_status = "uninitialized"
-
+async def status_endpoint(user=Depends(get_current_user)):
+    """Get current system status."""
     return {
-        "ok": True,
-        "user": user,
-        "mode": ctx.config.system.environment,
-        "daq": ctx.config.daq.backend,
-        "raman": ctx.config.raman.provider,
-        "orchestrator": orc.status, # Dynamic status from engine
-        "safety": {
-            "interlocks": safety_status
-        }
+        "app": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "env": settings.ENV,
+        "user": user
     }
 
-@router.get("/runs")
-def runs(user=Depends(get_current_user)):
-    return store.list_runs(limit=200)
+@router.post("/workflows/run", response_model=RunResponse)
+async def run_workflow(
+    payload: RunRequest, 
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Start a new workflow execution."""
+    try:
+        # In a real app, 'user' would be a User object. Here it's a dict or mock.
+        operator = user.get("email") if isinstance(user, dict) else user.email
+        
+        run_id = await workflow_runner.start_workflow(
+            workflow_version_id=payload.workflow_version_id,
+            context=payload.context,
+            operator=operator
+        )
+        return {"run_id": run_id, "status": "running"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/request_run")
-def request_run(payload: RunRequest, user=Depends(get_current_user)):
-    req_id = Approvals.request(payload.recipe_path, user["email"])
-    Audit().record("RUN_REQUEST", user["email"], payload.recipe_path, {"request_id": req_id})
-    return {"request_id": req_id, "status": "PENDING", "required_roles": ["Operator","QA"]}
+@router.post("/workflows/{run_id}/pause")
+async def pause_workflow(run_id: str, user=Depends(get_current_user)):
+    await workflow_runner.pause_workflow(run_id)
+    return {"status": "paused"}
 
-@router.get("/approvals")
-def approvals_list(user=Depends(get_current_user)):
-    return Approvals.list_pending(limit=200)
+@router.post("/workflows/{run_id}/resume")
+async def resume_workflow(run_id: str, user=Depends(get_current_user)):
+    await workflow_runner.resume_workflow(run_id)
+    return {"status": "resumed"}
 
-@router.post("/approve")
-def approve(payload: Approval, user=Depends(get_current_user)):
-    Approvals.approve(payload.request_id, user["email"], user["role"])
-    Audit().record("RUN_APPROVE", user["email"], f"req:{payload.request_id}", {"role": user["role"]})
-    return {"ok": True}
+@router.post("/workflows/{run_id}/cancel")
+async def cancel_workflow(run_id: str, user=Depends(get_current_user)):
+    await workflow_runner.cancel_workflow(run_id, reason=f"Cancelled by {user.get('email', 'unknown')}")
+    return {"status": "cancelled"}
 
-@router.post("/run")
-async def run(payload: RunRequest, user=Depends(get_current_user)):
-    approved = [a for a in Approvals.list_pending() if a["recipe_path"] == payload.recipe_path and a["status"] == "APPROVED"]
-    if not approved:
-        raise HTTPException(status_code=403, detail="Two-person approval required")
-    recipe = Recipe.from_yaml(payload.recipe_path)
-    rid = await orc.run(recipe, user["email"], simulation=payload.simulation)
-    return {"run_id": rid}
+@router.get("/workflows/{run_id}")
+async def get_workflow_state(run_id: str, user=Depends(get_current_user)):
+    state = await workflow_runner.get_state(run_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return state
 
-@router.post("/run_batch")
-async def run_batch(payload: RunBatchRequest, user=Depends(get_current_user)):
-    run_ids = []
-    for rp in payload.recipe_paths:
-        recipe = Recipe.from_yaml(rp)
-        rid = await orc.run(recipe, user["email"], simulation=payload.simulation)
-        run_ids.append(rid)
-    return {"run_ids": run_ids}
-
-@router.post("/package_run")
-def package_run(payload: PackageReq, user=Depends(get_current_user)):
-    path = store.package_run(payload.run_id)
-    Audit().record("RUN_PACKAGE", user["email"], payload.run_id, {"path": path})
-    return {"package_path": path}

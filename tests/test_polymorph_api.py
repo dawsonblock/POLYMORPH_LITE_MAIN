@@ -16,6 +16,19 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def mock_auth():
+    """Mock authentication for all tests."""
+    from retrofitkit.api.dependencies import get_current_user
+    
+    def mock_get_current_user():
+        return {"email": "test@example.com", "role": "admin"}
+    
+    app.dependency_overrides[get_current_user] = mock_get_current_user
+    yield
+    app.dependency_overrides = {}
+
+
 @pytest.fixture
 def mock_ai_service():
     """Mock AI service responses."""

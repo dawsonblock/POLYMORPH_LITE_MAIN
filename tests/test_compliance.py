@@ -12,9 +12,10 @@ from retrofitkit.db.base import Base
 def audit_db(db_session):
     return db_session
 
-def test_audit_log_hash_chain(audit_db):
+@pytest.mark.asyncio
+async def test_audit_log_hash_chain(audit_db):
     # 1. Write first event
-    e1 = write_audit_event(
+    e1 = await write_audit_event(
         audit_db, 
         "user1", 
         "TEST_EVENT", 
@@ -27,7 +28,7 @@ def test_audit_log_hash_chain(audit_db):
     assert e1.hash is not None
     
     # 2. Write second event
-    e2 = write_audit_event(
+    e2 = await write_audit_event(
         audit_db, 
         "user1", 
         "TEST_EVENT_2", 
@@ -39,21 +40,21 @@ def test_audit_log_hash_chain(audit_db):
     assert e2.prev_hash == e1.hash
     
     # 3. Verify Chain
-    result = verify_audit_chain(audit_db)
+    result = await verify_audit_chain(audit_db)
     assert result["valid"] is True
-    assert result["entries_checked"] == 2
+    assert result["total_entries"] == 2
 
-def test_audit_tamper_detection(audit_db):
+@pytest.mark.asyncio
+async def test_audit_tamper_detection(audit_db):
     # 1. Write events
-    e1 = write_audit_event(audit_db, "user1", "E1", "t", "1", {})
-    e2 = write_audit_event(audit_db, "user1", "E2", "t", "2", {})
+    e1 = await write_audit_event(audit_db, "user1", "E1", "t", "1", {})
+    e2 = await write_audit_event(audit_db, "user1", "E2", "t", "2", {})
     
     # 2. Tamper with E1
-    # We need to bypass SQLAlchemy to tamper directly if possible, or just modify and commit
     e1.details = json.dumps({"tampered": True})
-    audit_db.commit()
+    await audit_db.commit()
     
     # 3. Verify Chain - should fail
-    result = verify_audit_chain(audit_db)
+    result = await verify_audit_chain(audit_db)
     assert result["valid"] is False
-    assert len(result["errors"]) > 0
+    assert len(result["invalid_entries"]) > 0

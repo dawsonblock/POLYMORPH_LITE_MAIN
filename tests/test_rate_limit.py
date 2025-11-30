@@ -12,6 +12,8 @@ Tests:
 """
 import pytest
 import asyncio
+import time
+from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import FastAPI, Request, Depends
 from fastapi.testclient import TestClient
 from retrofitkit.security.rate_limit import (
@@ -23,18 +25,97 @@ from retrofitkit.security.rate_limit import (
 )
 
 
+class MockRedis:
+    """Mock Redis for testing without actual Redis server."""
+    
+    def __init__(self):
+        self.data = {}
+        self._lock = asyncio.Lock()
+        
+    async def ping(self):
+        return True
+        
+    async def close(self):
+        pass
+        
+    def pipeline(self):
+        return MockRedisPipeline(self.data, self._lock)
+        
+    async def delete(self, key):
+        async with self._lock:
+            if key in self.data:
+                del self.data[key]
+            
+            
+class MockRedisPipeline:
+    """Mock Redis pipeline."""
+    
+    def __init__(self, data, lock):
+        self.data = data
+        self.lock = lock
+        self.commands = []
+        
+    def zremrangebyscore(self, key, min_score, max_score):
+        self.commands.append(('zremrangebyscore', key, min_score, max_score))
+        return self
+        
+    def zcard(self, key):
+        self.commands.append(('zcard', key))
+        return self
+        
+    def zadd(self, key, mapping):
+        self.commands.append(('zadd', key, mapping))
+        return self
+        
+    def expire(self, key, seconds):
+        self.commands.append(('expire', key, seconds))
+        return self
+        
+    async def execute(self):
+        async with self.lock:
+            results = []
+            for cmd, *args in self.commands:
+                if cmd == 'zremrangebyscore':
+                    key, min_score, max_score = args
+                    if key in self.data:
+                        # Filter out entries in the score range
+                        self.data[key] = {k: v for k, v in self.data[key].items() if not (min_score <= float(v) <= max_score)}
+                    results.append(None)
+                elif cmd == 'zcard':
+                    key = args[0]
+                    count = len(self.data.get(key, {}))
+                    results.append(count)
+                elif cmd == 'zadd':
+                    key, mapping = args
+                    if key not in self.data:
+                        self.data[key] = {}
+                    # Convert values to float for comparison
+                    for k, v in mapping.items():
+                        self.data[key][k] = float(v)
+                    results.append(None)
+                elif cmd == 'expire':
+                    results.append(None)
+            return results
+
+
 @pytest.fixture
 async def rate_limiter():
     """Create rate limiter for testing."""
-    # Use disabled mode for tests (no Redis required)
-    limiter = await init_rate_limiter(
-        redis_url="redis://localhost:6379",
-        default_limit=10,
-        default_window=60,
-        enabled=False  # Disabled for testing without Redis
-    )
-    yield limiter
-    await shutdown_rate_limiter()
+    # Mock Redis connection
+    mock_redis = MockRedis()
+    
+    async def mock_from_url(*args, **kwargs):
+        return mock_redis
+    
+    with patch('retrofitkit.security.rate_limit.redis.from_url', side_effect=mock_from_url):
+        limiter = await init_rate_limiter(
+            redis_url="redis://localhost:6379",
+            default_limit=10,
+            default_window=60,
+            enabled=True
+        )
+        yield limiter
+        await shutdown_rate_limiter()
 
 
 @pytest.fixture

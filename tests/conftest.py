@@ -1,82 +1,65 @@
 import pytest
-import os
-import sys
+import asyncio
+from typing import AsyncGenerator, Generator
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from httpx import AsyncClient, ASGITransport
 
-# Force SQLite for testing
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-os.environ["P4_DATABASE_URL"] = "sqlite:///:memory:"
-os.environ["P4_ENVIRONMENT"] = "testing"
+from retrofitkit.core.database import get_db_session
+from retrofitkit.core.models import Base, User
+from retrofitkit.api.server import app
+from retrofitkit.config import settings
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
+# Use in-memory SQLite for tests
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-from retrofitkit.db.session import engine, SessionLocal
-from retrofitkit.db.base import Base
-# Import all models to ensure they are registered with Base
-from retrofitkit.db.models import user, device, sample, workflow, audit, rbac, org, inventory, calibration
+from sqlalchemy.pool import StaticPool
 
-@pytest.fixture(scope="session", autouse=True)
-def setup_test_db():
-    from retrofitkit.db.base import Base
-    from retrofitkit.db.models.user import User
-    from retrofitkit.db.models.workflow import WorkflowVersion, WorkflowExecution, ConfigSnapshot
+engine = create_async_engine(
+    TEST_DATABASE_URL, 
+    echo=False, 
+    future=True,
+    poolclass=StaticPool,
+    connect_args={"check_same_thread": False}
+)
+TestingSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+@pytest.fixture(scope="session")
+def event_loop() -> Generator:
+    """Create an instance of the default event loop for each test case."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+@pytest.fixture(scope="function")
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Create a fresh database session for each test."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with TestingSessionLocal() as session:
+        yield session
+        await session.rollback() # Rollback transaction
+        
+    # Drop tables to ensure clean state for next test
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+@pytest.fixture(scope="function")
+async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    """Create an async test client with overridden DB dependency."""
     
-    """Create tables for all tests."""
-    # Create tables
-    Base.metadata.create_all(bind=engine)
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db_session] = override_get_db
     
-    # Debug: Check if tables exist
-    from sqlalchemy import inspect
-    inspector = inspect(engine)
-    print(f"DEBUG: Created tables: {inspector.get_table_names()}")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
     
-    # Generate dummy keys for signature tests
-    import os
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    
-    key_dir = "data/config/keys"
-    os.makedirs(key_dir, exist_ok=True)
-    private_key_path = os.path.join(key_dir, "private.pem")
-    public_key_path = os.path.join(key_dir, "public.pem")
-    
-    if not os.path.exists(private_key_path):
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        with open(private_key_path, "wb") as f:
-            f.write(key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            ))
-        with open(public_key_path, "wb") as f:
-            f.write(key.public_key().public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            ))
-    
-    yield
-    # Drop tables
-    Base.metadata.drop_all(bind=engine)
+    app.dependency_overrides.clear()
 
 @pytest.fixture
-def db_session():
-    """Provide a transactional scope for each test."""
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = SessionLocal(bind=connection)
-    
-    yield session
-    
-    session.close()
-    # Rollback any uncommitted changes
-    transaction.rollback()
-    connection.close()
-    
-    # Explicitly clean up all tables since we use StaticPool
-    # This ensures a clean state for the next test even if commits happened
-    with engine.connect() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            # print(f"DEBUG: Deleting table {table.name}")
-            conn.execute(table.delete())
-        conn.commit()
+def mock_user():
+    return {"email": "test@example.com", "role": "admin"}

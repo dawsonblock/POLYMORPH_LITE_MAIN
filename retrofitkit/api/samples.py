@@ -10,13 +10,15 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 import re
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update, delete
+from sqlalchemy.orm import selectinload
+
 from retrofitkit.db.models.sample import Project, Batch, Container, Sample, SampleLineage
 from retrofitkit.db.models.workflow import WorkflowSampleAssignment
-from retrofitkit.db.session import get_db
-from sqlalchemy.orm import Session
+from retrofitkit.core.database import get_db_session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user, require_role
-from retrofitkit.api.dependencies import require_role
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 
@@ -140,14 +142,15 @@ class BatchResponse(BaseModel):
 async def create_sample(
     sample: SampleCreate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Create a new sample."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         # Check if sample_id already exists
-        existing = session.query(Sample).filter(Sample.sample_id == sample.sample_id).first()
+        result = await session.execute(select(Sample).where(Sample.sample_id == sample.sample_id))
+        existing = result.scalar_one_or_none()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -168,7 +171,7 @@ async def create_sample(
         )
 
         session.add(new_sample)
-        session.flush()  # Get the ID without committing
+        await session.flush()  # Get the ID without committing
 
         # Create lineage entry if parent exists (same transaction)
         if sample.parent_sample_id:
@@ -181,12 +184,12 @@ async def create_sample(
             session.add(lineage)
 
         # Commit everything in one transaction
-        session.commit()
-        session.refresh(new_sample)
+        await session.commit()
+        await session.refresh(new_sample)
 
         # Audit log (outside transaction - non-critical)
         try:
-            audit.log(
+            await audit.log(
                 "SAMPLE_CREATED",
                 current_user["email"],
                 sample.sample_id,
@@ -203,13 +206,11 @@ async def create_sample(
         raise
     except Exception as e:
         # Rollback on any other error
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating sample: {str(e)}"
         )
-    finally:
-        pass
 
 
 @router.post(
@@ -221,14 +222,14 @@ async def create_sample(
 async def create_samples_bulk(
     samples: List[SampleCreate],
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """
     Create multiple samples in a single transaction.
 
     Maximum 100 samples per request for performance.
     """
-    audit = Audit()
+    audit = Audit(session)
 
     # Validate batch size
     if len(samples) > 100:
@@ -255,9 +256,8 @@ async def create_samples_bulk(
             )
 
         # Check for existing samples
-        existing = session.query(Sample).filter(
-            Sample.sample_id.in_(sample_ids)
-        ).all()
+        result = await session.execute(select(Sample).where(Sample.sample_id.in_(sample_ids)))
+        existing = result.scalars().all()
 
         if existing:
             existing_ids = [s.sample_id for s in existing]
@@ -283,15 +283,15 @@ async def create_samples_bulk(
             created_samples.append(new_sample)
 
         # Commit all at once
-        session.commit()
+        await session.commit()
 
         # Refresh all
         for sample in created_samples:
-            session.refresh(sample)
+            await session.refresh(sample)
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "SAMPLES_BULK_CREATED",
                 current_user["email"],
                 "bulk_operation",
@@ -305,26 +305,25 @@ async def create_samples_bulk(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating samples in bulk: {str(e)}"
         )
-    finally:
-        pass
 
 
 @router.post("/containers", response_model=ContainerResponse, status_code=status.HTTP_201_CREATED)
 async def create_container(
     container: ContainerCreate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Create a new container."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
-        existing = session.query(Container).filter(Container.container_id == container.container_id).first()
+        result = await session.execute(select(Container).where(Container.container_id == container.container_id))
+        existing = result.scalar_one_or_none()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -339,10 +338,10 @@ async def create_container(
         )
 
         session.add(new_container)
-        session.commit()
-        session.refresh(new_container)
+        await session.commit()
+        await session.refresh(new_container)
 
-        audit.log(
+        await audit.log(
             "CONTAINER_CREATED",
             current_user["email"],
             container.container_id,
@@ -356,30 +355,24 @@ async def create_container(
 
 
 @router.get("/containers", response_model=List[ContainerResponse])
-async def list_containers(limit: int = 100, offset: int = 0, session: Session = Depends(get_db)):
+async def list_containers(limit: int = 100, offset: int = 0, session: AsyncSession = Depends(get_db_session)):
     """List all containers."""
-
-    try:
-        containers = session.query(Container).limit(limit).offset(offset).all()
-        return containers
-    finally:
-        pass
+    result = await session.execute(select(Container).limit(limit).offset(offset))
+    containers = result.scalars().all()
+    return containers
 
 
 @router.get("/containers/{container_id}", response_model=ContainerResponse)
-async def get_container(container_id: str, session: Session = Depends(get_db)):
+async def get_container(container_id: str, session: AsyncSession = Depends(get_db_session)):
     """Get container details."""
-
-    try:
-        container = session.query(Container).filter(Container.container_id == container_id).first()
-        if not container:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Container '{container_id}' not found"
-            )
-        return container
-    finally:
-        pass
+    result = await session.execute(select(Container).where(Container.container_id == container_id))
+    container = result.scalar_one_or_none()
+    if not container:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Container '{container_id}' not found"
+        )
+    return container
 
 
 # ============================================================================
@@ -390,13 +383,14 @@ async def get_container(container_id: str, session: Session = Depends(get_db)):
 async def create_project(
     project: ProjectCreate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Create a new project."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
-        existing = session.query(Project).filter(Project.project_id == project.project_id).first()
+        result = await session.execute(select(Project).where(Project.project_id == project.project_id))
+        existing = result.scalar_one_or_none()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -413,10 +407,10 @@ async def create_project(
         )
 
         session.add(new_project)
-        session.commit()
-        session.refresh(new_project)
+        await session.commit()
+        await session.refresh(new_project)
 
-        audit.log(
+        await audit.log(
             "PROJECT_CREATED",
             current_user["email"],
             project.project_id,
@@ -434,19 +428,17 @@ async def list_projects(
     status: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """List projects."""
+    stmt = select(Project)
+    if status:
+        stmt = stmt.where(Project.status == status)
 
-    try:
-        query = session.query(Project)
-        if status:
-            query = query.filter(Project.status == status)
-
-        projects = query.limit(limit).offset(offset).all()
-        return projects
-    finally:
-        pass
+    stmt = stmt.limit(limit).offset(offset)
+    result = await session.execute(stmt)
+    projects = result.scalars().all()
+    return projects
 
 
 # ============================================================================
@@ -457,13 +449,14 @@ async def list_projects(
 async def create_batch(
     batch: BatchCreate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Create a new batch."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
-        existing = session.query(Batch).filter(Batch.batch_id == batch.batch_id).first()
+        result = await session.execute(select(Batch).where(Batch.batch_id == batch.batch_id))
+        existing = result.scalar_one_or_none()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -478,10 +471,10 @@ async def create_batch(
         )
 
         session.add(new_batch)
-        session.commit()
-        session.refresh(new_batch)
+        await session.commit()
+        await session.refresh(new_batch)
 
-        audit.log(
+        await audit.log(
             "BATCH_CREATED",
             current_user["email"],
             batch.batch_id,
@@ -495,51 +488,50 @@ async def create_batch(
 
 
 @router.get("/batches", response_model=List[BatchResponse])
-async def list_batches(limit: int = 100, offset: int = 0, session: Session = Depends(get_db)):
+async def list_batches(limit: int = 100, offset: int = 0, session: AsyncSession = Depends(get_db_session)):
     """List batches."""
+    result = await session.execute(select(Batch).limit(limit).offset(offset))
+    batches = result.scalars().all()
+    return batches
 
-    try:
-        batches = session.query(Batch).limit(limit).offset(offset).all()
-        return batches
-    finally:
-        pass
+
 @router.get("/{sample_id}", response_model=SampleWithLineage)
-async def get_sample(sample_id: str, session: Session = Depends(get_db)):
+async def get_sample(sample_id: str, session: AsyncSession = Depends(get_db_session)):
     """Get sample details with lineage."""
+    result = await session.execute(select(Sample).where(Sample.sample_id == sample_id))
+    sample = result.scalar_one_or_none()
+    if not sample:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sample '{sample_id}' not found"
+        )
 
-    try:
-        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
-        if not sample:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Sample '{sample_id}' not found"
-            )
+    # Get lineage
+    parent_result = await session.execute(select(SampleLineage).where(SampleLineage.child_sample_id == sample.id))
+    parent_lineages = parent_result.scalars().all()
 
-        # Get lineage
-        parent_lineages = session.query(SampleLineage).filter(
-            SampleLineage.child_sample_id == sample.id
-        ).all()
-        child_lineages = session.query(SampleLineage).filter(
-            SampleLineage.parent_sample_id == sample.id
-        ).all()
+    child_result = await session.execute(select(SampleLineage).where(SampleLineage.parent_sample_id == sample.id))
+    child_lineages = child_result.scalars().all()
 
-        parent_samples = [
-            session.query(Sample).filter(Sample.id == lineage.parent_sample_id).first()
-            for lineage in parent_lineages
-        ]
-        child_samples = [
-            session.query(Sample).filter(Sample.id == lineage.child_sample_id).first()
-            for lineage in child_lineages
-        ]
+    parent_samples = []
+    for lineage in parent_lineages:
+        res = await session.execute(select(Sample).where(Sample.id == lineage.parent_sample_id))
+        s = res.scalar_one_or_none()
+        if s:
+            parent_samples.append(s)
 
-        return {
-            **SampleResponse.model_validate(sample).model_dump(),
-            "parent_samples": [SampleResponse.model_validate(p) for p in parent_samples if p],
-            "child_samples": [SampleResponse.model_validate(c) for c in child_samples if c]
-        }
+    child_samples = []
+    for lineage in child_lineages:
+        res = await session.execute(select(Sample).where(Sample.id == lineage.child_sample_id))
+        s = res.scalar_one_or_none()
+        if s:
+            child_samples.append(s)
 
-    finally:
-        pass
+    return {
+        **SampleResponse.model_validate(sample).model_dump(),
+        "parent_samples": [SampleResponse.model_validate(p) for p in parent_samples],
+        "child_samples": [SampleResponse.model_validate(c) for c in child_samples]
+    }
 
 
 @router.get("/", response_model=List[SampleResponse])
@@ -549,30 +541,29 @@ async def list_samples(
     container_id: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """List samples with optional filtering."""
+    stmt = select(Sample)
 
-    try:
-        query = session.query(Sample)
+    if status:
+        stmt = stmt.where(Sample.status == status)
+    if project_id:
+        # Look up project UUID from project_id string
+        proj_res = await session.execute(select(Project).where(Project.project_id == project_id))
+        project = proj_res.scalar_one_or_none()
+        if project:
+            stmt = stmt.where(Sample.project_id == project.id)
+    if container_id:
+        cont_res = await session.execute(select(Container).where(Container.container_id == container_id))
+        container = cont_res.scalar_one_or_none()
+        if container:
+            stmt = stmt.where(Sample.container_id == container.id)
 
-        if status:
-            query = query.filter(Sample.status == status)
-        if project_id:
-            # Look up project UUID from project_id string
-            project = session.query(Project).filter(Project.project_id == project_id).first()
-            if project:
-                query = query.filter(Sample.project_id == project.id)
-        if container_id:
-            container = session.query(Container).filter(Container.container_id == container_id).first()
-            if container:
-                query = query.filter(Sample.container_id == container.id)
-
-        samples = query.order_by(Sample.created_at.desc()).limit(limit).offset(offset).all()
-        return samples
-
-    finally:
-        pass
+    stmt = stmt.order_by(Sample.created_at.desc()).limit(limit).offset(offset)
+    result = await session.execute(stmt)
+    samples = result.scalars().all()
+    return samples
 
 
 @router.put("/{sample_id}", response_model=SampleResponse)
@@ -580,13 +571,14 @@ async def update_sample(
     sample_id: str,
     update: SampleUpdate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Update sample properties."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
-        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
+        result = await session.execute(select(Sample).where(Sample.sample_id == sample_id))
+        sample = result.scalar_one_or_none()
         if not sample:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -606,11 +598,11 @@ async def update_sample(
         sample.updated_by = current_user["email"]
         sample.updated_at = datetime.now(timezone.utc)
 
-        session.commit()
-        session.refresh(sample)
+        await session.commit()
+        await session.refresh(sample)
 
         # Audit log
-        audit.log(
+        await audit.log(
             "SAMPLE_UPDATED",
             current_user["email"],
             sample_id,
@@ -631,13 +623,14 @@ async def update_sample(
 async def delete_sample(
     sample_id: str,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Delete (soft delete) a sample."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
-        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
+        result = await session.execute(select(Sample).where(Sample.sample_id == sample_id))
+        sample = result.scalar_one_or_none()
         if not sample:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -649,10 +642,10 @@ async def delete_sample(
         sample.updated_by = current_user["email"]
         sample.updated_at = datetime.now(timezone.utc)
 
-        session.commit()
+        await session.commit()
 
         # Audit log
-        audit.log(
+        await audit.log(
             "SAMPLE_DELETED",
             current_user["email"],
             sample_id,
@@ -668,13 +661,14 @@ async def split_sample(
     sample_id: str,
     child_sample_ids: List[str],
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Create child samples from a parent sample (aliquoting)."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
-        parent = session.query(Sample).filter(Sample.sample_id == sample_id).first()
+        result = await session.execute(select(Sample).where(Sample.sample_id == sample_id))
+        parent = result.scalar_one_or_none()
         if not parent:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -696,7 +690,7 @@ async def split_sample(
                 created_by=current_user["email"]
             )
             session.add(child)
-            session.flush()
+            await session.flush()
 
             # Create lineage
             lineage = SampleLineage(
@@ -709,10 +703,10 @@ async def split_sample(
 
             created_samples.append(child)
 
-        session.commit()
+        await session.commit()
 
         # Audit log
-        audit.log(
+        await audit.log(
             "SAMPLE_SPLIT",
             current_user["email"],
             sample_id,
@@ -733,13 +727,14 @@ async def assign_sample_to_workflow(
     sample_id: str,
     workflow_execution_id: UUID4,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Assign sample to a workflow execution."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
-        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
+        result = await session.execute(select(Sample).where(Sample.sample_id == sample_id))
+        sample = result.scalar_one_or_none()
         if not sample:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -753,10 +748,10 @@ async def assign_sample_to_workflow(
         )
 
         session.add(assignment)
-        session.commit()
+        await session.commit()
 
         # Audit log
-        audit.log(
+        await audit.log(
             "SAMPLE_WORKFLOW_ASSIGNED",
             current_user["email"],
             sample_id,
@@ -770,12 +765,12 @@ async def assign_sample_to_workflow(
 
 
 @router.get("/{sample_id}/history")
-async def get_sample_history(sample_id: str):
+async def get_sample_history(sample_id: str, session: AsyncSession = Depends(get_db_session)):
     """Get audit history for a sample."""
-    audit = Audit()
+    audit = Audit(session)
 
     # Get all audit logs for this sample
-    logs = audit.get_logs(limit=1000)
+    logs = await audit.get_logs(limit=1000)
 
     # Filter logs related to this sample
     sample_logs = [
