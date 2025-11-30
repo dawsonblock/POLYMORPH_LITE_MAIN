@@ -6,7 +6,9 @@ import numpy as np
 import scipy.signal
 import hashlib
 from datetime import datetime, timedelta
-from pmm_brain import StaticPseudoModeMemory, RamanPreprocessor  # Import shared preprocessor
+# from pmm_brain import StaticPseudoModeMemory, RamanPreprocessor  # LEGACY
+from cyborg_mind.core.memory import StaticPseudoModeMemory
+from cyborg_mind.core.preprocessing import RamanPreprocessor
 from bentoml.io import JSON
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
@@ -21,6 +23,7 @@ from typing import Dict, Any, Optional
 class PolymorphService:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Use new PMM from cyborg_mind
         self.brain = StaticPseudoModeMemory(latent_dim=128, max_modes=32).to(self.device)
         self.brain.eval()
         
@@ -100,6 +103,7 @@ class PolymorphService:
             # Detect new polymorph with stable ID
             new_poly_id = None
             if self.brain.n_active > prev_poly_count:
+                # Accessing mu directly from PMM
                 new_mode = self.brain.mu[self.brain.active_mask][-1].cpu().numpy().astype(np.float32).ravel()
                 poly_id = self._compute_polymorph_id(new_mode)
                 if poly_id not in self.poly_tracker:

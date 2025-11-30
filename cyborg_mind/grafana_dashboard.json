@@ -1,0 +1,101 @@
+{
+    "annotations": {
+        "list": []
+    },
+    "editable": true,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": null,
+    "links": [],
+    "panels": [
+        {
+            "title": "Reward per Episode",
+            "type": "graph",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "reward_mean",
+                    "legendFormat": "Reward"
+                }
+            ]
+        },
+        {
+            "title": "Policy Loss",
+            "type": "graph",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "loss_policy",
+                    "legendFormat": "Policy Loss"
+                }
+            ]
+        },
+        {
+            "title": "Value Loss",
+            "type": "graph",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "loss_value",
+                    "legendFormat": "Value Loss"
+                }
+            ]
+        },
+        {
+            "title": "Active Memory Modes",
+            "type": "graph",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "active_modes",
+                    "legendFormat": "Modes"
+                }
+            ]
+        }
+    ],
+    "schemaVersion": 21,
+    "style": "dark",
+    "tags": [
+        "cyborg-mind"
+    ],
+    "templating": {
+        "list": []
+    },
+    "time": {
+        "from": "now-6h",
+        "to": "now"
+    },
+    "timepicker": {
+        "refresh_intervals": [
+            "5s",
+            "10s",
+            "30s",
+            "1m",
+            "5m"
+        ]
+    },
+    "timezone": "",
+    "title": "CyborgMind Training Dashboard",
+    "uid": "cyborg_mind_dash",
+    "version": 1
+}

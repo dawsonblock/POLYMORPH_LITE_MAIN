@@ -2,3 +2,6 @@ name: polymorph
 service: "service:PolymorphService"
 python:
   requirements_txt: "./requirements.txt"
+include:
+  - "cyborg_mind/"
+  - "bentoml_service/"
