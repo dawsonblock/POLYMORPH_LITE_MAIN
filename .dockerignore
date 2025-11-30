@@ -1,69 +1,33 @@
 # Git
 .git
 .gitignore
-.github
 
 # Python
-__pycache__
+__pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-
-# Environments
-.env
-.env.*
-!.env.example
 venv/
-ENV/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-
-# Documentation (built separately)
-docs/
-*.md
-!README.md
-
-# Tests
-tests/
+.env
 .pytest_cache/
 .coverage
 htmlcov/
 
-# Frontend (built separately)
-gui-v2/node_modules/
-gui-v2/dist/
-gui-v2/.next/
+# Node
+node_modules/
+npm-debug.log
+.next/
 
-# Build artifacts
-*.egg-info/
-dist/
-build/
-*.whl
-
-# Database (runtime)
-*.db
-*.db-journal
-
-# Logs
-*.log
-
-# Backup files
-*.bak
-*.tmp
+# Docker
+docker-compose.override.yml
 
 # OS
-Thumbs.db
 .DS_Store
 
-# Misc
-examples/
-recipes/
-workflows/
-UPGRADE_ROADMAP.md
-BUGS_AND_FIXES.md
+# IDE
+.vscode/
+.idea/
+
+# Polymorph Data
+data/
+validation/pq_output/
+ai/models/

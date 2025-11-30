@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/polymorph
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    networks:
+      - polymorph-net
+
+  ui:
+    build:
+      context: .
+      dockerfile: docker/ui/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - api
+    networks:
+      - polymorph-net
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: docker/ai/Dockerfile
+    ports:
+      - "5000:5000"
+    networks:
+      - polymorph-net
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=polymorph
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - polymorph-net
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - polymorph-net
+
+networks:
+  polymorph-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
