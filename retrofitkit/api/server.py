@@ -17,7 +17,7 @@ from retrofitkit.__version__ import __version__
 from retrofitkit.metrics.exporter import Metrics
 from retrofitkit.security.headers import SecurityHeadersMiddleware, RateLimitMiddleware
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from retrofitkit.config import settings
 from retrofitkit.logging import logger
 
@@ -122,7 +122,7 @@ async def system_monitor_task():
             # Broadcast status every 5 seconds
             await manager.broadcast({
                 "type": "status",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "status": "ok"
             })
             await asyncio.sleep(5)

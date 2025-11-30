@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Integer, Float, DateTime, JSON, ForeignKe
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base = declarative_base()
 
@@ -47,7 +47,7 @@ class AuditLog(Base):
     __tablename__ = "audit"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    ts = Column(Float, default=lambda: datetime.utcnow().timestamp(), index=True)
+    ts = Column(Float, default=lambda: datetime.now(timezone.utc).timestamp(), index=True)
     event = Column(String, nullable=False, index=True)
     actor = Column(String, nullable=False, index=True)
     subject = Column(String, nullable=False)

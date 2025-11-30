@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 from functools import lru_cache
 import os
@@ -25,9 +25,10 @@ class Settings(BaseSettings):
     # Hardware Simulation
     SIMULATE_HARDWARE: bool = True
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True
+    )
 
 @lru_cache()
 def get_settings() -> Settings:

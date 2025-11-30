@@ -3,6 +3,7 @@ import logging
 import asyncio
 import uuid
 from enum import Enum
+from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Callable, Awaitable
 from pydantic import BaseModel
 from sqlalchemy import select, update
@@ -165,7 +166,7 @@ class WorkflowRunner:
             if execution and execution.status in [WorkflowStatus.RUNNING, WorkflowStatus.PAUSED, WorkflowStatus.WAITING_FOR_INPUT]:
                 execution.status = WorkflowStatus.CANCELLED
                 execution.error_message = reason
-                execution.completed_at = datetime.utcnow()
+                execution.completed_at = datetime.now(timezone.utc)
                 await session.commit()
 
     async def submit_input(self, run_id: str, step_id: str, data: Dict[str, Any]):
