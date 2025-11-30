@@ -11,14 +11,7 @@ from retrofitkit.db.models.workflow import WorkflowVersion
 from retrofitkit.db.models.user import User
 from retrofitkit.db.models.rbac import Role, UserRole
 
-@pytest.fixture
-async def client():
-    """Async test client fixture."""
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
-    ) as ac:
-        yield ac
+
 
 @pytest.fixture
 def mock_db_session():
@@ -88,7 +81,7 @@ async def test_execute_workflow_unapproved_returns_403(mock_db_session, mock_cur
     mock_workflow.is_approved = False
     mock_db_session.query.return_value.filter.return_value.first.return_value = mock_workflow
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/execute",
         json={
             "workflow_name": "TestWorkflow",
@@ -106,7 +99,7 @@ async def test_execute_workflow_missing_workflow_returns_404(mock_db_session, mo
 
     mock_db_session.query.return_value.filter.return_value.first.return_value = None
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/execute",
         json={
             "workflow_name": "MissingWorkflow",
@@ -163,7 +156,7 @@ async def test_execute_workflow_happy_path_creates_execution(mock_db_session, mo
 
     mock_db_session.add.side_effect = add_side_effect
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/execute",
         json={
             "workflow_name": "TestWorkflow",
@@ -212,7 +205,7 @@ async def test_execute_workflow_with_metadata(mock_db_session, mock_current_user
 
     metadata = {"batch": "B-42", "sample_id": "S-1"}
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/execute",
         json={
             "workflow_name": "TestWorkflow",
@@ -274,7 +267,7 @@ async def test_execute_workflow_invokes_orchestrator_when_not_testing_env(
 
     monkeypatch.setattr(routes.orc, "run", fake_run)
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/execute",
         json={
             "workflow_name": "TestWorkflow",
@@ -296,7 +289,7 @@ async def test_abort_workflow_missing_execution_returns_404(mock_db_session, moc
     # No execution found for given run_id
     mock_db_session.query.return_value.filter.return_value.first.return_value = None
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/executions/RUN-UNKNOWN/abort",
     )
 
@@ -312,7 +305,7 @@ async def test_abort_workflow_with_invalid_status_returns_400(mock_db_session, m
     mock_execution.status = "completed"
     mock_db_session.query.return_value.filter.return_value.first.return_value = mock_execution
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/executions/RUN-COMPLETED/abort",
     )
 
@@ -344,7 +337,7 @@ async def test_abort_workflow_signals_orchestrator_when_not_testing_env(
 
     monkeypatch.setattr(routes.orc, "abort_execution", fake_abort_execution)
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/executions/RUN-BUILDER/abort",
     )
 
@@ -358,7 +351,7 @@ async def test_abort_workflow_signals_orchestrator_when_not_testing_env(
 async def test_pause_workflow_missing_execution_returns_404(mock_db_session, mock_current_user):
     mock_db_session.query.return_value.filter.return_value.first.return_value = None
 
-    response = await client.post(("/api/workflow-builder/executions/RUN-UNKNOWN/pause")
+    response = await client.post("/api/workflow-builder/executions/RUN-UNKNOWN/pause")
 
     assert response.status_code == 404
     assert "not found" in response.json()["error"]["message"].lower()
@@ -371,7 +364,7 @@ async def test_pause_workflow_with_invalid_status_returns_400(mock_db_session, m
     mock_execution.status = "completed"
     mock_db_session.query.return_value.filter.return_value.first.return_value = mock_execution
 
-    response = await client.post(("/api/workflow-builder/executions/RUN-COMPLETED/pause")
+    response = await client.post("/api/workflow-builder/executions/RUN-COMPLETED/pause")
 
     assert response.status_code == 400
     assert "cannot pause" in response.json()["error"]["message"].lower()
@@ -399,7 +392,7 @@ async def test_pause_workflow_signals_orchestrator_when_not_testing_env(
 
     monkeypatch.setattr(routes.orc, "pause_execution", fake_pause_execution)
 
-    response = await client.post(("/api/workflow-builder/executions/RUN-BUILDER/pause")
+    response = await client.post("/api/workflow-builder/executions/RUN-BUILDER/pause")
 
     assert response.status_code == 200
     assert "paused" in response.json()["message"].lower()
@@ -410,7 +403,7 @@ async def test_pause_workflow_signals_orchestrator_when_not_testing_env(
 async def test_resume_workflow_missing_execution_returns_404(mock_db_session, mock_current_user):
     mock_db_session.query.return_value.filter.return_value.first.return_value = None
 
-    response = await client.post(("/api/workflow-builder/executions/RUN-UNKNOWN/resume")
+    response = await client.post("/api/workflow-builder/executions/RUN-UNKNOWN/resume")
 
     assert response.status_code == 404
     assert "not found" in response.json()["error"]["message"].lower()
@@ -423,7 +416,7 @@ async def test_resume_workflow_with_invalid_status_returns_400(mock_db_session, 
     mock_execution.status = "running"
     mock_db_session.query.return_value.filter.return_value.first.return_value = mock_execution
 
-    response = await client.post(("/api/workflow-builder/executions/RUN-RUNNING/resume")
+    response = await client.post("/api/workflow-builder/executions/RUN-RUNNING/resume")
 
     assert response.status_code == 400
     assert "cannot resume" in response.json()["error"]["message"].lower()
@@ -451,7 +444,7 @@ async def test_resume_workflow_signals_orchestrator_when_not_testing_env(
 
     monkeypatch.setattr(routes.orc, "resume_execution", fake_resume_execution)
 
-    response = await client.post(("/api/workflow-builder/executions/RUN-BUILDER/resume")
+    response = await client.post("/api/workflow-builder/executions/RUN-BUILDER/resume")
 
     assert response.status_code == 200
     assert "resumed" in response.json()["message"].lower()
@@ -488,7 +481,7 @@ async def test_list_workflow_executions_with_filters(mock_db_session, mock_curre
         "operator": "op@example.com",
     }
 
-    response = await client.get(("/api/workflow-builder/executions", params=params)
+    response = await client.get("/api/workflow-builder/executions", params=params)
 
     assert response.status_code == 200
     body = response.json()
@@ -520,7 +513,7 @@ async def test_list_workflow_executions_with_metadata_filter(mock_db_session, mo
 
     params = {"metadata_key": "batch", "metadata_value": "B-42"}
 
-    response = await client.get(("/api/workflow-builder/executions", params=params)
+    response = await client.get("/api/workflow-builder/executions", params=params)
 
     assert response.status_code == 200
     body = response.json()
@@ -533,7 +526,7 @@ async def test_list_workflow_executions_with_metadata_filter(mock_db_session, mo
 async def test_get_workflow_execution_not_found(mock_db_session, mock_current_user):
     mock_db_session.query.return_value.filter.return_value.first.return_value = None
 
-    response = await client.get(("/api/workflow-builder/executions/RUN-UNKNOWN")
+    response = await client.get("/api/workflow-builder/executions/RUN-UNKNOWN")
 
     assert response.status_code == 404
     assert "not found" in response.json()["error"]["message"].lower()
@@ -555,7 +548,7 @@ async def test_get_workflow_execution_happy_path(mock_db_session, mock_current_u
 
     mock_db_session.query.return_value.filter.return_value.first.return_value = exec1
 
-    response = await client.get(("/api/workflow-builder/executions/RUN-1")
+    response = await client.get("/api/workflow-builder/executions/RUN-1")
 
     assert response.status_code == 200
     body = response.json()
@@ -595,7 +588,7 @@ async def test_list_workflow_executions_with_date_filters(mock_db_session, mock_
         "started_before": started_before.isoformat(),
     }
 
-    response = await client.get(("/api/workflow-builder/executions", params=params)
+    response = await client.get("/api/workflow-builder/executions", params=params)
 
     assert response.status_code == 200
     body = response.json()
@@ -642,7 +635,7 @@ async def test_ui_recent_executions_endpoint(mock_db_session, mock_current_user)
 
     params = {"workflow_name": "TestWorkflow", "limit": 2}
 
-    response = await client.get(("/api/workflow-builder/ui/recent-executions", params=params)
+    response = await client.get("/api/workflow-builder/ui/recent-executions", params=params)
 
     assert response.status_code == 200
     body = response.json()
@@ -683,7 +676,7 @@ async def test_workflow_execution_summary_endpoint(mock_db_session, mock_current
         exec3,
     ]
 
-    response = await client.get((
+    response = await client.get(
         "/api/workflow-builder/workflows/TestWorkflow/executions/summary"
     )
 
@@ -739,7 +732,7 @@ async def test_ui_workflow_summary_card_endpoint(mock_db_session, mock_current_u
         exec3,
     ]
 
-    response = await client.get((
+    response = await client.get(
         "/api/workflow-builder/ui/workflows/TestWorkflow/card"
     )
 
@@ -794,7 +787,7 @@ async def test_ui_workflow_dashboard_cards(mock_db_session, mock_current_user, m
         wb, "get_workflow_execution_summary", fake_get_workflow_execution_summary
     )
 
-    response = await client.get(("/api/workflow-builder/ui/workflows/cards")
+    response = await client.get("/api/workflow-builder/ui/workflows/cards")
 
     assert response.status_code == 200
     body = response.json()
@@ -825,7 +818,7 @@ async def test_rerun_workflow_execution_missing_original_returns_404(
 ):
     mock_db_session.query.return_value.filter.return_value.first.return_value = None
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/executions/RUN-MISSING/rerun",
         json={"parameters_override": {}, "metadata_override": {}},
     )
@@ -845,7 +838,7 @@ async def test_rerun_workflow_execution_unapproved_workflow_returns_403(
 
     mock_db_session.query.return_value.filter.return_value.first.return_value = original
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/executions/RUN-1/rerun",
         json={"parameters_override": {}, "metadata_override": {}},
     )
@@ -898,7 +891,7 @@ async def test_rerun_workflow_execution_happy_path(
 
     monkeypatch.setattr(wb, "execute_workflow", fake_execute_workflow)
 
-    response = await client.post((
+    response = await client.post(
         "/api/workflow-builder/executions/RUN-ORIG/rerun",
         json={
             "parameters_override": {"x": 2},
