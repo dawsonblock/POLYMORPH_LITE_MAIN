@@ -76,7 +76,7 @@ async def test_activate_workflow_success(mock_db_session, mock_current_user):
     
     mock_db_session.query.side_effect = query_side_effect
     
-    response = await client.post(("/api/workflow-builder/workflows/TestWorkflow/v/1/activate")
+    response = await client.post("/api/workflow-builder/workflows/TestWorkflow/v/1/activate")
     
     assert response.status_code == 200
     assert "activated" in response.json()["message"]
