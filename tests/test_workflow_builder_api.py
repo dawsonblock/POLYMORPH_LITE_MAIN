@@ -44,7 +44,7 @@ async def test_activate_workflow_insufficient_permissions(mock_db_session, mock_
     mock_user_obj.roles = [MagicMock(role=MagicMock(name="scientist"))]
     mock_db_session.query.return_value.filter.return_value.first.return_value = mock_user_obj
     
-    response = await client.post(("/api/workflow-builder/workflows/TestWorkflow/v/1/activate")
+    response = await client.post("/api/workflow-builder/workflows/TestWorkflow/v/1/activate")
     
     assert response.status_code == 403
     assert "Insufficient permissions" in response.json()["error"]["message"]
