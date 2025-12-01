@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     # Hardware Simulation
     SIMULATE_HARDWARE: bool = True
 
+    # OIDC (Enterprise SSO)
+    OIDC_ENABLED: bool = False
+    OIDC_CLIENT_ID: str = "placeholder_client_id"
+    OIDC_AUTH_URL: str = "https://accounts.google.com/o/oauth2/v2/auth"
+    API_BASE_URL: str = "http://localhost:8001/api/v1"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True

@@ -23,6 +23,24 @@ class ProductionHardwareDriver:
         self.logger = logging.getLogger(self.__class__.__name__)
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._lock = asyncio.Lock()
+        
+        # Dry Run Configuration
+        # If config object is passed in subclass, it should set this.
+        # Here we default to False, but allow enabling.
+        self.dry_run = False
+
+    def set_dry_run(self, enabled: bool):
+        """Enable or disable dry-run mode."""
+        self.dry_run = enabled
+        if enabled:
+            self.logger.warning(f"DRY RUN MODE ENABLED for {self.__class__.__name__} - No real hardware commands will be sent.")
+
+    def log_dry_run(self, command: str, params: dict = None):
+        """Log a command in dry-run mode."""
+        if self.dry_run:
+            self.logger.info(f"[DRY-RUN] {command} | Params: {params or {}}")
+            return True
+        return False
 
     async def _run_blocking(self, func: Callable, *args, timeout: float = 30.0) -> Any:
         """
