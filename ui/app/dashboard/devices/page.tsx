@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { api, endpoints } from "@/lib/api"
+import { SpectralViewer } from "@/components/spectral-viewer"
 
 export default function DevicesPage() {
     const [devices, setDevices] = useState<any[]>([])
@@ -90,6 +91,10 @@ export default function DevicesPage() {
                         </CardFooter>
                     </Card>
                 ))}
+            </div>
+
+            <div className="grid gap-4 grid-cols-1 mt-4">
+                <SpectralViewer />
             </div>
         </div>
     )
