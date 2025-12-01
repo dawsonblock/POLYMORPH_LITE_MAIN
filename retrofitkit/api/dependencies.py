@@ -21,7 +21,7 @@ async def get_db():
     async with get_db_session() as session:
         yield session
 
-def get_current_user(
+async def get_current_user(
     db: AsyncSession = Depends(get_db),
     token: str = Depends(oauth2_scheme)
 ) -> User:

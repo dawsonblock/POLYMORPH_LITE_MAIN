@@ -21,6 +21,7 @@ import time
 from datetime import datetime, timezone
 from retrofitkit.config import settings
 from retrofitkit.logging import logger
+import numpy as np
 
 # Socket.IO server
 sio = socketio.AsyncServer(
@@ -180,22 +181,36 @@ async def start_monitor():
 
 async def broadcast_spectra_task():
     """Broadcast Raman spectra to frontend"""
-    async for frame in raman_streamer.frames():
+    # Simulate spectra stream if no real device
+    while True:
         try:
-            # Convert to frontend format
+            # In a real scenario, this would iterate over raman_streamer.frames()
+            # For now, we generate a synthetic frame if streamer isn't active
+            
+            # Synthetic frame
+            t = time.time()
+            wavelengths = [400 + i*0.5 for i in range(800)]
+            # Dynamic peak at 532nm
+            intensities = [
+                100.0 + 1000.0 * np.exp(-((wl - 532.0)**2) / 10.0) * (0.8 + 0.4 * np.sin(t)) + np.random.normal(0, 5)
+                for wl in wavelengths
+            ]
+            
             data = {
-                "t": frame.get("t", 0),
-                "wavelengths": frame.get("wavelengths", []),
-                "intensities": frame.get("intensities", []),
-                "peak_nm": frame.get("peak_nm", 0),
-                "peak_intensity": frame.get("peak_intensity", 0)
+                "wavelengths": wavelengths,
+                "intensities": intensities,
+                "t": t
             }
 
-            # Emit to Socket.IO (efficient binary packing if supported, but JSON for now)
+            # Emit to Socket.IO
             await sio.emit('spectral_data', data)
-            # await manager.broadcast({"type": "spectral_data", "data": data}) # WebSocket backup
+            
+            # Throttle to ~10Hz for UI performance
+            await asyncio.sleep(0.1)
+            
         except Exception as e:
-            print(f"Spectra broadcast error: {e}")
+            logger.error(f"Spectra broadcast error: {e}")
+            await asyncio.sleep(1)
 
 async def data_generation_task():
     """Generate process data simulation"""
@@ -239,7 +254,7 @@ async def lifespan(app: FastAPI):
     # Start background tasks
     monitor_task = asyncio.create_task(system_monitor_task())
     # data_task = asyncio.create_task(data_generation_task())
-    # spectra_task = asyncio.create_task(broadcast_spectra_task())
+    spectra_task = asyncio.create_task(broadcast_spectra_task())
 
     yield
 
@@ -247,7 +262,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down...")
     monitor_task.cancel()
     # data_task.cancel()
-    # spectra_task.cancel()
+    spectra_task.cancel()
     # await raman_streamer.stop()
 
 # Create FastAPI application

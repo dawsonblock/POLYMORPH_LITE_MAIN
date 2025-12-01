@@ -12,6 +12,11 @@ class Metrics:
             cls._inst = Metrics()
         return cls._inst
 
+    @classmethod
+    def start(cls):
+        """Start metrics collection (noop for now)"""
+        pass
+
     def set(self, name, value, labels=None):
         key = (name, tuple(sorted((labels or {}).items())))
         with self._lock:

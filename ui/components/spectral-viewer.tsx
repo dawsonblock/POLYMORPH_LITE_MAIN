@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { api } from "@/lib/api"
+import { io, Socket } from "socket.io-client"
 
 interface SpectrumData {
     wavelength: number
@@ -14,47 +14,56 @@ interface SpectrumData {
 export function SpectralViewer() {
     const [data, setData] = useState<SpectrumData[]>([])
     const [isLive, setIsLive] = useState(false)
-    const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null)
+    const [socket, setSocket] = useState<Socket | null>(null)
 
-    const fetchSpectrum = async () => {
-        // In a real app, this would connect to the WebSocket or poll the API
-        // For now, we'll simulate a fetch or use the device self-test endpoint if available
-        // Or better, let's simulate a "live" spectrum locally for the demo if the backend isn't streaming yet
+    useEffect(() => {
+        // Initialize Socket.IO connection
+        // Note: In Next.js, we might need to ensure this only runs on client
+        const socketInstance = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001", {
+            path: "/socket.io",
+            transports: ["websocket"],
+            autoConnect: false
+        })
 
-        // Simulating data for visualization polish
-        const points = []
-        for (let i = 400; i < 800; i += 2) {
-            points.push({
-                wavelength: i,
-                intensity: Math.random() * 100 + 500 * Math.exp(-Math.pow(i - 532, 2) / 100) // Peak at 532nm
-            })
+        socketInstance.on("connect", () => {
+            console.log("SpectralViewer connected to WebSocket")
+        })
+
+        socketInstance.on("spectral_data", (payload: any) => {
+            // Payload expected: { wavelengths: [], intensities: [], ... }
+            if (payload.wavelengths && payload.intensities) {
+                const points = payload.wavelengths.map((wl: number, idx: number) => ({
+                    wavelength: wl,
+                    intensity: payload.intensities[idx]
+                }))
+                setData(points)
+            }
+        })
+
+        setSocket(socketInstance)
+
+        return () => {
+            socketInstance.disconnect()
         }
-        setData(points)
-    }
+    }, [])
 
     const toggleLive = () => {
+        if (!socket) return
+
         if (isLive) {
-            if (intervalId) clearInterval(intervalId)
+            socket.disconnect()
             setIsLive(false)
         } else {
-            const id = setInterval(fetchSpectrum, 100)
-            setIntervalId(id)
+            socket.connect()
             setIsLive(true)
         }
     }
-
-    useEffect(() => {
-        fetchSpectrum()
-        return () => {
-            if (intervalId) clearInterval(intervalId)
-        }
-    }, [])
 
     return (
         <Card className="col-span-4">
             <CardHeader>
                 <CardTitle className="flex justify-between items-center">
-                    <span>Live Spectral Data</span>
+                    <span>Live Spectral Data (WebSocket)</span>
                     <Button
                         variant={isLive ? "destructive" : "default"}
                         onClick={toggleLive}
@@ -93,6 +102,7 @@ export function SpectralViewer() {
                                 stroke="hsl(var(--primary))"
                                 strokeWidth={2}
                                 dot={false}
+                                isAnimationActive={false} // Disable animation for performance
                             />
                         </LineChart>
                     </ResponsiveContainer>
