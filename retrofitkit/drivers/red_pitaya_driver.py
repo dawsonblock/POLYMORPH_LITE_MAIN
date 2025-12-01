@@ -71,7 +71,7 @@ class RedPitayaDriver:
         logger.info("Disconnected from Red Pitaya.")
 
     def _send(self, cmd: str):
-        """Send a SCPI command."""
+        """Send a SCPI command (synchronous)."""
         if self.simulate:
             logger.debug(f"SIM TX: {cmd}")
             return
@@ -79,10 +79,30 @@ class RedPitayaDriver:
         if not self._socket:
             raise RuntimeError("Not connected to Red Pitaya.")
         
-        self._socket.sendall((cmd + "\r\n").encode())
+        try:
+            self._socket.sendall((cmd + "\r\n").encode())
+        except Exception as e:
+            logger.error(f"Failed to send command '{cmd}': {e}")
+            raise RuntimeError(f"SCPI send error: {e}")
+
+    async def _send_async(self, cmd: str):
+        """Send a SCPI command asynchronously."""
+        if self.simulate:
+            logger.debug(f"SIM TX: {cmd}")
+            return
+
+        if not self._writer:
+            raise RuntimeError("Not connected to Red Pitaya (async).")
+        
+        try:
+            self._writer.write((cmd + "\r\n").encode())
+            await self._writer.drain()
+        except Exception as e:
+            logger.error(f"Failed to send command '{cmd}' asynchronously: {e}")
+            raise RuntimeError(f"SCPI async send error: {e}")
 
     def _query(self, cmd: str) -> str:
-        """Send a command and read the response."""
+        """Send a command and read the response (synchronous)."""
         if self.simulate:
             logger.debug(f"SIM TX: {cmd}")
             # Mock responses for common queries

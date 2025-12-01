@@ -149,3 +149,7 @@ site/
 # BentoML
 bentos/
 build_log*.txt
+ui/.next/
+ui/node_modules/
+__pycache__/
+*.pyc

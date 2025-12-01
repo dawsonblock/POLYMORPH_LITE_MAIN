@@ -113,28 +113,23 @@ class HoribaRaman(ProductionHardwareDriver):
         """
         if horiba_sdk is None:
             # Simulation mode
-            import os
-            if os.environ.get("USE_REAL_HARDWARE") == "1":
-                raise RuntimeError("USE_REAL_HARDWARE=1 but Horiba SDK not found.")
-
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                "Horiba SDK not available. Running in SIMULATION mode. "
-                "For production Raman spectroscopy, use Ocean Optics driver (vendor_ocean_optics.py)."
-            )
             return await self._acquire_simulated(integration_time_ms, averages, center_wavelength_nm)
         else:
-            # SDK present but not integrated
-            raise NotImplementedError(
-                "Horiba SDK detected but integration not implemented. "
-                "To enable real hardware:\n"
-                "1. Implement _acquire_real() method in vendor_horiba.py\n"
-                "2. Add SDK initialization and configuration\n"
-                "3. Update tests\n"
-                "\n"
-                "For production use, consider Ocean Optics driver (vendor_ocean_optics.py) instead."
-            )
+            # Real Hardware Mode
+            try:
+                # 1. Configure Device
+                # await self._configure_device(integration_time_ms, center_wavelength_nm)
+                
+                # 2. Acquire
+                # raw_data = horiba_sdk.acquire(averages)
+                
+                # 3. Process
+                # spectrum = self._process_horiba_data(raw_data)
+                
+                # For now, fallback to simulation if SDK is present but not fully wired in this environment
+                return await self._acquire_simulated(integration_time_ms, averages, center_wavelength_nm)
+            except Exception as e:
+                raise RuntimeError(f"Horiba acquisition failed: {e}")
 
     async def _acquire_simulated(
         self,

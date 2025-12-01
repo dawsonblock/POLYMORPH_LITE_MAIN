@@ -1,0 +1,49 @@
+id: "tier1-raman-sweep-v2"
+version: "2.0.0"
+name: "Tier-1 Raman Sweep Characterization"
+description: "Automated Raman sweep with pre-calibration check and approval gate."
+tags: ["raman", "characterization", "tier1"]
+schema_version: "2.0"
+steps:
+  - id: "check_calibration"
+    name: "Verify Calibration"
+    type: "action"
+    action: "drivers.raman.check_calibration"
+    on_failure: "abort"
+
+  - id: "setup_approval"
+    name: "Operator Setup Approval"
+    type: "approval"
+    approval_role: "operator"
+    inputs:
+      - name: "sample_id"
+        type: "string"
+        label: "Sample ID"
+        required: true
+      - name: "integration_time"
+        type: "number"
+        label: "Integration Time (ms)"
+        default: 1000
+
+  - id: "acquire_spectrum"
+    name: "Acquire Spectrum"
+    type: "action"
+    action: "drivers.raman.acquire"
+    params:
+      integration_time_ms: "{{setup_approval.integration_time}}"
+      averages: 5
+    post_hook: "hooks.validate_spectrum_quality"
+
+  - id: "analyze_results"
+    name: "AI Analysis"
+    type: "action"
+    action: "ai.predict_polymorph"
+    params:
+      model: "raman_cnn_v2"
+
+  - id: "generate_report"
+    name: "Generate PDF Report"
+    type: "action"
+    action: "reporting.generate_pdf"
+    params:
+      template: "tier1_characterization"

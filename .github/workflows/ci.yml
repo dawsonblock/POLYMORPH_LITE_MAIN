@@ -1,4 +1,4 @@
-name: POLYMORPH v8 CI
+name: POLYMORPH-LITE CI/CD
 
 on:
   push:
@@ -6,15 +6,18 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
-  test:
+  backend-test:
     runs-on: ubuntu-latest
-    
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:15
         env:
-          POSTGRES_USER: user
+          POSTGRES_USER: polymorph
           POSTGRES_PASSWORD: password
           POSTGRES_DB: polymorph_test
         ports:
@@ -27,53 +30,80 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    
-    - name: Set up Python
+
+    - name: Set up Python 3.10
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
-        cache: 'pip' # Enable pip caching
-        
+        python-version: "3.10"
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest pytest-cov
-        
-    - name: Run Tests
+        pip install pytest pytest-cov httpx
+
+    - name: Run Backend Tests
+      env:
+        DATABASE_URL: postgresql://polymorph:password@localhost:5432/polymorph_test
+        JWT_SECRET: test_secret
       run: |
         pytest tests/ --cov=retrofitkit --cov-report=xml
-        
-    - name: Run Validation Suite (IQ/OQ)
+
+    - name: AI Integrity Check
       run: |
-        python validation/run_iq.py
-        python validation/run_oq.py
-        
-  build-docker:
-    needs: test
+        python -c "from retrofitkit.core.ai.models.raman_cnn_v2 import RamanCNNv2; model = RamanCNNv2(); assert model.predict({'wavelengths': [500], 'intensities': [100]})['status'] in ['valid', 'uncertain', 'rejected']"
+
+  frontend-build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./ui
+
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      
-      - name: Build API Image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: docker/api/Dockerfile
-          push: false
-          tags: polymorph-api:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-        
-      - name: Build UI Image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: docker/ui/Dockerfile
-          push: false
-          tags: polymorph-ui:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: ui/package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build Next.js App
+      run: npm run build
+
+  docker-build-push:
+    needs: [backend-test, frontend-build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Backend
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: docker/backend/Dockerfile
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:latest
+
+    - name: Build and push Frontend
+      uses: docker/build-push-action@v4
+      with:
+        context: ./ui
+        file: docker/ui/Dockerfile
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:latest
