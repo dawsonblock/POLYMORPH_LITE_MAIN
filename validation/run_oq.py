@@ -28,7 +28,7 @@ def test_hardware_drivers():
         spec.disconnect()
 
         # Red Pitaya
-        daq = RedPitayaDriver(simulate=True)
+        daq = RedPitayaDriver(host="127.0.0.1", simulate=True)
         wave = daq.get_waveform()
         if len(wave) > 0:
              logger.info("OK: Red Pitaya Driver (Waveform)")

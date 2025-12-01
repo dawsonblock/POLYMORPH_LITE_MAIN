@@ -1,12 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { api, endpoints } from '../lib/api';
 
 export default function AuditLog() {
-  const logs = [
-    { id: 1, timestamp: '2023-10-27T10:00:00Z', user: 'admin', action: 'LOGIN', hash: 'a1b2...' },
-    { id: 2, timestamp: '2023-10-27T10:05:00Z', user: 'operator1', action: 'WORKFLOW_START', hash: 'c3d4...' },
-    { id: 3, timestamp: '2023-10-27T10:15:00Z', user: 'operator1', action: 'STEP_COMPLETE', hash: 'e5f6...' },
-  ];
+  const [logs, setLogs] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const res = await api.get(endpoints.audit.list);
+        setLogs(res.data);
+      } catch (err) {
+        console.error("Failed to fetch audit logs", err);
+      }
+    };
+    fetchLogs();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -35,12 +44,17 @@ export default function AuditLog() {
             <tbody className="bg-white divide-y divide-gray-200">
               {logs.map((log) => (
                 <tr key={log.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.timestamp}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.user}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{log.action}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(log.ts * 1000).toISOString()}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.actor}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{log.event}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-mono">{log.hash}</td>
                 </tr>
               ))}
+              {logs.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-4 text-center text-gray-500">No logs found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

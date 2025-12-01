@@ -28,7 +28,7 @@ class RedPitayaDriver:
     Driver for Red Pitaya STEMlab 125-14 via SCPI.
     """
 
-    def __init__(self, host: str = "192.168.1.100", port: int = 5000, timeout: float = 5.0, simulate: bool = False):
+    def __init__(self, host: str, port: int = 5000, timeout: float = 5.0, simulate: bool = False):
         """
         Initialize the Red Pitaya driver.
 

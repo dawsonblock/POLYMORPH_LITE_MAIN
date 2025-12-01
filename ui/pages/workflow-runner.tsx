@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { api, endpoints } from '../lib/api';
 
-// Mock types for now
 interface WorkflowStep {
   id: string;
   name: string;
@@ -10,37 +10,95 @@ interface WorkflowStep {
 
 export default function WorkflowRunner() {
   const [activeWorkflow, setActiveWorkflow] = useState<string | null>(null);
+  const [runId, setRunId] = useState<string | null>(null);
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
   const [status, setStatus] = useState('idle');
   const [logs, setLogs] = useState<string[]>([]);
+  const [availableWorkflows, setAvailableWorkflows] = useState<any[]>([]);
 
-  // Mock WebSocket connection
+  // Fetch available workflows on mount
   useEffect(() => {
-    if (!activeWorkflow) return;
+    const fetchWorkflows = async () => {
+      try {
+        const res = await api.get(endpoints.workflows.list);
+        setAvailableWorkflows(res.data);
+      } catch (err) {
+        console.error("Failed to fetch workflows", err);
+        // Fallback for demo if API fails or is empty
+        setAvailableWorkflows([{ id: 'wf-demo', name: 'Demo Workflow (Fallback)' }]);
+      }
+    };
+    fetchWorkflows();
+  }, []);
 
-    const interval = setInterval(() => {
-      // Simulate live telemetry
-      setLogs(prev => [...prev, `[${new Date().toISOString()}] Processing step...`]);
-    }, 2000);
+  // Poll for status when running
+  useEffect(() => {
+    if (!runId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get(endpoints.workflows.get(runId));
+        const state = res.data;
+        setStatus(state.status);
+
+        // Map backend steps to UI steps
+        if (state.steps) {
+          setSteps(state.steps.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            status: s.status
+          })));
+        }
+
+        // Append logs if available (backend might need a separate log endpoint or include recent logs in state)
+        // For now, we simulate log updates based on state changes
+        if (state.last_log) {
+          setLogs(prev => [...prev, `[${new Date().toISOString()}] ${state.last_log}`]);
+        }
+      } catch (err) {
+        console.error("Poll error", err);
+      }
+    }, 1000);
 
     return () => clearInterval(interval);
-  }, [activeWorkflow]);
+  }, [runId]);
 
-  const handleStart = () => {
-    setActiveWorkflow('wf-123');
-    setStatus('running');
-    setSteps([
-      { id: '1', name: 'Initialize Hardware', status: 'running' },
-      { id: '2', name: 'Acquire Spectrum', status: 'pending' },
-      { id: '3', name: 'Analyze Data', status: 'pending' }
-    ]);
+  const handleStart = async () => {
+    try {
+      // Use first available workflow or a default
+      const wfId = availableWorkflows[0]?.id || 'wf-123';
+      const res = await api.post(endpoints.workflows.run, {
+        workflow_version_id: wfId,
+        context: {}
+      });
+      setRunId(res.data.run_id);
+      setActiveWorkflow(wfId);
+      setStatus('running');
+      setLogs(prev => [...prev, `[${new Date().toISOString()}] Workflow started (Run ID: ${res.data.run_id})`]);
+    } catch (err) {
+      console.error("Failed to start workflow", err);
+      alert("Failed to start workflow. Ensure backend is running.");
+    }
   };
 
-  const handlePause = () => setStatus('paused');
-  const handleResume = () => setStatus('running');
-  const handleStop = () => {
+  const handlePause = async () => {
+    if (!runId) return;
+    await api.post(endpoints.workflows.pause(runId));
+    setStatus('paused');
+  };
+
+  const handleResume = async () => {
+    if (!runId) return;
+    await api.post(endpoints.workflows.resume(runId));
+    setStatus('running');
+  };
+
+  const handleStop = async () => {
+    if (!runId) return;
+    await api.post(endpoints.workflows.cancel(runId));
     setStatus('idle');
     setActiveWorkflow(null);
+    setRunId(null);
     setSteps([]);
   };
 
@@ -51,15 +109,15 @@ export default function WorkflowRunner() {
       </Head>
 
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* Left Panel: Controls & Steps */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h1 className="text-2xl font-bold mb-4">Workflow Runner</h1>
-            
+
             <div className="flex gap-4 mb-6">
-              {!activeWorkflow ? (
-                <button 
+              {!runId ? (
+                <button
                   onClick={handleStart}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >

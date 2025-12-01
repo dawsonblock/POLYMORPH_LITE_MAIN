@@ -81,8 +81,8 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         # Update chain
         self.last_hash = entry_hash
 
-        # Persist (Mocking DB insert here)
-        self._persist_log(entry)
+        # Persist to DB
+        await self._persist_log(entry)
 
         return response
 
@@ -98,7 +98,26 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         except Exception:
             return "binary/non-json"
 
-    def _persist_log(self, entry: dict):
-        # In production, insert into 'audit_logs' table
-        # logger.info(f"AUDIT: {json.dumps(entry)}")
-        pass
+    async def _persist_log(self, entry: dict):
+        """Persist audit log entry to database."""
+        from retrofitkit.core.database import AsyncSessionLocal
+        from retrofitkit.compliance.audit import write_audit_event
+        
+        try:
+            async with AsyncSessionLocal() as session:
+                # Map middleware entry to write_audit_event params
+                # entry has: timestamp, user, ip, method, path, url, payload, status_code, process_time, prev_hash, hash
+                
+                # We use the payload field to store the full entry details
+                # But write_audit_event expects specific args
+                
+                await write_audit_event(
+                    db=session,
+                    actor_id=entry["user"],
+                    event_type=entry["method"], # e.g. POST, PUT
+                    entity_type="HTTP",
+                    entity_id=str(entry["url"]),
+                    payload=entry # Store full details including masked payload
+                )
+        except Exception as e:
+            logger.error(f"Failed to persist audit log: {e}")

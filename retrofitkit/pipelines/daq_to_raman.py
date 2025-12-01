@@ -30,8 +30,24 @@ class UnifiedDAQPipeline:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize drivers
-        self.spec = OceanOpticsDriver(simulate=simulate)
-        self.daq = RedPitayaDriver(host="192.168.1.100", simulate=True) # Default to sim for safety unless configured
+        # Initialize drivers
+        from retrofitkit.core.config import get_config
+        config = get_config()
+        
+        # Determine simulation mode based on config
+        # Ocean Optics: Simulate if provider is 'simulator' OR if global simulate flag is passed
+        oo_simulate = simulate or (config.raman.provider == "simulator")
+        self.spec = OceanOpticsDriver(simulate=oo_simulate)
+        
+        # Red Pitaya: Simulate if backend is 'simulator' OR if global simulate flag is passed
+        # Also check if backend is explicitly NOT redpitaya
+        rp_simulate = simulate or (config.daq.backend != "redpitaya")
+        
+        self.daq = RedPitayaDriver(
+            host=config.daq.redpitaya_host, 
+            port=config.daq.redpitaya_port, 
+            simulate=rp_simulate
+        )
 
     def run_acquisition(self, sample_name: str, integration_time_us: int = 100000) -> Dict[str, Any]:
         """

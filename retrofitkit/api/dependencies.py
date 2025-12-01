@@ -46,13 +46,15 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    # TODO: Implement async user fetch
-    # user = await db.execute(select(User).where(User.email == email))
-    # return user.scalar_one_or_none()
+    # Fetch user from DB
+    from sqlalchemy import select
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
     
-    # For MVP refactor, returning a mock dict if User model isn't fully ready in this context
-    # In a real app, this would query the DB.
-    return {"email": email, "role": "admin"} # Placeholder until User model is fully integrated
+    if user is None:
+        raise credentials_exception
+        
+    return user
 
 
 def get_current_active_user(
