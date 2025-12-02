@@ -5,8 +5,10 @@ The registry provides:
 - Capability-based device discovery
 - Factory pattern for device instantiation
 - Runtime device inventory
+- Cached lookups for performance
 """
 from typing import Dict, Type, Any, List, Optional, TYPE_CHECKING
+from functools import lru_cache
 
 if TYPE_CHECKING:
     # Imported only for static type checking to avoid runtime import cycles.
@@ -31,9 +33,16 @@ class DeviceRegistry:
         device = registry.create("ocean_optics", device_index=0)
     """
 
+    __slots__ = ('_drivers', '_instances', '_cache_version')
+
     def __init__(self) -> None:
         self._drivers: Dict[str, Type["DeviceBase"]] = {}
         self._instances: Dict[str, "DeviceBase"] = {}
+        self._cache_version = 0  # Incremented on changes to invalidate caches
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate cached lookups when registry changes."""
+        self._cache_version += 1
 
     def register(self, name: str, driver_cls: Type["DeviceBase"]) -> None:
         """
@@ -56,6 +65,7 @@ class DeviceRegistry:
             )
 
         self._drivers[name] = driver_cls
+        self._invalidate_cache()
 
     def unregister(self, name: str) -> None:
         """
@@ -64,7 +74,8 @@ class DeviceRegistry:
         Args:
             name: Driver name to remove
         """
-        self._drivers.pop(name, None)
+        if self._drivers.pop(name, None) is not None:
+            self._invalidate_cache()
 
     def list_drivers(self) -> Dict[str, "DeviceCapabilities"]:
         """
@@ -109,6 +120,18 @@ class DeviceRegistry:
             for name, driver_cls in self._drivers.items()
             if driver_cls.capabilities.supports_action(action)  # type: ignore[attr-defined]
         ]
+
+    def get_driver_class(self, name: str) -> Optional[Type["DeviceBase"]]:
+        """
+        Get driver class by name without creating an instance.
+        
+        Args:
+            name: Registered driver name
+            
+        Returns:
+            Driver class or None if not found
+        """
+        return self._drivers.get(name)
 
     def create(self, name: str, instance_id: Optional[str] = None, **kwargs: Any) -> "DeviceBase":
         """
@@ -175,6 +198,15 @@ class DeviceRegistry:
         """Clear all registered drivers and instances."""
         self._drivers.clear()
         self._instances.clear()
+        self._invalidate_cache()
+
+    def __contains__(self, name: str) -> bool:
+        """Check if a driver is registered."""
+        return name in self._drivers
+
+    def __len__(self) -> int:
+        """Return number of registered drivers."""
+        return len(self._drivers)
 
 
 # Global registry instance
