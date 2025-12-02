@@ -77,7 +77,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    Simple token-bucket rate limiter per (ip, path).
+    Token-bucket rate limiter per client IP with automatic cleanup.
 
     This is in-process only. For multi-instance deployments,
     adapt this to use Redis.
@@ -85,23 +85,58 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Config:
       - requests: max tokens in bucket
       - window_sec: refill window in seconds
+      - max_buckets: maximum number of tracked clients (LRU eviction)
+      - cleanup_interval: how often to run cleanup (in requests)
     """
 
-    def __init__(self, app, requests: int = 60, window_sec: int = 60):
+    __slots__ = ('requests', 'window_sec', 'max_buckets', 'cleanup_interval', 
+                 '_buckets', '_request_count')
+
+    def __init__(self, app, requests: int = 60, window_sec: int = 60, 
+                 max_buckets: int = 10000, cleanup_interval: int = 1000):
         super().__init__(app)
         self.requests = requests
         self.window_sec = window_sec
-        self._buckets: dict[tuple[str, str], dict[str, float]] = {}
+        self.max_buckets = max_buckets
+        self.cleanup_interval = cleanup_interval
+        self._buckets: dict[str, dict[str, float]] = {}
+        self._request_count = 0
+
+    def _cleanup_expired_buckets(self, now: float) -> None:
+        """Remove expired buckets to prevent memory leaks."""
+        # Remove buckets that haven't been accessed in 2x the window
+        expiry_threshold = now - (self.window_sec * 2)
+        expired_keys = [
+            key for key, bucket in self._buckets.items()
+            if bucket["last"] < expiry_threshold
+        ]
+        for key in expired_keys:
+            del self._buckets[key]
+        
+        # If still too many, remove oldest entries (LRU eviction)
+        if len(self._buckets) > self.max_buckets:
+            sorted_keys = sorted(
+                self._buckets.keys(),
+                key=lambda k: self._buckets[k]["last"]
+            )
+            for key in sorted_keys[:len(self._buckets) - self.max_buckets]:
+                del self._buckets[key]
 
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        # Use only client IP for rate limiting (not path) to reduce memory
         client_ip = request.client.host if request.client else "unknown"
-        key = (client_ip, request.url.path)
-
+        
         now = time.time()
-        bucket = self._buckets.get(key)
+        
+        # Periodic cleanup to prevent memory leaks
+        self._request_count += 1
+        if self._request_count >= self.cleanup_interval:
+            self._cleanup_expired_buckets(now)
+            self._request_count = 0
+
+        bucket = self._buckets.get(client_ip)
 
         if bucket is None:
-            # Initialize full bucket
             bucket = {"tokens": float(self.requests), "last": now}
         else:
             # Refill tokens
@@ -113,7 +148,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Consume token
         if bucket["tokens"] >= 1.0:
             bucket["tokens"] -= 1.0
-            self._buckets[key] = bucket
+            self._buckets[client_ip] = bucket
             response = await call_next(request)
             remaining = int(bucket["tokens"])
             reset_in = max(0, int(self.window_sec - (time.time() - bucket["last"])))
@@ -123,7 +158,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return response
         else:
             # Rate limited
-            self._buckets[key] = bucket
+            self._buckets[client_ip] = bucket
             reset_in = max(0, int(self.window_sec - (time.time() - bucket["last"])))
             return JSONResponse(
                 status_code=429,
