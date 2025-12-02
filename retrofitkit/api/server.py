@@ -126,34 +126,6 @@ async def broadcast_spectra_task():
             await asyncio.sleep(1)
 
 
-async def data_generation_task(orc: Orchestrator):
-    """Generate process data simulation."""
-    while True:
-        try:
-            active_run_id = orc.status.get("active_run_id")
-
-            if active_run_id:
-                progress = orc.status.get("progress", {"current": 0, "total": 1})
-                processes = [{
-                    "id": str(active_run_id),
-                    "recipeId": "active-recipe",
-                    "recipeName": "Active Run",
-                    "status": "running",
-                    "progress": int(100 * progress["current"] / max(progress["total"], 1)),
-                    "data": []
-                }]
-            else:
-                processes = []
-
-            await sio.emit('processes_update', processes)
-            await manager.broadcast({"type": "processes_update", "data": processes})
-            await asyncio.sleep(2)
-        except asyncio.CancelledError:
-            break
-        except Exception:
-            await asyncio.sleep(5)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown."""

@@ -91,8 +91,8 @@ class AIServiceClient:
             raise ValueError("AI Input Error: Spectrum contains non-numeric or invalid (NaN/Inf) values.")
 
         try:
-            # Use context manager for better test compatibility while still
-            # benefiting from connection pooling in production
+            # NOTE: We use a context manager here for test compatibility with mocking.
+            # For production use with connection pooling, call _get_client() directly.
             async with httpx.AsyncClient(timeout=2.0) as client:
                 payload = {"spectrum": spectrum}
                 # Assume /infer endpoint for BentoML
@@ -139,9 +139,8 @@ class AIServiceClient:
             if critical:
                 raise AIFailsafeError(msg)
             return {}
-        except AIFailsafeError:
-            raise
-        except ValueError:
+        except (AIFailsafeError, ValueError):
+            # Let these propagate without wrapping
             raise
         except Exception as e:
             self._record_failure()
