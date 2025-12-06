@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from retrofitkit.db.models.workflow import WorkflowExecution, WorkflowVersion
 from retrofitkit.db.models.audit import AuditEvent as AuditLog
-from retrofitkit.core.database import get_db_session
+from retrofitkit.db.session import AsyncSessionLocal
 from retrofitkit.config import settings
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ class WorkflowRunner:
         """Start a new workflow instance."""
         run_id = str(uuid.uuid4())
         
-        async with get_db_session() as session:
+        async with AsyncSessionLocal() as session:
             # Verify workflow exists
             stmt = select(WorkflowVersion).where(WorkflowVersion.id == uuid.UUID(workflow_version_id))
             result = await session.execute(stmt)
@@ -95,6 +95,10 @@ class WorkflowRunner:
             
             if not wf_version:
                 raise ValueError(f"Workflow Version {workflow_version_id} not found")
+
+            # Validate definition structure
+            if not isinstance(wf_version.definition, dict):
+                 raise ValueError("Workflow definition is not a valid dictionary")
 
             defn = WorkflowDefinition(**wf_version.definition)
 
@@ -138,7 +142,7 @@ class WorkflowRunner:
         return run_id
 
     async def pause_workflow(self, run_id: str):
-        async with get_db_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(WorkflowExecution).where(WorkflowExecution.run_id == run_id)
             result = await session.execute(stmt)
             execution = result.scalar_one_or_none()
@@ -149,7 +153,7 @@ class WorkflowRunner:
                 # Hook notification would need state reconstruction here
 
     async def resume_workflow(self, run_id: str):
-        async with get_db_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(WorkflowExecution).where(WorkflowExecution.run_id == run_id)
             result = await session.execute(stmt)
             execution = result.scalar_one_or_none()
@@ -160,7 +164,7 @@ class WorkflowRunner:
                 asyncio.create_task(self._execute_loop(run_id))
 
     async def cancel_workflow(self, run_id: str, reason: str = "Cancelled by user"):
-        async with get_db_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(WorkflowExecution).where(WorkflowExecution.run_id == run_id)
             result = await session.execute(stmt)
             execution = result.scalar_one_or_none()
@@ -173,7 +177,7 @@ class WorkflowRunner:
 
     async def submit_input(self, run_id: str, step_id: str, data: Dict[str, Any]):
         """Submit input for a HUMAN_INPUT step."""
-        async with get_db_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(WorkflowExecution).where(WorkflowExecution.run_id == run_id)
             result = await session.execute(stmt)
             execution = result.scalar_one_or_none()
@@ -226,7 +230,7 @@ class WorkflowRunner:
         asyncio.create_task(self._execute_loop(run_id))
 
     async def get_state(self, run_id: str) -> Optional[WorkflowState]:
-        async with get_db_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(WorkflowExecution).where(WorkflowExecution.run_id == run_id)
             result = await session.execute(stmt)
             execution = result.scalar_one_or_none()
@@ -254,9 +258,9 @@ class WorkflowRunner:
         if not state:
             return
 
-        async with get_db_session() as session:
+        async with AsyncSessionLocal() as session:
             # Get Definition
-            stmt = select(WorkflowVersion).where(WorkflowVersion.id == state.workflow_id)
+            stmt = select(WorkflowVersion).where(WorkflowVersion.id == uuid.UUID(state.workflow_id))
             result = await session.execute(stmt)
             wf_version = result.scalar_one_or_none()
             if not wf_version:

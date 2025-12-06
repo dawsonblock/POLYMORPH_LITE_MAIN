@@ -11,6 +11,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     libpq-dev \
+    libffi-dev \
+    libssl-dev \
+    zlib1g-dev \
+    libjpeg-dev \
+    libxml2-dev \
+    libxslt-dev \
+    libhdf5-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
@@ -75,6 +83,6 @@ CMD ["python", "main.py"]
 
 # Labels for metadata
 LABEL maintainer="POLYMORPH Team" \
-      version="1.0.0" \
-      description="POLYMORPH-LITE Backend API Server" \
-      org.opencontainers.image.source="https://github.com/dawsonblock/POLYMORPH_LITE_MAIN"
+    version="1.0.0" \
+    description="POLYMORPH-LITE Backend API Server" \
+    org.opencontainers.image.source="https://github.com/dawsonblock/POLYMORPH_LITE_MAIN"

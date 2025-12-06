@@ -4,14 +4,16 @@ Polymorph API endpoints for detection, tracking, and reporting.
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 import uuid
 import time
 import httpx
 
 from retrofitkit.db.session import get_db
-from retrofitkit.api.security import get_current_user
+from retrofitkit.api.dependencies import get_current_user
 from retrofitkit.core.config import get_config
+from retrofitkit.db.models.polymorph import PolymorphEvent, PolymorphSignature, PolymorphReport
 
 router = APIRouter(prefix="/api/polymorph", tags=["polymorph"])
 
@@ -33,7 +35,7 @@ class PolymorphReportRequest(BaseModel):
 @router.post("/detect")
 async def detect_polymorph(
     request: PolymorphDetectionRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: Dict = Depends(get_current_user)
 ):
     """
@@ -70,9 +72,6 @@ async def detect_polymorph(
     # Log detection event to database
     event_id = str(uuid.uuid4())
     
-    # Import models here to avoid circular imports
-    from retrofitkit.db.models.polymorph import PolymorphEvent, PolymorphSignature
-    
     event = PolymorphEvent(
         event_id=event_id,
         detected_at=time.time(),
@@ -85,7 +84,7 @@ async def detect_polymorph(
     )
     
     db.add(event)
-    db.flush()  # Get event ID
+    await db.flush()  # Get event ID
     
     # Store signature
     signature = PolymorphSignature(
@@ -98,7 +97,7 @@ async def detect_polymorph(
     )
     
     db.add(signature)
-    db.commit()
+    await db.commit()
     
     # Return enriched result
     return {
@@ -112,17 +111,24 @@ async def detect_polymorph(
 async def list_polymorph_events(
     limit: int = 100,
     offset: int = 0,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: Dict = Depends(get_current_user)
 ):
     """List polymorph detection events."""
-    from retrofitkit.db.models.polymorph import PolymorphEvent
     
-    events = db.query(PolymorphEvent)\
+    stmt = select(PolymorphEvent)\
         .order_by(PolymorphEvent.detected_at.desc())\
         .limit(limit)\
-        .offset(offset)\
-        .all()
+        .offset(offset)
+        
+    result = await db.execute(stmt)
+    events = result.scalars().all()
+    
+    # Count total
+    count_stmt = select(func.count(PolymorphEvent.id))
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar_one()
+
     
     return {
         "events": [
@@ -135,29 +141,28 @@ async def list_polymorph_events(
             }
             for e in events
         ],
-        "total": db.query(PolymorphEvent).count()
+        "total": total
     }
 
 
 @router.get("/events/{event_id}")
 async def get_polymorph_event(
     event_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: Dict = Depends(get_current_user)
 ):
     """Get detailed information about a polymorph event."""
-    from retrofitkit.db.models.polymorph import PolymorphEvent, PolymorphSignature
     
-    event = db.query(PolymorphEvent).filter(
-        PolymorphEvent.event_id == event_id
-    ).first()
+    stmt = select(PolymorphEvent).where(PolymorphEvent.event_id == event_id)
+    result = await db.execute(stmt)
+    event = result.scalar_one_or_none()
     
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    signature = db.query(PolymorphSignature).filter(
-        PolymorphSignature.event_id == event_id
-    ).first()
+    sig_stmt = select(PolymorphSignature).where(PolymorphSignature.event_id == event_id)
+    sig_result = await db.execute(sig_stmt)
+    signature = sig_result.scalar_one_or_none()
     
     return {
         "event": {
@@ -181,16 +186,15 @@ async def get_polymorph_event(
 @router.post("/report")
 async def generate_polymorph_report(
     request: PolymorphReportRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: Dict = Depends(get_current_user)
 ):
     """Generate polymorph detection report."""
-    from retrofitkit.db.models.polymorph import PolymorphEvent, PolymorphReport
     
     # Get event
-    event = db.query(PolymorphEvent).filter(
-        PolymorphEvent.event_id == request.event_id
-    ).first()
+    stmt = select(PolymorphEvent).where(PolymorphEvent.event_id == request.event_id)
+    result = await db.execute(stmt)
+    event = result.scalar_one_or_none()
     
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -235,7 +239,7 @@ async def generate_polymorph_report(
     )
     
     db.add(report)
-    db.commit()
+    await db.commit()
     
     return {
         "report_id": report_id,
@@ -247,31 +251,35 @@ async def generate_polymorph_report(
 
 @router.get("/statistics")
 async def get_polymorph_statistics(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: Dict = Depends(get_current_user)
 ):
     """Get polymorph detection statistics."""
-    from retrofitkit.db.models.polymorph import PolymorphEvent
-    from sqlalchemy import func
     
-    total_events = db.query(func.count(PolymorphEvent.id)).scalar()
+    total_stmt = select(func.count(PolymorphEvent.id))
+    total_result = await db.execute(total_stmt)
+    total_events = total_result.scalar_one()
     
     # Count by polymorph type
-    by_type = db.query(
+    # Group by
+    stmt = select(
         PolymorphEvent.polymorph_name,
         func.count(PolymorphEvent.id).label('count')
-    ).group_by(PolymorphEvent.polymorph_name).all()
+    ).group_by(PolymorphEvent.polymorph_name)
+    
+    result = await db.execute(stmt)
+    by_type = result.all()
     
     # Average confidence
-    avg_confidence = db.query(
-        func.avg(PolymorphEvent.confidence)
-    ).scalar() or 0.0
+    avg_stmt = select(func.avg(PolymorphEvent.confidence))
+    avg_result = await db.execute(avg_stmt)
+    avg_confidence = avg_result.scalar_one() or 0.0
     
     return {
         "total_detections": total_events,
         "average_confidence": float(avg_confidence),
         "by_polymorph_type": [
-            {"name": name, "count": count}
-            for name, count in by_type
+            {"name": row.polymorph_name, "count": row.count}
+            for row in by_type
         ]
     }

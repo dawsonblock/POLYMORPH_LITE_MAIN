@@ -9,11 +9,12 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timedelta, timezone
 import os
 import shutil
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from retrofitkit.db.models.calibration import CalibrationEntry
 from retrofitkit.db.models.device import DeviceStatus
 from retrofitkit.db.session import get_db
-from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user
 
@@ -69,10 +70,10 @@ class DeviceStatusResponse(BaseModel):
 async def add_calibration_entry(
     calibration: CalibrationCreate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """Add a new calibration record."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         # Default calibration date to now if not provided
@@ -90,9 +91,9 @@ async def add_calibration_entry(
         session.add(new_entry)
 
         # Update or create device status
-        device_status = session.query(DeviceStatus).filter(
-            DeviceStatus.device_id == calibration.device_id
-        ).first()
+        stmt = select(DeviceStatus).filter(DeviceStatus.device_id == calibration.device_id)
+        result = await session.execute(stmt)
+        device_status = result.scalar_one_or_none()
 
         if device_status:
             device_status.last_calibration_date = calib_date.date()
@@ -108,12 +109,12 @@ async def add_calibration_entry(
             )
             session.add(device_status)
 
-        session.commit()
-        session.refresh(new_entry)
+        await session.commit()
+        await session.refresh(new_entry)
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "CALIBRATION_PERFORMED",
                 current_user["email"],
                 calibration.device_id,
@@ -127,7 +128,7 @@ async def add_calibration_entry(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error adding calibration: {str(e)}"
@@ -137,13 +138,16 @@ async def add_calibration_entry(
 
 
 @router.get("/device/{device_id}", response_model=List[CalibrationResponse])
-async def get_device_calibration_history(device_id: str, session: Session = Depends(get_db)):
+async def get_device_calibration_history(device_id: str, session: AsyncSession = Depends(get_db)):
     """Get calibration history for a specific device."""
 
     try:
-        calibrations = session.query(CalibrationEntry).filter(
+        stmt = select(CalibrationEntry).filter(
             CalibrationEntry.device_id == device_id
-        ).order_by(CalibrationEntry.calibration_date.desc()).all()
+        ).order_by(CalibrationEntry.calibration_date.desc())
+        
+        result = await session.execute(stmt)
+        calibrations = result.scalars().all()
 
         return calibrations
 
@@ -152,16 +156,18 @@ async def get_device_calibration_history(device_id: str, session: Session = Depe
 
 
 @router.get("/upcoming", response_model=List[Dict])
-async def get_upcoming_calibrations(days: int = 30, session: Session = Depends(get_db)):
+async def get_upcoming_calibrations(days: int = 30, session: AsyncSession = Depends(get_db)):
     """Get devices due for calibration within N days."""
 
     try:
         cutoff_date = date.today() + timedelta(days=days)
 
-        upcoming = session.query(DeviceStatus).filter(
+        stmt = select(DeviceStatus).filter(
             DeviceStatus.next_calibration_due <= cutoff_date,
             DeviceStatus.next_calibration_due >= date.today()
-        ).all()
+        )
+        result = await session.execute(stmt)
+        upcoming = result.scalars().all()
 
         return [
             {
@@ -179,13 +185,15 @@ async def get_upcoming_calibrations(days: int = 30, session: Session = Depends(g
 
 
 @router.get("/overdue")
-async def get_overdue_calibrations(session: Session = Depends(get_db)):
+async def get_overdue_calibrations(session: AsyncSession = Depends(get_db)):
     """Get devices with overdue calibrations."""
 
     try:
-        overdue = session.query(DeviceStatus).filter(
+        stmt = select(DeviceStatus).filter(
             DeviceStatus.next_calibration_due < date.today()
-        ).all()
+        )
+        result = await session.execute(stmt)
+        overdue = result.scalars().all()
 
         return {
             "count": len(overdue),
@@ -210,16 +218,17 @@ async def attach_certificate(
     calibration_id: UUID4,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """Upload calibration certificate (PDF or image)."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         # Verify calibration entry exists
-        calibration = session.query(CalibrationEntry).filter(
-            CalibrationEntry.id == calibration_id
-        ).first()
+        stmt = select(CalibrationEntry).filter(CalibrationEntry.id == calibration_id)
+        result = await session.execute(stmt)
+        calibration = result.scalar_one_or_none()
+        
         if not calibration:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -236,11 +245,11 @@ async def attach_certificate(
 
         # Update calibration entry
         calibration.certificate_path = file_path
-        session.commit()
+        await session.commit()
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "CALIBRATION_CERTIFICATE_ATTACHED",
                 current_user["email"],
                 str(calibration_id),
@@ -257,7 +266,7 @@ async def attach_certificate(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error attaching certificate: {str(e)}"
@@ -267,13 +276,14 @@ async def attach_certificate(
 
 
 @router.get("/{calibration_id}", response_model=CalibrationResponse)
-async def get_calibration_entry(calibration_id: UUID4, session: Session = Depends(get_db)) -> CalibrationEntry:
+async def get_calibration_entry(calibration_id: UUID4, session: AsyncSession = Depends(get_db)) -> CalibrationEntry:
     """Get specific calibration entry details."""
 
     try:
-        calibration = session.query(CalibrationEntry).filter(
-            CalibrationEntry.id == calibration_id
-        ).first()
+        stmt = select(CalibrationEntry).filter(CalibrationEntry.id == calibration_id)
+        result = await session.execute(stmt)
+        calibration = result.scalar_one_or_none()
+        
         if not calibration:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -290,13 +300,14 @@ async def get_calibration_entry(calibration_id: UUID4, session: Session = Depend
 # ============================================================================
 
 @router.get("/status/{device_id}", response_model=DeviceStatusResponse)
-async def get_device_status(device_id: str, session: Session = Depends(get_db)) -> DeviceStatus:
+async def get_device_status(device_id: str, session: AsyncSession = Depends(get_db)) -> DeviceStatus:
     """Get current status of a device."""
 
     try:
-        device_status = session.query(DeviceStatus).filter(
-            DeviceStatus.device_id == device_id
-        ).first()
+        stmt = select(DeviceStatus).filter(DeviceStatus.device_id == device_id)
+        result = await session.execute(stmt)
+        device_status = result.scalar_one_or_none()
+        
         if not device_status:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -313,17 +324,18 @@ async def list_device_statuses(
     status: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ) -> List[DeviceStatus]:
     """List all device statuses."""
 
     try:
-        query = session.query(DeviceStatus)
+        query = select(DeviceStatus)
 
         if status:
             query = query.filter(DeviceStatus.status == status)
 
-        devices = query.limit(limit).offset(offset).all()
+        result = await session.execute(query.limit(limit).offset(offset))
+        devices = result.scalars().all()
         return devices
 
     finally:
@@ -336,15 +348,15 @@ async def update_device_status(
     new_status: str,
     health_score: Optional[float] = None,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ) -> Dict[str, str]:
     """Update device operational status."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
-        device_status = session.query(DeviceStatus).filter(
-            DeviceStatus.device_id == device_id
-        ).first()
+        stmt = select(DeviceStatus).filter(DeviceStatus.device_id == device_id)
+        result = await session.execute(stmt)
+        device_status = result.scalar_one_or_none()
 
         if not device_status:
             # Create new status entry
@@ -360,11 +372,11 @@ async def update_device_status(
                 device_status.health_score = health_score  # type: ignore
             device_status.updated_at = datetime.now(timezone.utc)  # type: ignore
 
-        session.commit()
+        await session.commit()
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "DEVICE_STATUS_UPDATED",
                 current_user["email"],
                 device_id,
@@ -381,7 +393,7 @@ async def update_device_status(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating device status: {str(e)}"

@@ -1,46 +1,32 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+
+from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
-from retrofitkit.config import settings
 import logging
 
+from retrofitkit.db.session import engine, AsyncSessionLocal, get_db
+from retrofitkit.db.base import Base
+
+# Re-export for compatibility
+get_db_session = get_db
+
 logger = logging.getLogger(__name__)
-
-# Create Async Engine with optimized settings
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    future=True,
-    pool_size=20,  # Increase connection pool size
-    max_overflow=10,  # Allow 10 additional connections
-    pool_pre_ping=True,  # Verify connections before using
-    pool_recycle=3600,  # Recycle connections after 1 hour
-)
-
-# Create Async Session Factory
-AsyncSessionLocal = sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
-
-@asynccontextmanager
-async def get_db_session():
-    """Async context manager for DB sessions."""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Database session error: {e}")
-            raise
-        finally:
-            await session.close()
 
 async def init_db():
     """Initialize database (create tables if needed)."""
     # Note: In production, use Alembic. This is for quick local setup.
-    from retrofitkit.core.models import Base
     async with engine.begin() as conn:
+        # Import all models so they are registered in metadata
+        # import retrofitkit.db.models  # Ensure models are loaded
+        # Note: If models are scattered, we might need to import them here.
+        # However, Base.metadata should be populated if modules are imported.
+        # For now, we assume the caller app has imported models or they are in db/models/__init__.py
+        
+        # We'll explicitly import the main models module to be safe
+        try:
+             import retrofitkit.db.models
+        except ImportError:
+             pass
+
         await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database initialized (metadata.create_all completed)")
+

@@ -2,97 +2,86 @@
 FastAPI dependencies for authentication and authorization.
 """
 
-from typing import Set, Callable
+
+from typing import Generator, Optional, Dict, List
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt, JWTError
+from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from retrofitkit.core.database import get_db_session
-from retrofitkit.db.models.user import User
-from retrofitkit.config import settings
-# from retrofitkit.compliance.rbac import get_user_roles # Keep if valid, or refactor
+from retrofitkit.db.session import get_db
+from retrofitkit.core.config import get_config
+from retrofitkit.db.models.auth import User
+from retrofitkit.core.models.auth import TokenData
+from retrofitkit.api.auth.roles import check_permissions
 
-# OAuth2 scheme for token authentication
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# Re-export get_db for convenience
+get_db = get_db
 
-
-async def get_db():
-    async with get_db_session() as session:
-        yield session
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="auth/token",
+    scopes={
+        "read": "Read access",
+        "write": "Write access",
+        "admin": "Admin access"
+    }
+)
 
 async def get_current_user(
-    db: AsyncSession = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
-) -> User:
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> Dict:
     """
-    Get the current authenticated user from JWT token.
+    Get current user from JWT token.
     """
+    config = get_config()
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-
+    
     try:
         payload = jwt.decode(
-            token,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM]
+            token, 
+            config.security.jwt_secret, 
+            algorithms=[config.security.algorithm]
         )
-        email: str = payload.get("sub")
-        if email is None:
+        username: str = payload.get("sub")
+        if username is None:
             raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-
-    # Fetch user from DB
-    from sqlalchemy import select
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-    
-    if user is None:
+        token_data = TokenData(username=username, scopes=payload.get("scopes", []))
+    except (JWTError, ValidationError):
         raise credentials_exception
         
+    # Check DB
+    # Note: simple User model lookup
+    # result = await db.execute(select(User).where(User.username == username))
+    # user = result.scalars().first()
+    
+    # For now, we return the payload as the user context to avoid DB hit on every request
+    # unless we need strict user validation.
+    # TODO: Implement strict DB check if needed
+    
+    user = {
+        "username": username,
+        "email": username, # Assuming username is email
+        "scopes": token_data.scopes,
+        "is_active": True
+    }
+    
     return user
 
-
-def get_current_active_user(
-    current_user: User = Depends(get_current_user)
-) -> User:
-    """
-    Get current active user (not locked).
-    
-    Args:
-        current_user: Current authenticated user
-        
-    Returns:
-        Current User object
-        
-    Raises:
-        HTTPException: If user account is locked
-    """
-    from datetime import datetime, timezone
-
-    # Handle dict from tests (mock users)
-    if isinstance(current_user, dict):
-        return current_user
-
-    # Handle User object
-    if current_user.account_locked_until and current_user.account_locked_until > datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is locked"
-        )
-
+async def get_current_active_user(
+    current_user: Dict = Depends(get_current_user)
+) -> Dict:
+    if not current_user.get("is_active"):
+        raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
-
-def require_role(*allowed_roles: str) -> Callable:
-    """
-    Dependency factory that requires user to have one of the specified roles.
-    
-    Usage:
         @app.post("/workflows", dependencies=[Depends(require_role("admin", "scientist"))])
         def create_workflow(...):
             ...

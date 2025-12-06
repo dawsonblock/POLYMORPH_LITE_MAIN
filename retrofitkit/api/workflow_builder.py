@@ -12,10 +12,15 @@ import hashlib
 import json
 import uuid
 import math
+import os
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
+from sqlalchemy.orm import selectinload
 
 from retrofitkit.db.models.workflow import WorkflowVersion, WorkflowExecution, ConfigSnapshot
+from retrofitkit.db.models.user import User as UserModel
 from retrofitkit.db.session import get_db
-from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user
 from retrofitkit.core.recipe import Recipe, RecipeStep
@@ -165,7 +170,7 @@ class WorkflowSummaryCard(BaseModel):
 async def create_workflow_definition(
     workflow: WorkflowDefinitionCreate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Create a new workflow definition.
@@ -178,9 +183,11 @@ async def create_workflow_definition(
 
     try:
         # Get next version number
-        latest = session.query(WorkflowVersion).filter(
+        stmt = select(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow.workflow_name
-        ).order_by(WorkflowVersion.version.desc()).first()
+        ).order_by(WorkflowVersion.version.desc())
+        result = await session.execute(stmt)
+        latest = result.scalars().first()
 
         next_version = (int(latest.version) + 1) if latest else 1
 
@@ -207,12 +214,12 @@ async def create_workflow_definition(
         )
 
         session.add(new_workflow)
-        session.commit()
-        session.refresh(new_workflow)
+        await session.commit()
+        await session.refresh(new_workflow)
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "WORKFLOW_CREATED",
                 current_user["email"],
                 f"{workflow.workflow_name}:v{next_version}",
@@ -226,7 +233,7 @@ async def create_workflow_definition(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating workflow: {str(e)}"
@@ -239,16 +246,16 @@ async def create_workflow_definition(
 async def pause_workflow_execution(
     run_id: str,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """Pause a running workflow execution."""
 
     audit = Audit(session)
 
     try:
-        execution = session.query(WorkflowExecution).filter(
-            WorkflowExecution.run_id == run_id
-        ).first()
+        stmt = select(WorkflowExecution).filter(WorkflowExecution.run_id == run_id)
+        result = await session.execute(stmt)
+        execution = result.scalar_one_or_none()
 
         if not execution:
             raise HTTPException(
@@ -263,11 +270,10 @@ async def pause_workflow_execution(
             )
 
         execution.status = "paused"
-        session.commit()
+        await session.commit()
 
         # Best-effort: signal orchestrator pause when available
         try:
-            import os
             if os.environ.get("P4_ENVIRONMENT") != "testing":
                 from retrofitkit.api.server import orc as orchestrator
 
@@ -282,7 +288,7 @@ async def pause_workflow_execution(
             pass
 
         try:
-            audit.log(
+            await audit.log(
                 "WORKFLOW_PAUSED",
                 current_user["email"],
                 run_id,
@@ -296,7 +302,7 @@ async def pause_workflow_execution(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error pausing execution: {str(e)}"
@@ -309,16 +315,16 @@ async def pause_workflow_execution(
 async def resume_workflow_execution(
     run_id: str,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """Resume a paused workflow execution."""
 
     audit = Audit(session)
 
     try:
-        execution = session.query(WorkflowExecution).filter(
-            WorkflowExecution.run_id == run_id
-        ).first()
+        stmt = select(WorkflowExecution).filter(WorkflowExecution.run_id == run_id)
+        result = await session.execute(stmt)
+        execution = result.scalar_one_or_none()
 
         if not execution:
             raise HTTPException(
@@ -333,11 +339,10 @@ async def resume_workflow_execution(
             )
 
         execution.status = "running"
-        session.commit()
+        await session.commit()
 
         # Best-effort: signal orchestrator resume when available
         try:
-            import os
             if os.environ.get("P4_ENVIRONMENT") != "testing":
                 from retrofitkit.api.server import orc as orchestrator
 
@@ -352,7 +357,7 @@ async def resume_workflow_execution(
             pass
 
         try:
-            audit.log(
+            await audit.log(
                 "WORKFLOW_RESUMED",
                 current_user["email"],
                 run_id,
@@ -366,7 +371,7 @@ async def resume_workflow_execution(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error resuming execution: {str(e)}"
@@ -376,25 +381,27 @@ async def resume_workflow_execution(
 
 
 @router.get("/workflows", response_model=List[str])
-async def list_workflows(session: Session = Depends(get_db)):
+async def list_workflows(session: AsyncSession = Depends(get_db)):
     """List all unique workflow names."""
 
     try:
         # Get distinct workflow names
-        names = session.query(WorkflowVersion.workflow_name).distinct().all()
-        return [n[0] for n in names]
+        stmt = select(WorkflowVersion.workflow_name).distinct()
+        result = await session.execute(stmt)
+        names = result.scalars().all()
+        return names
     finally:
         pass
 
 
 @router.get("/executions/{run_id}", response_model=WorkflowExecutionResponse)
-async def get_execution(run_id: str, session: Session = Depends(get_db)):
+async def get_execution(run_id: str, session: AsyncSession = Depends(get_db)):
     """Get workflow execution details."""
 
     try:
-        execution = session.query(WorkflowExecution).filter(
-            WorkflowExecution.run_id == run_id
-        ).first()
+        stmt = select(WorkflowExecution).filter(WorkflowExecution.run_id == run_id)
+        result = await session.execute(stmt)
+        execution = result.scalar_one_or_none()
 
         if not execution:
             raise HTTPException(
@@ -407,14 +414,16 @@ async def get_execution(run_id: str, session: Session = Depends(get_db)):
 
 
 @router.get("/workflows/{workflow_name}", response_model=List[WorkflowDefinitionResponse])
-async def list_workflow_versions(workflow_name: str, session: Session = Depends(get_db)):
+async def list_workflow_versions(workflow_name: str, session: AsyncSession = Depends(get_db)):
     """List all versions of a workflow."""
 
 
     try:
-        versions = session.query(WorkflowVersion).filter(
+        stmt = select(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name
-        ).order_by(WorkflowVersion.version.desc()).all()
+        ).order_by(WorkflowVersion.version.desc())
+        result = await session.execute(stmt)
+        versions = result.scalars().all()
 
         return versions
 
@@ -423,15 +432,21 @@ async def list_workflow_versions(workflow_name: str, session: Session = Depends(
 
 
 @router.get("/workflows/{workflow_name}/v/{version}", response_model=WorkflowDefinitionResponse)
-async def get_workflow_version(workflow_name: str, version: int, session: Session = Depends(get_db)):
+async def get_workflow_version(
+    workflow_name: str, 
+    version: int, 
+    session: AsyncSession = Depends(get_db)
+):
     """Get a specific workflow version."""
 
 
     try:
-        workflow = session.query(WorkflowVersion).filter(
+        stmt = select(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.version == version
-        ).first()
+        )
+        result = await session.execute(stmt)
+        workflow = result.scalar_one_or_none()
 
         if not workflow:
             raise HTTPException(
@@ -446,15 +461,17 @@ async def get_workflow_version(workflow_name: str, version: int, session: Sessio
 
 
 @router.get("/workflows/{workflow_name}/active", response_model=WorkflowDefinitionResponse)
-async def get_active_workflow(workflow_name: str, session: Session = Depends(get_db)):
+async def get_active_workflow(workflow_name: str, session: AsyncSession = Depends(get_db)):
     """Get the currently active version of a workflow."""
 
 
     try:
-        workflow = session.query(WorkflowVersion).filter(
+        stmt = select(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.is_active == True
-        ).first()
+        )
+        result = await session.execute(stmt)
+        workflow = result.scalar_one_or_none()
 
         if not workflow:
             raise HTTPException(
@@ -473,7 +490,7 @@ async def activate_workflow_version(
     workflow_name: str,
     version: int,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Activate a specific workflow version.
@@ -487,8 +504,10 @@ async def activate_workflow_version(
 
     try:
         # Enforce role check: QA or Admin only
-        from retrofitkit.db.models.user import User as UserModel
-        user_obj = session.query(UserModel).filter(UserModel.email == current_user["email"]).first()
+        stmt = select(UserModel).options(selectinload(UserModel.roles)).filter(UserModel.email == current_user["email"])
+        result = await session.execute(stmt)
+        user_obj = result.scalar_one_or_none()
+        
         if not user_obj:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -503,10 +522,12 @@ async def activate_workflow_version(
                 detail="Insufficient permissions. Only admin, compliance, or QA roles can activate workflows."
             )
 
-        workflow = session.query(WorkflowVersion).filter(
+        stmt = select(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.version == version
-        ).first()
+        )
+        result = await session.execute(stmt)
+        workflow = result.scalar_one_or_none()
 
         if not workflow:
             raise HTTPException(
@@ -521,19 +542,23 @@ async def activate_workflow_version(
             )
 
         # Deactivate all other versions
-        session.query(WorkflowVersion).filter(
+        update_stmt = select(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.id != workflow.id
-        ).update({"is_active": False})
+        )
+        result = await session.execute(update_stmt)
+        other_versions = result.scalars().all()
+        for v in other_versions:
+            v.is_active = False
 
         # Activate this version
         workflow.is_active = True
 
-        session.commit()
+        await session.commit()
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "WORKFLOW_ACTIVATED",
                 current_user["email"],
                 f"{workflow_name}:v{version}",
@@ -550,7 +575,7 @@ async def activate_workflow_version(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error activating workflow: {str(e)}"
@@ -564,7 +589,7 @@ async def approve_workflow_version(
     workflow_name: str,
     version: int,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Approve a workflow version for execution.
@@ -576,10 +601,12 @@ async def approve_workflow_version(
     audit = Audit(session)
 
     try:
-        workflow = session.query(WorkflowVersion).filter(
+        stmt = select(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.version == version
-        ).first()
+        )
+        result = await session.execute(stmt)
+        workflow = result.scalar_one_or_none()
 
         if not workflow:
             raise HTTPException(
@@ -594,8 +621,10 @@ async def approve_workflow_version(
             )
 
         # Enforce role check: QA or Admin only
-        from retrofitkit.db.models.user import User as UserModel
-        user_obj = session.query(UserModel).filter(UserModel.email == current_user["email"]).first()
+        stmt = select(UserModel).options(selectinload(UserModel.roles)).filter(UserModel.email == current_user["email"])
+        result = await session.execute(stmt)
+        user_obj = result.scalar_one_or_none()
+
         if not user_obj:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -614,11 +643,11 @@ async def approve_workflow_version(
         workflow.approved_by = current_user["email"]
         workflow.approved_at = datetime.now(timezone.utc)
 
-        session.commit()
+        await session.commit()
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "WORKFLOW_APPROVED",
                 current_user["email"],
                 f"{workflow_name}:v{version}",
@@ -636,7 +665,7 @@ async def approve_workflow_version(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error approving workflow: {str(e)}"
@@ -650,7 +679,7 @@ async def delete_workflow_version(
     workflow_name: str,
     version: int,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Delete a workflow version.
@@ -661,10 +690,12 @@ async def delete_workflow_version(
     audit = Audit(session)
 
     try:
-        workflow = session.query(WorkflowVersion).filter(
+        stmt = select(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name,
             WorkflowVersion.version == version
-        ).first()
+        )
+        result = await session.execute(stmt)
+        workflow = result.scalar_one_or_none()
 
         if not workflow:
             raise HTTPException(
@@ -684,12 +715,12 @@ async def delete_workflow_version(
                 detail="Cannot delete approved workflow"
             )
 
-        session.delete(workflow)
-        session.commit()
+        await session.delete(workflow)
+        await session.commit()
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "WORKFLOW_DELETED",
                 current_user["email"],
                 f"{workflow_name}:v{version}",
@@ -703,7 +734,7 @@ async def delete_workflow_version(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting workflow: {str(e)}"
@@ -826,7 +857,7 @@ def _graph_to_recipe(workflow_version: WorkflowVersion, parameters: Dict[str, An
 async def execute_workflow(
     execution: WorkflowExecutionCreate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Execute a workflow.
@@ -838,17 +869,21 @@ async def execute_workflow(
 
     try:
         # Get workflow version
+        stmt = None
         if execution.workflow_version:
-            workflow = session.query(WorkflowVersion).filter(
+            stmt = select(WorkflowVersion).filter(
                 WorkflowVersion.workflow_name == execution.workflow_name,
                 WorkflowVersion.version == execution.workflow_version
-            ).first()
+            )
         else:
             # Use active version
-            workflow = session.query(WorkflowVersion).filter(
+            stmt = select(WorkflowVersion).filter(
                 WorkflowVersion.workflow_name == execution.workflow_name,
                 WorkflowVersion.is_active == True
-            ).first()
+            )
+        
+        result = await session.execute(stmt)
+        workflow = result.scalar_one_or_none()
 
         if not workflow:
             raise HTTPException(
@@ -875,7 +910,7 @@ async def execute_workflow(
             reason=f"Execution of {execution.workflow_name}"
         )
         session.add(config_snapshot)
-        session.flush()
+        await session.flush()
 
         # Create execution record
         new_execution = WorkflowExecution(
@@ -889,8 +924,8 @@ async def execute_workflow(
         )
 
         session.add(new_execution)
-        session.commit()
-        session.refresh(new_execution)
+        await session.commit()
+        await session.refresh(new_execution)
 
         # Convert visual graph to executable recipe
         try:
@@ -906,7 +941,6 @@ async def execute_workflow(
 
             # Optionally dispatch to orchestrator when running outside test environment
             try:
-                import os
                 if os.environ.get("P4_ENVIRONMENT") != "testing":
                     from retrofitkit.api.server import orc as orchestrator
 
@@ -933,17 +967,17 @@ async def execute_workflow(
                     "Recipe generated successfully. Orchestrator execution is not available in this environment."
                 )
 
-            session.commit()
+            await session.commit()
 
         except Exception as e:
             # Failed to convert graph to recipe
             new_execution.status = "failed"
             new_execution.error_message = f"Graph conversion error: {str(e)}"
-            session.commit()
+            await session.commit()
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "WORKFLOW_EXECUTED",
                 current_user["email"],
                 run_id,
@@ -957,7 +991,7 @@ async def execute_workflow(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error executing workflow: {str(e)}"
@@ -967,14 +1001,16 @@ async def execute_workflow(
 
 
 @router.get("/executions/{run_id}", response_model=WorkflowExecutionResponse)
-async def get_workflow_execution(run_id: str, session: Session = Depends(get_db)):
+async def get_workflow_execution(run_id: str, session: AsyncSession = Depends(get_db)):
     """Get workflow execution details."""
 
 
     try:
-        execution = session.query(WorkflowExecution).filter(
+        stmt = select(WorkflowExecution).filter(
             WorkflowExecution.run_id == run_id
-        ).first()
+        )
+        result = await session.execute(stmt)
+        execution = result.scalar_one_or_none()
 
         if not execution:
             raise HTTPException(
@@ -999,13 +1035,13 @@ async def list_workflow_executions(
     metadata_value: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """List workflow executions with optional filtering for UI consumption."""
 
 
     try:
-        query = session.query(WorkflowExecution)
+        query = select(WorkflowExecution)
 
         if workflow_name:
             # Join with WorkflowVersion to filter by name
@@ -1031,9 +1067,12 @@ async def list_workflow_executions(
                 WorkflowExecution.run_metadata.contains({metadata_key: metadata_value})
             )
 
-        executions = query.order_by(
+        query = query.order_by(
             WorkflowExecution.started_at.desc()
-        ).limit(limit).offset(offset).all()
+        ).limit(limit).offset(offset)
+        
+        result = await session.execute(query)
+        executions = result.scalars().all()
 
         return executions
 
@@ -1045,27 +1084,30 @@ async def list_workflow_executions(
 async def list_recent_workflow_executions(
     workflow_name: Optional[str] = None,
     limit: int = 20,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
 
 
     try:
-        query = session.query(WorkflowExecution)
+        query = select(WorkflowExecution).options(selectinload(WorkflowExecution.workflow_version))
 
         if workflow_name:
             query = query.join(WorkflowVersion).filter(
                 WorkflowVersion.workflow_name == workflow_name
             )
 
-        executions = query.order_by(
+        query = query.order_by(
             WorkflowExecution.started_at.desc()
-        ).limit(limit).all()
+        ).limit(limit)
+
+        result = await session.execute(query)
+        executions = result.scalars().all()
 
         rows: List[WorkflowExecutionTableRow] = []
         for execution in executions:
-            wf = getattr(execution, "workflow_version", None)
-            wf_name = getattr(wf, "workflow_name", "")
-            wf_version = str(getattr(wf, "version", ""))
+            wf = execution.workflow_version
+            wf_name = wf.workflow_name if wf else ""
+            wf_version = str(wf.version) if wf else ""
 
             started_at = getattr(execution, "started_at", None)
             completed_at = getattr(execution, "completed_at", None)
@@ -1105,15 +1147,16 @@ async def list_recent_workflow_executions(
     "/workflows/{workflow_name}/executions/summary",
     response_model=WorkflowExecutionSummaryResponse,
 )
-async def get_workflow_execution_summary(workflow_name: str, session: Session = Depends(get_db)):
+async def get_workflow_execution_summary(workflow_name: str, session: AsyncSession = Depends(get_db)):
 
 
     try:
-        query = session.query(WorkflowExecution).join(WorkflowVersion).filter(
+        query = select(WorkflowExecution).join(WorkflowVersion).filter(
             WorkflowVersion.workflow_name == workflow_name
         )
 
-        executions = query.all()
+        result = await session.execute(query)
+        executions = result.scalars().all()
 
         by_status: Dict[str, int] = {}
         durations: List[float] = []
@@ -1192,7 +1235,7 @@ async def get_workflow_execution_summary(workflow_name: str, session: Session = 
     "/ui/workflows/{workflow_name}/card",
     response_model=WorkflowSummaryCard,
 )
-async def get_workflow_summary_card(workflow_name: str, session: Session = Depends(get_db)):
+async def get_workflow_summary_card(workflow_name: str, session: AsyncSession = Depends(get_db)):
     """Return a flattened summary card view for workflow dashboards."""
 
     summary = await get_workflow_execution_summary(workflow_name, session=session)
@@ -1220,19 +1263,14 @@ async def get_workflow_summary_card(workflow_name: str, session: Session = Depen
     "/ui/workflows/cards",
     response_model=List[WorkflowSummaryCard],
 )
-async def list_workflow_summary_cards(session: Session = Depends(get_db)):
+async def list_workflow_summary_cards(session: AsyncSession = Depends(get_db)):
     """Return summary cards for all workflows for dashboard views."""
 
     # First collect distinct workflow names from definitions
-
-
     try:
-        rows = (
-            session.query(WorkflowVersion.workflow_name)
-            .distinct()
-            .all()
-        )
-        workflow_names = [row[0] for row in rows if row and row[0]]
+        stmt = select(WorkflowVersion.workflow_name).distinct()
+        result = await session.execute(stmt)
+        workflow_names = result.scalars().all()
     finally:
         pass
 
@@ -1272,16 +1310,16 @@ async def rerun_workflow_execution(
     run_id: str,
     rerun: WorkflowRerunRequest,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """Rerun a workflow execution with optional parameter and metadata overrides."""
 
-
-
     try:
-        original = session.query(WorkflowExecution).filter(
+        stmt = select(WorkflowExecution).filter(
             WorkflowExecution.run_id == run_id
-        ).first()
+        ).options(selectinload(WorkflowExecution.workflow_version))
+        result = await session.execute(stmt)
+        original = result.scalar_one_or_none()
 
         if not original:
             raise HTTPException(
@@ -1289,11 +1327,13 @@ async def rerun_workflow_execution(
                 detail=f"Execution '{run_id}' not found",
             )
 
-        workflow = getattr(original, "workflow_version", None)
-        if workflow is None and getattr(original, "workflow_version_id", None):
-            workflow = session.query(WorkflowVersion).filter(
+        workflow = original.workflow_version
+        if workflow is None and original.workflow_version_id:
+            stmt = select(WorkflowVersion).filter(
                 WorkflowVersion.id == original.workflow_version_id
-            ).first()
+            )
+            result = await session.execute(stmt)
+            workflow = result.scalar_one_or_none()
 
         if not workflow:
             raise HTTPException(
@@ -1309,13 +1349,15 @@ async def rerun_workflow_execution(
 
         # Load original parameters from config snapshot if available
         original_params: Dict[str, Any] = {}
-        snapshot = getattr(original, "config_snapshot", None)
-        if snapshot is None and getattr(original, "config_snapshot_id", None):
-            snapshot = session.query(ConfigSnapshot).filter(
+        snapshot = None
+        if original.config_snapshot_id:
+            stmt = select(ConfigSnapshot).filter(
                 ConfigSnapshot.id == original.config_snapshot_id
-            ).first()
+            )
+            result = await session.execute(stmt)
+            snapshot = result.scalar_one_or_none()
 
-        if snapshot and isinstance(getattr(snapshot, "config_data", None), dict):
+        if snapshot and isinstance(snapshot.config_data, dict):
             original_params = dict(
                 snapshot.config_data.get("workflow_parameters", {}) or {}
             )
@@ -1333,7 +1375,7 @@ async def rerun_workflow_execution(
 
         # Build a new execution request that reuses execute_workflow logic
         try:
-            version_int = int(getattr(workflow, "version"))
+            version_int = int(workflow.version)
         except (TypeError, ValueError):
             version_int = None
 
@@ -1356,16 +1398,16 @@ async def rerun_workflow_execution(
 async def abort_workflow_execution(
     run_id: str,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """Abort a running workflow execution."""
 
     audit = Audit(session)
 
     try:
-        execution = session.query(WorkflowExecution).filter(
-            WorkflowExecution.run_id == run_id
-        ).first()
+        stmt = select(WorkflowExecution).filter(WorkflowExecution.run_id == run_id)
+        result = await session.execute(stmt)
+        execution = result.scalar_one_or_none()
 
         if not execution:
             raise HTTPException(
@@ -1383,11 +1425,10 @@ async def abort_workflow_execution(
         execution.completed_at = datetime.now(timezone.utc)
         execution.error_message = f"Aborted by {current_user['email']}"
 
-        session.commit()
+        await session.commit()
 
         # Best-effort: signal orchestrator to stop execution when available
         try:
-            import os
             if os.environ.get("P4_ENVIRONMENT") != "testing":
                 from retrofitkit.api.server import orc as orchestrator
 
@@ -1405,7 +1446,7 @@ async def abort_workflow_execution(
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "WORKFLOW_ABORTED",
                 current_user["email"],
                 run_id,
@@ -1419,7 +1460,7 @@ async def abort_workflow_execution(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error aborting execution: {str(e)}"

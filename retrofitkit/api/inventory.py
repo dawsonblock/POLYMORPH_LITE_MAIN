@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, UUID4, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timedelta
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from retrofitkit.db.models.inventory import InventoryItem, StockLot, Vendor
 from retrofitkit.db.session import get_db
-from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user
 
@@ -92,15 +93,16 @@ class VendorResponse(BaseModel):
 async def create_inventory_item(
     item: InventoryItemCreate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """Create a new inventory item."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
-        existing = session.query(InventoryItem).filter(
-            InventoryItem.item_code == item.item_code
-        ).first()
+        stmt = select(InventoryItem).filter(InventoryItem.item_code == item.item_code)
+        result = await session.execute(stmt)
+        existing = result.scalar_one_or_none()
+        
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -119,10 +121,10 @@ async def create_inventory_item(
         )
 
         session.add(new_item)
-        session.commit()
-        session.refresh(new_item)
+        await session.commit()
+        await session.refresh(new_item)
 
-        audit.log(
+        await audit.log(
             "INVENTORY_ITEM_CREATED",
             current_user["email"],
             item.item_code,
@@ -141,12 +143,12 @@ async def list_inventory_items(
     low_stock_only: bool = False,
     limit: int = 100,
     offset: int = 0,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """List inventory items with optional filtering."""
 
     try:
-        query = session.query(InventoryItem)
+        query = select(InventoryItem)
 
         if category:
             query = query.filter(InventoryItem.category == category)
@@ -154,7 +156,8 @@ async def list_inventory_items(
         if low_stock_only:
             query = query.filter(InventoryItem.current_stock < InventoryItem.reorder_point)
 
-        items = query.order_by(InventoryItem.name).limit(limit).offset(offset).all()
+        result = await session.execute(query.order_by(InventoryItem.name).limit(limit).offset(offset))
+        items = result.scalars().all()
         return items
 
     finally:
@@ -162,13 +165,14 @@ async def list_inventory_items(
 
 
 @router.get("/items/{item_code}", response_model=InventoryItemResponse)
-async def get_inventory_item(item_code: str, session: Session = Depends(get_db)):
+async def get_inventory_item(item_code: str, session: AsyncSession = Depends(get_db)):
     """Get inventory item details."""
 
     try:
-        item = session.query(InventoryItem).filter(
-            InventoryItem.item_code == item_code
-        ).first()
+        stmt = select(InventoryItem).filter(InventoryItem.item_code == item_code)
+        result = await session.execute(stmt)
+        item = result.scalar_one_or_none()
+        
         if not item:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -181,13 +185,15 @@ async def get_inventory_item(item_code: str, session: Session = Depends(get_db))
 
 
 @router.get("/alerts/low-stock")
-async def get_low_stock_alerts(session: Session = Depends(get_db)):
+async def get_low_stock_alerts(session: AsyncSession = Depends(get_db)):
     """Get items below reorder point."""
 
     try:
-        low_stock_items = session.query(InventoryItem).filter(
+        stmt = select(InventoryItem).filter(
             InventoryItem.current_stock < InventoryItem.reorder_point
-        ).all()
+        )
+        result = await session.execute(stmt)
+        low_stock_items = result.scalars().all()
 
         return {
             "count": len(low_stock_items),
@@ -208,17 +214,19 @@ async def get_low_stock_alerts(session: Session = Depends(get_db)):
 
 
 @router.get("/alerts/expiring")
-async def get_expiring_lots(days: int = 30, session: Session = Depends(get_db)):
+async def get_expiring_lots(days: int = 30, session: AsyncSession = Depends(get_db)):
     """Get stock lots expiring within N days."""
 
     try:
         cutoff_date = date.today() + timedelta(days=days)
 
-        expiring_lots = session.query(StockLot).filter(
+        stmt = select(StockLot).filter(
             StockLot.expiration_date <= cutoff_date,
             StockLot.expiration_date >= date.today(),
             StockLot.status == 'active'
-        ).all()
+        )
+        result = await session.execute(stmt)
+        expiring_lots = result.scalars().all()
 
         return {
             "count": len(expiring_lots),
@@ -246,16 +254,17 @@ async def get_expiring_lots(days: int = 30, session: Session = Depends(get_db)):
 async def create_stock_lot(
     lot: StockLotCreate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """Add a new stock lot."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         # Lookup item
-        item = session.query(InventoryItem).filter(
-            InventoryItem.item_code == lot.item_code
-        ).first()
+        stmt = select(InventoryItem).filter(InventoryItem.item_code == lot.item_code)
+        result = await session.execute(stmt)
+        item = result.scalar_one_or_none()
+        
         if not item:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -263,9 +272,10 @@ async def create_stock_lot(
             )
 
         # Check if lot number already exists
-        existing = session.query(StockLot).filter(
-            StockLot.lot_number == lot.lot_number
-        ).first()
+        stmt = select(StockLot).filter(StockLot.lot_number == lot.lot_number)
+        result = await session.execute(stmt)
+        existing = result.scalar_one_or_none()
+        
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -286,10 +296,10 @@ async def create_stock_lot(
         # Update item stock count
         item.current_stock += lot.quantity
 
-        session.commit()
-        session.refresh(new_lot)
+        await session.commit()
+        await session.refresh(new_lot)
 
-        audit.log(
+        await audit.log(
             "STOCK_LOT_RECEIVED",
             current_user["email"],
             lot.lot_number,
@@ -308,24 +318,26 @@ async def list_stock_lots(
     status: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """List stock lots."""
 
     try:
-        query = session.query(StockLot)
+        query = select(StockLot)
 
         if item_code:
-            item = session.query(InventoryItem).filter(
-                InventoryItem.item_code == item_code
-            ).first()
+            stmt = select(InventoryItem).filter(InventoryItem.item_code == item_code)
+            result = await session.execute(stmt)
+            item = result.scalar_one_or_none()
+            
             if item:
                 query = query.filter(StockLot.item_id == item.id)
 
         if status:
             query = query.filter(StockLot.status == status)
 
-        lots = query.order_by(StockLot.received_date.desc()).limit(limit).offset(offset).all()
+        result = await session.execute(query.order_by(StockLot.received_date.desc()).limit(limit).offset(offset))
+        lots = result.scalars().all()
         return lots
 
     finally:
@@ -337,10 +349,10 @@ async def consume_stock(
     lot_number: str,
     quantity: int,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """Consume stock from a lot with pessimistic locking to prevent race conditions."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
         # Validate quantity
@@ -351,9 +363,9 @@ async def consume_stock(
             )
 
         # Use SELECT FOR UPDATE to lock the row and prevent concurrent modifications
-        lot = session.query(StockLot).filter(
-            StockLot.lot_number == lot_number
-        ).with_for_update().first()
+        stmt = select(StockLot).filter(StockLot.lot_number == lot_number).with_for_update()
+        result = await session.execute(stmt)
+        lot = result.scalar_one_or_none()
 
         if not lot:
             raise HTTPException(
@@ -374,18 +386,18 @@ async def consume_stock(
             lot.status = 'depleted'
 
         # Update item stock (also lock this row)
-        item = session.query(InventoryItem).filter(
-            InventoryItem.id == lot.item_id
-        ).with_for_update().first()
+        stmt = select(InventoryItem).filter(InventoryItem.id == lot.item_id).with_for_update()
+        result = await session.execute(stmt)
+        item = result.scalar_one_or_none()
 
         if item:
             item.current_stock -= quantity
 
-        session.commit()
+        await session.commit()
 
         # Audit log (non-blocking)
         try:
-            audit.log(
+            await audit.log(
                 "STOCK_CONSUMED",
                 current_user["email"],
                 lot_number,
@@ -402,7 +414,7 @@ async def consume_stock(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error consuming stock: {str(e)}"
@@ -419,13 +431,16 @@ async def consume_stock(
 async def create_vendor(
     vendor: VendorCreate,
     current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """Create a new vendor."""
-    audit = Audit()
+    audit = Audit(session)
 
     try:
-        existing = session.query(Vendor).filter(Vendor.vendor_id == vendor.vendor_id).first()
+        stmt = select(Vendor).filter(Vendor.vendor_id == vendor.vendor_id)
+        result = await session.execute(stmt)
+        existing = result.scalar_one_or_none()
+        
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -439,10 +454,10 @@ async def create_vendor(
         )
 
         session.add(new_vendor)
-        session.commit()
-        session.refresh(new_vendor)
+        await session.commit()
+        await session.refresh(new_vendor)
 
-        audit.log(
+        await audit.log(
             "VENDOR_CREATED",
             current_user["email"],
             vendor.vendor_id,
@@ -456,11 +471,13 @@ async def create_vendor(
 
 
 @router.get("/vendors", response_model=List[VendorResponse])
-async def list_vendors(limit: int = 100, offset: int = 0, session: Session = Depends(get_db)):
+async def list_vendors(limit: int = 100, offset: int = 0, session: AsyncSession = Depends(get_db)):
     """List all vendors."""
 
     try:
-        vendors = session.query(Vendor).order_by(Vendor.name).limit(limit).offset(offset).all()
+        stmt = select(Vendor).order_by(Vendor.name).limit(limit).offset(offset)
+        result = await session.execute(stmt)
+        vendors = result.scalars().all()
         return vendors
 
     finally:
@@ -468,11 +485,14 @@ async def list_vendors(limit: int = 100, offset: int = 0, session: Session = Dep
 
 
 @router.get("/vendors/{vendor_id}", response_model=VendorResponse)
-async def get_vendor(vendor_id: str, session: Session = Depends(get_db)):
+async def get_vendor(vendor_id: str, session: AsyncSession = Depends(get_db)):
     """Get vendor details."""
 
     try:
-        vendor = session.query(Vendor).filter(Vendor.vendor_id == vendor_id).first()
+        stmt = select(Vendor).filter(Vendor.vendor_id == vendor_id)
+        result = await session.execute(stmt)
+        vendor = result.scalar_one_or_none()
+        
         if not vendor:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

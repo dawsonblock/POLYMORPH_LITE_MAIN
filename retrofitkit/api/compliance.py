@@ -15,15 +15,16 @@ from datetime import datetime, timezone
 import hashlib
 import uuid
 from io import BytesIO
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text
+from sqlalchemy.orm import selectinload
 
 from retrofitkit.db.models.audit import AuditEvent as AuditLog
-from retrofitkit.db.models.workflow import ConfigSnapshot, WorkflowExecution, WorkflowVersion
+from retrofitkit.db.models.workflow import ConfigSnapshot, WorkflowExecution, WorkflowVersion, WorkflowSampleAssignment
 from retrofitkit.db.models.sample import Sample
 from retrofitkit.db.session import get_db
-from sqlalchemy.orm import Session
 from retrofitkit.compliance.audit import Audit
 from retrofitkit.api.dependencies import get_current_user
-from retrofitkit.db.models.user import User
 from retrofitkit.data.storage import DataStore
 
 router = APIRouter(prefix="/api/compliance", tags=["compliance"])
@@ -87,8 +88,8 @@ class RunDetailsResponse(BaseModel):
 @router.get("/audit/verify-chain", response_model=AuditChainVerificationResponse)
 async def verify_audit_chain(
     limit: int = 1000,
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Verify the cryptographic integrity of the audit trail chain.
@@ -103,7 +104,9 @@ async def verify_audit_chain(
 
     try:
         # Get audit logs ordered by ID
-        entries = session.query(AuditLog).order_by(AuditLog.id.asc()).limit(limit).all()
+        stmt = select(AuditLog).order_by(AuditLog.id.asc()).limit(limit)
+        result = await session.execute(stmt)
+        entries = result.scalars().all()
 
         if not entries:
             return AuditChainVerificationResponse(
@@ -141,7 +144,7 @@ async def verify_audit_chain(
         # Log verification attempt
         await audit.log(
             "AUDIT_CHAIN_VERIFIED",
-            current_user.email,
+            current_user["email"],
             "system",
             f"Verified {verified_count}/{len(entries)} audit entries"
         )
@@ -150,10 +153,10 @@ async def verify_audit_chain(
             is_valid=len(errors) == 0,
             total_entries=len(entries),
             verified_entries=verified_count,
-            first_entry_timestamp=entries[0].ts,
-            last_entry_timestamp=entries[-1].ts,
-            chain_start_hash=entries[0].prev_hash,
-            chain_end_hash=entries[-1].hash,
+            first_entry_timestamp=entries[0].ts if entries else None,
+            last_entry_timestamp=entries[-1].ts if entries else None,
+            chain_start_hash=entries[0].prev_hash if entries else "GENESIS",
+            chain_end_hash=entries[-1].hash if entries else "GENESIS",
             errors=errors
         )
 
@@ -166,8 +169,8 @@ async def export_audit_trail(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     actor: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Export audit trail as JSON for archival or analysis.
@@ -177,7 +180,7 @@ async def export_audit_trail(
 
 
     try:
-        query = session.query(AuditLog).order_by(AuditLog.ts.asc())
+        query = select(AuditLog).order_by(AuditLog.ts.asc())
 
         # Apply filters
         if start_date:
@@ -191,11 +194,12 @@ async def export_audit_trail(
         if actor:
             query = query.filter(AuditLog.actor == actor)
 
-        entries = query.all()
+        result = await session.execute(query)
+        entries = result.scalars().all()
 
         export_data = {
             "export_date": datetime.now(timezone.utc).isoformat(),
-            "exported_by": current_user.email,
+            "exported_by": current_user["email"],
             "filters": {
                 "start_date": start_date,
                 "end_date": end_date,
@@ -230,8 +234,8 @@ async def export_audit_trail(
 @router.get("/reports/run/{run_id}.pdf")
 async def generate_run_report_pdf(
     run_id: str,
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Generate compliance report PDF for a specific run.
@@ -260,9 +264,11 @@ async def generate_run_report_pdf(
         data_store = DataStore()
 
         # Load run data
-        execution = session.query(WorkflowExecution).filter(
+        stmt = select(WorkflowExecution).filter(
             WorkflowExecution.run_id == run_id
-        ).first()
+        )
+        result = await session.execute(stmt)
+        execution = result.scalar_one_or_none()
 
         if not execution:
             raise HTTPException(
@@ -271,9 +277,11 @@ async def generate_run_report_pdf(
             )
 
         # Get workflow details
-        workflow = session.query(WorkflowVersion).filter(
+        stmt = select(WorkflowVersion).filter(
             WorkflowVersion.id == execution.workflow_version_id
-        ).first()
+        )
+        result = await session.execute(stmt)
+        workflow = result.scalar_one_or_none()
 
         # Create PDF in memory
         buffer = BytesIO()
@@ -289,7 +297,7 @@ async def generate_run_report_pdf(
         pdf.setFont("Helvetica", 10)
         pdf.drawString(inch, y, f"Generated: {datetime.now(timezone.utc).isoformat()}")
         y -= 0.3 * inch
-        pdf.drawString(inch, y, f"Generated By: {current_user.email}")
+        pdf.drawString(inch, y, f"Generated By: {current_user['email']}")
         y -= 0.5 * inch
 
         # Run Details
@@ -314,9 +322,12 @@ async def generate_run_report_pdf(
 
         # Config Snapshot
         if execution.config_snapshot_id:
-            config = session.query(ConfigSnapshot).filter(
+            stmt = select(ConfigSnapshot).filter(
                 ConfigSnapshot.id == execution.config_snapshot_id
-            ).first()
+            )
+            result = await session.execute(stmt)
+            config = result.scalar_one_or_none()
+
             if config:
                 pdf.setFont("Helvetica-Bold", 12)
                 pdf.drawString(inch, y, "Configuration Snapshot")
@@ -333,9 +344,11 @@ async def generate_run_report_pdf(
         y -= 0.3 * inch
 
         # Get relevant audit entries
-        audit_entries = session.query(AuditLog).filter(
+        stmt = select(AuditLog).filter(
             AuditLog.subject == run_id
-        ).order_by(AuditLog.ts.asc()).all()
+        ).order_by(AuditLog.ts.asc())
+        result = await session.execute(stmt)
+        audit_entries = result.scalars().all()
 
         if audit_entries:
             pdf.setFont("Helvetica", 10)
@@ -365,7 +378,7 @@ async def generate_run_report_pdf(
         try:
             await audit.log(
                 "REPORT_GENERATED",
-                current_user.email,
+                current_user["email"],
                 run_id,
                 f"Generated PDF report for run {run_id}"
             )
@@ -396,8 +409,8 @@ async def generate_run_report_pdf(
 @router.get("/run/{run_id}", response_model=RunDetailsResponse)
 async def get_run_details(
     run_id: str,
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
 ):
     """Return detailed JSON view of a workflow run.
 
@@ -408,9 +421,11 @@ async def get_run_details(
 
     try:
         # Load execution
-        execution = session.query(WorkflowExecution).filter(
+        stmt = select(WorkflowExecution).filter(
             WorkflowExecution.run_id == run_id
-        ).first()
+        )
+        result = await session.execute(stmt)
+        execution = result.scalar_one_or_none()
 
         if not execution:
             raise HTTPException(
@@ -419,16 +434,21 @@ async def get_run_details(
             )
 
         # Workflow metadata
-        workflow = session.query(WorkflowVersion).filter(
+        stmt = select(WorkflowVersion).filter(
             WorkflowVersion.id == execution.workflow_version_id
-        ).first()
+        )
+        result = await session.execute(stmt)
+        workflow = result.scalar_one_or_none()
 
         # Config snapshot summary (if any)
         config_summary: Optional[Dict[str, Any]] = None
         if execution.config_snapshot_id:
-            config = session.query(ConfigSnapshot).filter(
+            stmt = select(ConfigSnapshot).filter(
                 ConfigSnapshot.id == execution.config_snapshot_id
-            ).first()
+            )
+            result = await session.execute(stmt)
+            config = result.scalar_one_or_none()
+
             if config:
                 config_summary = {
                     "snapshot_id": config.snapshot_id,
@@ -439,9 +459,11 @@ async def get_run_details(
                 }
 
         # Audit entries for this run
-        audit_entries = session.query(AuditLog).filter(
+        stmt = select(AuditLog).filter(
             AuditLog.subject == run_id
-        ).order_by(AuditLog.ts.asc()).all()
+        ).order_by(AuditLog.ts.asc())
+        result = await session.execute(stmt)
+        audit_entries = result.scalars().all()
 
         audit_payload = [
             {
@@ -479,7 +501,7 @@ async def get_run_details(
 # ============================================================================
 
 @router.get("/traceability/sample/{sample_id}", response_model=TraceabilityMatrixResponse)
-async def generate_traceability_matrix(sample_id: str, session: Session = Depends(get_db)):
+async def generate_traceability_matrix(sample_id: str, session: AsyncSession = Depends(get_db)):
     """
     Generate complete traceability matrix from sample to results.
 
@@ -494,7 +516,10 @@ async def generate_traceability_matrix(sample_id: str, session: Session = Depend
 
     try:
         # Get sample
-        sample = session.query(Sample).filter(Sample.sample_id == sample_id).first()
+        stmt = select(Sample).filter(Sample.sample_id == sample_id)
+        result = await session.execute(stmt)
+        sample = result.scalar_one_or_none()
+
         if not sample:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -502,32 +527,38 @@ async def generate_traceability_matrix(sample_id: str, session: Session = Depend
             )
 
         # Get all workflow executions for this sample
-        from retrofitkit.db.models.workflow import WorkflowSampleAssignment
-
-        assignments = session.query(WorkflowSampleAssignment).filter(
+        stmt = select(WorkflowSampleAssignment).filter(
             WorkflowSampleAssignment.sample_id == sample.id
-        ).all()
+        )
+        result = await session.execute(stmt)
+        assignments = result.scalars().all()
 
         runs = []
         for assignment in assignments:
-            execution = session.query(WorkflowExecution).filter(
+            stmt = select(WorkflowExecution).filter(
                 WorkflowExecution.id == assignment.workflow_execution_id
-            ).first()
+            )
+            result = await session.execute(stmt)
+            execution = result.scalar_one_or_none()
 
             if not execution:
                 continue
 
             # Get workflow version
-            workflow = session.query(WorkflowVersion).filter(
+            stmt = select(WorkflowVersion).filter(
                 WorkflowVersion.id == execution.workflow_version_id
-            ).first()
+            )
+            result = await session.execute(stmt)
+            workflow = result.scalar_one_or_none()
 
             # Get config snapshot
             config = None
             if execution.config_snapshot_id:
-                config = session.query(ConfigSnapshot).filter(
+                stmt = select(ConfigSnapshot).filter(
                     ConfigSnapshot.id == execution.config_snapshot_id
-                ).first()
+                )
+                result = await session.execute(stmt)
+                config = result.scalar_one_or_none()
 
             runs.append({
                 "run_id": execution.run_id,
@@ -562,8 +593,8 @@ async def generate_traceability_matrix(sample_id: str, session: Session = Depend
 @router.post("/config/snapshot", response_model=ConfigSnapshotResponse)
 async def create_config_snapshot(
     reason: str,
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Create an immutable snapshot of current system configuration.
@@ -577,16 +608,13 @@ async def create_config_snapshot(
         # Gather actual system configuration
         from retrofitkit.core.app import AppContext
         from retrofitkit import __version__ as app_version
-        from sqlalchemy import text
-        import hashlib
         import json
 
         app_context = AppContext.load()
 
         # Get Alembic revision from database
-        # We use text() to execute raw SQL safely
         try:
-            result = session.execute(text("SELECT version_num FROM alembic_version"))
+            result = await session.execute(text("SELECT version_num FROM alembic_version"))
             alembic_revision = result.scalar()
         except Exception:
             alembic_revision = "unknown"
@@ -619,7 +647,7 @@ async def create_config_snapshot(
             "snapshot_metadata": {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "reason": reason,
-                "captured_by": current_user.email,
+                "captured_by": current_user["email"],
             }
         }
 
@@ -634,19 +662,19 @@ async def create_config_snapshot(
             timestamp=datetime.now(timezone.utc),
             config_data=config_data,
             config_hash=config_hash,
-            created_by=current_user.email,
+            created_by=current_user["email"],
             reason=reason
         )
 
         session.add(snapshot)
-        session.commit()
-        session.refresh(snapshot)
+        await session.commit()
+        await session.refresh(snapshot)
 
         # Audit log (non-blocking)
         try:
             await audit.log(
                 "CONFIG_SNAPSHOT_CREATED",
-                current_user.email,
+                current_user["email"],
                 snapshot.snapshot_id,
                 f"Created config snapshot: {reason}"
             )
@@ -658,7 +686,7 @@ async def create_config_snapshot(
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating config snapshot: {str(e)}"
@@ -671,15 +699,17 @@ async def create_config_snapshot(
 async def list_config_snapshots(
     limit: int = 100,
     offset: int = 0,
-    session: Session = Depends(get_db)
+    session: AsyncSession = Depends(get_db)
 ):
     """List configuration snapshots."""
 
 
     try:
-        snapshots = session.query(ConfigSnapshot).order_by(
+        stmt = select(ConfigSnapshot).order_by(
             ConfigSnapshot.timestamp.desc()
-        ).limit(limit).offset(offset).all()
+        ).limit(limit).offset(offset)
+        result = await session.execute(stmt)
+        snapshots = result.scalars().all()
 
         return snapshots
 
@@ -688,14 +718,16 @@ async def list_config_snapshots(
 
 
 @router.get("/config/snapshots/{snapshot_id}", response_model=ConfigSnapshotResponse)
-async def get_config_snapshot(snapshot_id: str, session: Session = Depends(get_db)):
+async def get_config_snapshot(snapshot_id: str, session: AsyncSession = Depends(get_db)):
     """Get a specific configuration snapshot."""
 
 
     try:
-        snapshot = session.query(ConfigSnapshot).filter(
+        stmt = select(ConfigSnapshot).filter(
             ConfigSnapshot.snapshot_id == snapshot_id
-        ).first()
+        )
+        result = await session.execute(stmt)
+        snapshot = result.scalar_one_or_none()
 
         if not snapshot:
             raise HTTPException(

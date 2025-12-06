@@ -8,6 +8,6 @@ This module provides:
 """
 
 from retrofitkit.db.base import Base
-from retrofitkit.db.session import get_db, SessionLocal, engine, get_settings
+from retrofitkit.db.session import get_db, AsyncSessionLocal, engine, get_settings
 
-__all__ = ["Base", "get_db", "SessionLocal", "engine", "get_settings"]
+__all__ = ["Base", "get_db", "AsyncSessionLocal", "engine", "get_settings"]
