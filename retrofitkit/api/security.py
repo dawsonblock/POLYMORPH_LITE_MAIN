@@ -1,5 +1,6 @@
 from fastapi import HTTPException, Header
-from jose import jwt, JWTError
+import jwt
+from jwt import PyJWTError as JWTError
 from retrofitkit.compliance.tokens import SECRET_KEY, ALG
 
 def get_current_user(authorization: str = Header(default=None, alias="Authorization")):

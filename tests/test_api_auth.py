@@ -15,7 +15,7 @@ import tempfile
 import shutil
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
-from jose import jwt
+import jwt
 from retrofitkit.api.auth import router
 from retrofitkit.compliance.users import Users
 # from retrofitkit.compliance.tokens import SECRET, ALG

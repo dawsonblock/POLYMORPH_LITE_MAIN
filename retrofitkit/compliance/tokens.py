@@ -5,7 +5,7 @@ JWT token creation and validation for authentication.
 
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
-from jose import jwt
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
@@ -38,7 +38,7 @@ def decode_token(token: str) -> Dict[str, Any]:
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.JWTError:
+    except jwt.exceptions.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
