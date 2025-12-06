@@ -85,10 +85,10 @@ POLYMORPH-LITE transforms legacy analytical instruments into intelligent, AI-pow
 
 ### 3. Workflow Engine
 - **Linear Execution**: Supports sequential execution of steps (Action, Wait, Hold).
-- **Note**: As of v3.0.0, the workflow engine supports linear sequences only. Loops and conditional branching are planned for future releases.
-- **Visual Builder**: Drag-and-drop interface for creating recipes.
+- **Note**: As of v3.2, the workflow engine supports linear sequences only. Loops and conditional branching are planned for v3.3+.
+- **Visual Builder**: ⚠️ Planned for v3.3 - Currently workflow definitions via YAML.
 - **Safety Integration**: Pre-execution safety checks and runtime monitoring.
-- **Operator Wizard**: Step-by-step execution guide with real-time feedback.
+- **Operator Wizard**: ⚠️ In Development - Basic execution interface available.
 
 ### 🤖 AI Integration
 - **BentoML Inference**: Optimized AI model serving
@@ -114,9 +114,9 @@ POLYMORPH-LITE provides technical features that support 21 CFR Part 11 requireme
 > according to your organization's quality system.
 
 ### 🎨 Modern Interface
-- **React 18 + MUI v6**: Responsive, dark-mode enabled UI.
-- **Operator Wizard**: Dedicated route (`/run`) for executing experiments.
-- **Real-Time Charts**: High-performance plotting for spectral data.
+- **Next.js + React 18**: ⚠️ In Development - Basic UI scaffolding in place.
+- **Operator Wizard**: ⚠️ Planned - Backend API ready, frontend in progress.
+- **Real-Time Charts**: ⚠️ Planned - WebSocket infrastructure ready.
 
 
 ---
@@ -144,7 +144,12 @@ docker-compose exec backend python scripts/create_admin_user.py
 open http://localhost:8001/docs
 ```
 
-**Default Login**: `admin@polymorph.local` / `admin123` ⚠️ Change immediately!
+**Default Login**: `admin@polymorph.local` / `admin123`
+
+⚠️ **SECURITY WARNING**: Change default credentials immediately in production:
+```bash
+docker-compose exec backend python scripts/create_admin_user.py --email your@email.com --password YourSecurePassword123!
+```
 
 ### Verification
 
@@ -322,12 +327,13 @@ python scripts/generate_keys.py
 
 ## 🛣️ Roadmap
 
-### ✅ v3.2 (Current - Production Ready)
-- **Hardware**: Real drivers (NI/Ocean Optics) with simulation fallback
-- **Infrastructure**: Terraform + Kubernetes + CI/CD
-- **Compliance**: Part 11 Documentation Suite (IQ/OQ/PQ)
-- **UI**: Operator Wizard & Real-time Charts
-- **AI**: PyTorch Raman Predictor
+### ✅ v3.2 (Current - Production Backend Ready)
+- **Hardware**: Real drivers (NI/Ocean Optics) with simulation fallback ✅
+- **Infrastructure**: Terraform + Kubernetes + CI/CD ✅
+- **Compliance**: Part 11 Documentation Suite (IQ/OQ/PQ) ✅
+- **Backend API**: Complete REST API with RBAC & Audit ✅
+- **UI**: ⚠️ In Development - Basic scaffolding
+- **AI**: BentoML service with model serving ✅
 
 ### 🔄 v3.3 (Next)
 - [ ] Multi-tenant organization features

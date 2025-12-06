@@ -89,7 +89,7 @@ services:
       dockerfile: docker/ui/Dockerfile
     container_name: polymorph-ui
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8001/api/v1
     depends_on:

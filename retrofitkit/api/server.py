@@ -57,71 +57,13 @@ class ConnectionManager:
                 self.disconnect(client_id)
 
 manager = ConnectionManager()
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    logger.info("Starting POLYMORPH-LITE v8.0...")
-    await init_db()
-    
-    # Start metrics exporter
-    Metrics.start()
-    
-    yield
-    
-    # Shutdown
-    logger.info("Shutting down...")
-
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    lifespan=lifespan
-)
-
-# Middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware)
-
-# Socket.IO
-app_sio = socketio.ASGIApp(sio, app)
-
-# Routers
-app.include_router(auth_router, prefix="/auth", tags=["Auth"])
-app.include_router(api_router, prefix="/api/v1", tags=["API"])
-
-@app.get("/")
-async def root():
-    return {
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "status": "running",
-        "docs": "/docs"
-    }
-
-@app.websocket("/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    await manager.connect(websocket, client_id)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            # Echo for now
-            await manager.broadcast({"client": client_id, "message": data})
-    except WebSocketDisconnect:
-        manager.disconnect(client_id)
+_start_time = time.time()
 
 # Background tasks
 async def system_monitor_task():
     """Generate system status updates"""
     while True:
         try:
-            # Broadcast status every 5 seconds
             await manager.broadcast({
                 "type": "status",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -130,53 +72,6 @@ async def system_monitor_task():
             await asyncio.sleep(5)
         except Exception as e:
             logger.error(f"Monitor error: {e}")
-            await asyncio.sleep(5)
-
-@app.on_event("startup")
-async def start_monitor():
-    asyncio.create_task(system_monitor_task())
-    while True:
-        try:
-            # Get real status from Orchestrator
-            orc_status = orc.status
-
-            # Get hardware health
-            daq_health = await orc.daq.health()
-            raman_health = await orc.raman.health()
-
-            system_status = {
-                "overall": "healthy" if not orc_status["ai_circuit_open"] else "warning",
-                "components": {
-                    "daq": {
-                        "status": daq_health.get("status", "unknown"),
-                        "temperature": 23.5, # Placeholder until driver supports temp
-                        "lastUpdate": datetime.now().isoformat()
-                    },
-                    "raman": {
-                        "status": raman_health.get("status", "unknown"),
-                        "temperature": 22.1,
-                        "lastUpdate": datetime.now().isoformat()
-                    },
-                    "ai": {
-                        "status": "offline" if orc_status["ai_circuit_open"] else "online",
-                        "circuit_open": orc_status["ai_circuit_open"],
-                        "failures": orc_status["ai_failures"],
-                        "lastUpdate": datetime.now().isoformat()
-                    },
-                    "safety": {
-                        "status": "online",
-                        "lastUpdate": datetime.now().isoformat()
-                    }
-                },
-                "uptime": int(time.time() - _start_time),
-                "lastUpdate": datetime.now().isoformat()
-            }
-
-            await sio.emit('system_status', system_status)
-            await manager.broadcast({"type": "system_status", "data": system_status})
-            await asyncio.sleep(2) # Faster updates for responsiveness
-        except Exception as e:
-            print(f"Monitor error: {e}")
             await asyncio.sleep(5)
 
 async def broadcast_spectra_task():
@@ -212,48 +107,16 @@ async def broadcast_spectra_task():
             logger.error(f"Spectra broadcast error: {e}")
             await asyncio.sleep(1)
 
-async def data_generation_task():
-    """Generate process data simulation"""
-    while True:
-        try:
-            # Get active run from Orchestrator
-            active_run_id = orc.status.get("active_run_id")
-
-            if active_run_id:
-                processes = [{
-                    "id": str(active_run_id),
-                    "recipeId": "active-recipe",
-                    "recipeName": "Active Run",
-                    "status": "running",
-                    "recipeName": "Active Run",
-                    "status": "running",
-                    "progress": int(100 * orc.status["progress"]["current"] / max(orc.status["progress"]["total"], 1)),
-                    "data": []
-                }]
-            else:
-                processes = []
-
-            await sio.emit('processes_update', processes)
-            await manager.broadcast({"type": "processes_update", "data": processes})
-            await asyncio.sleep(2)
-        except Exception:
-            await asyncio.sleep(5)
-
 # Lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting POLYMORPH-LITE v8.0...")
     await init_db()
-    
-    # Start metrics exporter
     Metrics.start()
     
-    # await raman_streamer.start()
-
     # Start background tasks
     monitor_task = asyncio.create_task(system_monitor_task())
-    # data_task = asyncio.create_task(data_generation_task())
     spectra_task = asyncio.create_task(broadcast_spectra_task())
 
     yield
@@ -261,9 +124,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down...")
     monitor_task.cancel()
-    # data_task.cancel()
     spectra_task.cancel()
-    # await raman_streamer.stop()
 
 # Create FastAPI application
 app = FastAPI(
@@ -301,8 +162,6 @@ app.add_middleware(
 ctx = AppContext.load()
 orc = Orchestrator(ctx)
 bus = EventBus()
-# raman_streamer = RamanStreamer(ctx, bus, device=orc.raman)
-_start_time = time.time()
 
 from retrofitkit.api.health import router as health_router
 from retrofitkit.api.devices import router as devices_router
@@ -345,14 +204,12 @@ async def connect(sid, environ, auth):
 async def disconnect(sid):
     print(f"Socket.IO client {sid} disconnected")
 
-# WebSocket Endpoint
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket, client_id)
     try:
         while True:
             data = await websocket.receive_text()
-            # Echo back
             await websocket.send_json({"type": "echo", "data": data})
     except WebSocketDisconnect:
         manager.disconnect(client_id)

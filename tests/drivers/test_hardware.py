@@ -34,12 +34,12 @@ class TestOceanOpticsDriver:
 
 class TestRedPitayaDriver:
     def test_initialization_simulated(self):
-        driver = RedPitayaDriver(simulate=True)
+        driver = RedPitayaDriver(host="127.0.0.1", simulate=True)
         assert driver.simulate
         driver.disconnect()
 
     def test_waveform_acquisition(self):
-        driver = RedPitayaDriver(simulate=True)
+        driver = RedPitayaDriver(host="127.0.0.1", simulate=True)
         data = driver.get_waveform(channel=1, num_samples=1024)
         assert len(data) == 1024
         # Simulation returns sine wave
@@ -47,7 +47,7 @@ class TestRedPitayaDriver:
         driver.disconnect()
 
     def test_self_test(self):
-        driver = RedPitayaDriver(simulate=True)
+        driver = RedPitayaDriver(host="127.0.0.1", simulate=True)
         assert driver.self_test() is True
         driver.disconnect()
 

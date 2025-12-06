@@ -24,10 +24,6 @@ asyncpg==0.30.0
 attrs==25.3.0
 Authlib==1.6.3
 autoflake==2.3.1
-autogen-agentchat==0.2.40
-autogen-core==0.7.4
--e git+https://github.com/dawsonblock/autogen-main_V1.git@3e898be3adccdd1f9684d50426fc9ae5fbeea337#egg=autogen_ext&subdirectory=python/packages/autogen-ext
--e git+https://github.com/dawsonblock/autogen-main_V1.git@3e898be3adccdd1f9684d50426fc9ae5fbeea337#egg=autogenstudio&subdirectory=python/packages/autogen-studio
 azure-ai-agents==1.2.0b4
 azure-ai-documentintelligence==1.0.2
 azure-ai-inference==1.0.0b9
@@ -68,8 +64,6 @@ click==8.2.0
 click-option-group==0.5.7
 cloudpickle==3.1.1
 cobble==0.1.4
-# Editable install with no version control (codex-agent-sdk==0.1.0)
--e /Users/dawsonblock/Desktop/CodexAgentSDK
 colorama==0.4.6
 coloredlogs==15.0.1
 comm==0.2.3

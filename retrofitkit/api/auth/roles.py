@@ -41,16 +41,12 @@ def require_role(allowed_roles: List[Role]):
         try:
             user_role = Role(user_role_str)
         except ValueError:
-             raise HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Invalid role: {user_role_str}"
             )
 
-        if user_role not in allowed_roles and Role.ADMIN not in allowed_roles: 
-            # Admin usually has access, but if explicit list doesn't include admin (rare), check logic.
-            # Usually Admin implies all. Let's enforce strict list for now, or add Admin override.
-            if user_role == Role.ADMIN:
-                return # Admin passes
+        if user_role not in allowed_roles:
             raise PermissionDenied()
             
         return user
