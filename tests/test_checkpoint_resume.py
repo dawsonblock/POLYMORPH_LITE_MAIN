@@ -6,7 +6,7 @@ import asyncio
 from retrofitkit.core.recipe import Recipe, Step
 from retrofitkit.core.workflows.executor import WorkflowExecutor
 from retrofitkit.core.workflows.db_logger import DatabaseLogger
-from retrofitkit.db.session import SessionLocal
+from retrofitkit.db.session import AsyncSessionLocal
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def test_recipe():
 async def test_checkpoint_save(test_recipe, tmp_path):
     """Test that checkpoints are saved after each step."""
     # Create executor with database logger
-    db_logger = DatabaseLogger(SessionLocal)
+    db_logger = DatabaseLogger(AsyncSessionLocal)
     executor = WorkflowExecutor(
         config=None,
         db_logger=db_logger,
@@ -51,7 +51,7 @@ async def test_checkpoint_save(test_recipe, tmp_path):
 @pytest.mark.asyncio
 async def test_resume_from_checkpoint(test_recipe):
     """Test resuming workflow from checkpoint."""
-    db_logger = DatabaseLogger(SessionLocal)
+    db_logger = DatabaseLogger(AsyncSessionLocal)
     
     # First execution - will fail at step 2
     executor1 = WorkflowExecutor(
@@ -85,7 +85,7 @@ async def test_resume_from_checkpoint(test_recipe):
 @pytest.mark.asyncio
 async def test_resume_with_changed_recipe(test_recipe):
     """Test that resume fails if recipe has changed."""
-    db_logger = DatabaseLogger(SessionLocal)
+    db_logger = DatabaseLogger(AsyncSessionLocal)
     executor = WorkflowExecutor(
         config=None,
         db_logger=db_logger,
@@ -114,7 +114,7 @@ async def test_resume_with_changed_recipe(test_recipe):
 @pytest.mark.asyncio
 async def test_recipe_hash_computation(test_recipe):
     """Test recipe hash computation is deterministic."""
-    db_logger = DatabaseLogger(SessionLocal)
+    db_logger = DatabaseLogger(AsyncSessionLocal)
     executor = WorkflowExecutor(
         config=None,
         db_logger=db_logger,

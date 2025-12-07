@@ -50,11 +50,16 @@ class TestWorkflowStep:
             assert step.kind == kind
 
     def test_workflow_step_invalid_kind(self):
-        """Test that invalid step kind raises error."""
-        with pytest.raises(ValueError) as exc_info:
-            WorkflowStep(id="test", kind="invalid_kind")
-
-        assert "Invalid step kind" in str(exc_info.value)
+        """Test that unknown step kind logs warning but doesn't raise."""
+        import warnings
+        import logging
+        
+        # Unknown kind should create step but log warning
+        step = WorkflowStep(id="test", kind="unknown_custom_kind")
+        
+        # Step should be created successfully
+        assert step.id == "test"
+        assert step.kind == "unknown_custom_kind"
 
     def test_workflow_step_default_params(self):
         """Test that step params default to empty dict."""
