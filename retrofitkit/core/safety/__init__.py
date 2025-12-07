@@ -5,7 +5,14 @@ Provides safety guardrails, interlocks, and watchdog functionality.
 """
 
 from .guardrails import SafetyGuardrails
-from .interlocks import Interlocks
-from .watchdog import Watchdog
+from .interlocks import InterlockController, get_interlocks, SafetyError
+from .watchdog import SystemWatchdog, WatchdogError
 
-__all__ = ["SafetyGuardrails", "Interlocks", "Watchdog"]
+__all__ = [
+    "SafetyGuardrails",
+    "InterlockController",
+    "get_interlocks",
+    "SafetyError",
+    "SystemWatchdog",
+    "WatchdogError",
+]
