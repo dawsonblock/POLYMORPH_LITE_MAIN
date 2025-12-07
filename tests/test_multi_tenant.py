@@ -153,14 +153,14 @@ class TestMultiTenantIsolation:
     def test_expired_jwt_returns_none(self):
         """Test that expired JWT returns None for org_id."""
         import jwt
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
         
         secret = "test-secret-key"
         token = jwt.encode(
             {
                 "sub": "user@example.com",
                 "org_id": "org-123",
-                "exp": datetime.utcnow() - timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) - timedelta(hours=1)
             },
             secret,
             algorithm="HS256"
