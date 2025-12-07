@@ -27,12 +27,26 @@ class WorkflowStep:
     children: List[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        """Validate step kind."""
-        valid_kinds = ["action", "wait", "loop", "condition"]
-        if self.kind not in valid_kinds:
-            raise ValueError(
-                f"Invalid step kind '{self.kind}'. "
-                f"Must be one of: {', '.join(valid_kinds)}"
+        """Validate step kind (logs warning for unknown kinds but doesn't fail)."""
+        import logging
+        known_kinds = [
+            # Core step types
+            "action", "wait", "loop", "condition",
+            # Device/hardware steps
+            "device_discovery", "initialize", "cleanup", "daq_init", "raman_init",
+            "daq_set_ao", "daq_read_ai", "daq_set_do", "daq_read_di", "acquire",
+            # Control flow
+            "parallel", "sequence", "checkpoint",
+            # Human interaction
+            "notify", "approval", "input",
+            # Data steps
+            "log", "export", "import_data", "report_generation",
+            # Analysis steps
+            "analyze", "transform", "validate"
+        ]
+        if self.kind not in known_kinds:
+            logging.getLogger(__name__).warning(
+                f"Unknown step kind '{self.kind}' - will be treated as 'action'"
             )
 
 
@@ -75,41 +89,69 @@ class WorkflowDefinition:
         """
         Parse workflow from YAML string.
         
+        Supports two formats for steps:
+        
+        1. Dict format (preferred):
+            steps:
+              start:
+                kind: "action"
+                params: {...}
+                children: []
+        
+        2. List format (legacy):
+            steps:
+              - name: "Start"
+                type: "action"
+                params: {...}
+        
         Args:
             yaml_content: YAML workflow definition
             
         Returns:
             WorkflowDefinition instance
-            
-        Example YAML:
-            id: "test_workflow"
-            name: "Test Workflow"
-            entry_step: "start"
-            steps:
-              start:
-                kind: "action"
-                params:
-                  device: "ocean_optics"
-                  action: "acquire_spectrum"
-                children: []
         """
         data = yaml.safe_load(yaml_content)
-
-        # Parse steps
+        
+        # Parse steps - handle both dict and list formats
         steps = {}
-        for step_id, step_data in data.get("steps", {}).items():
-            steps[step_id] = WorkflowStep(
-                id=step_id,
-                kind=step_data["kind"],
-                params=step_data.get("params", {}),
-                children=step_data.get("children", []),
-            )
+        raw_steps = data.get("steps", {})
+        
+        if isinstance(raw_steps, dict):
+            # Dict format: {step_id: {kind, params, children}}
+            for step_id, step_data in raw_steps.items():
+                steps[step_id] = WorkflowStep(
+                    id=step_id,
+                    kind=step_data.get("kind", step_data.get("type", "action")),
+                    params=step_data.get("params", {}),
+                    children=step_data.get("children", []),
+                )
+        elif isinstance(raw_steps, list):
+            # List format: [{name, type, params}, ...]
+            for i, step_data in enumerate(raw_steps):
+                step_id = step_data.get("name", f"step_{i}")
+                # Sanitize step_id for use as key
+                step_id_key = step_id.lower().replace(" ", "_").replace("(", "").replace(")", "")
+                steps[step_id_key] = WorkflowStep(
+                    id=step_id_key,
+                    kind=step_data.get("type", step_data.get("kind", "action")),
+                    params=step_data.get("params", {}),
+                    children=step_data.get("children", []),
+                )
+        
+        # Determine entry step
+        entry_step = data.get("entry_step")
+        if not entry_step and steps:
+            entry_step = list(steps.keys())[0]  # First step is entry
+        
+        # Get workflow ID and name
+        workflow_id = data.get("id", data.get("name", "unnamed").lower().replace(" ", "_"))
+        workflow_name = data.get("name", workflow_id)
 
         return cls(
-            id=data["id"],
-            name=data["name"],
+            id=workflow_id,
+            name=workflow_name,
             steps=steps,
-            entry_step=data["entry_step"],
+            entry_step=entry_step or "start",
             metadata=data.get("metadata", {}),
         )
 
