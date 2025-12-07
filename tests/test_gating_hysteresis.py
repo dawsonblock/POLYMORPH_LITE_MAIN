@@ -77,20 +77,20 @@ class TestGatingHysteresis:
         """Test that cooldown prevents immediate re-trigger."""
         engine = GatingEngine(basic_rules, cooldown_sec=10.0)
         
-        # Trigger
+        # Trigger at t=2 (after 3 consecutive)
         engine.update({"t": 0, "peak_intensity": 150})
         engine.update({"t": 1, "peak_intensity": 150})
         assert engine.update({"t": 2, "peak_intensity": 150}) is True
         
-        # Try to trigger again during cooldown
+        # Try to trigger again during cooldown (t=2 + 10 = 12 is when cooldown ends)
         engine.update({"t": 3, "peak_intensity": 150})
         engine.update({"t": 4, "peak_intensity": 150})
         assert engine.update({"t": 5, "peak_intensity": 150}) is False
         
-        # After cooldown expires
-        engine.update({"t": 13, "peak_intensity": 150})
-        engine.update({"t": 14, "peak_intensity": 150})
-        assert engine.update({"t": 15, "peak_intensity": 150}) is True
+        # After cooldown expires (t > 12), need 3 NEW consecutive samples
+        engine.update({"t": 13, "peak_intensity": 150})  # 1st after cooldown
+        engine.update({"t": 14, "peak_intensity": 150})  # 2nd after cooldown
+        assert engine.update({"t": 15, "peak_intensity": 150}) is True  # 3rd triggers
 
     def test_slope_detection(self, slope_rules):
         """Test slope-based gating."""

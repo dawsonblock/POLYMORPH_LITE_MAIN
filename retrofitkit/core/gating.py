@@ -91,6 +91,9 @@ class GatingEngine:
                 state.last_trigger_time = current_time
                 state.trigger_count += 1
                 state.cooldown_remaining = self.cooldown_sec
+                # Reset consecutive counters after trigger
+                state.consecutive_above = 0
+                state.consecutive_below = 0
                 logger.info(f"Gating triggered: {rule_name} (count={state.trigger_count})")
                 return True
         

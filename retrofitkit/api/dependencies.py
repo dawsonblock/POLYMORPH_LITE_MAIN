@@ -3,23 +3,25 @@ FastAPI dependencies for authentication and authorization.
 """
 
 
-from typing import Generator, Optional, Dict, List
+from typing import Generator, Optional, Dict, List, Set, Callable
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt import PyJWTError as JWTError
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from retrofitkit.db.session import get_db
 from retrofitkit.core.config import get_config
-from retrofitkit.db.models.auth import User
-from retrofitkit.core.models.auth import TokenData
-from retrofitkit.api.auth.roles import check_permissions
+from retrofitkit.db.models.user import User
+from retrofitkit.compliance.rbac import get_user_roles
 
-# Re-export get_db for convenience
-get_db = get_db
+
+# Simple TokenData model
+class TokenData(BaseModel):
+    username: Optional[str] = None
+    scopes: List[str] = []
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="auth/token",
@@ -83,6 +85,13 @@ async def get_current_active_user(
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
+
+def require_role(*allowed_roles: str) -> Callable:
+    """
+    Dependency for role-based access control.
+    
+    Usage::
+    
         @app.post("/workflows", dependencies=[Depends(require_role("admin", "scientist"))])
         def create_workflow(...):
             ...
