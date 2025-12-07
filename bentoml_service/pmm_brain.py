@@ -4,8 +4,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from scipy.signal import savgol_filter
+from scipy.ndimage import median_filter as medfilt
 from datetime import datetime, timezone
 import logging
+import json
+from pathlib import Path
+from typing import Optional, Dict, Any, Union
+import io
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +86,10 @@ class RamanPreprocessor:
         return z
 
 class StaticPseudoModeMemory(nn.Module):
-    """FULLY EXPANDED PMM — Explicit Updates + Merge/Split/Prune + Safety + Predictive"""
+    """FULLY EXPANDED PMM — Explicit Updates + Merge/Split/Prune + Safety + Predictive + Checkpointing"""
+    
+    # Numerical stability constant
+    EPS = 1e-8
     
     def __init__(self, latent_dim=128, max_modes=32, init_modes=4):
         super().__init__()
@@ -107,15 +115,153 @@ class StaticPseudoModeMemory(nn.Module):
         self.risk_decay = 0.95
         
         # State
-        self.poly_tracker = {}
+        self.poly_tracker: Dict[int, Dict[str, Any]] = {}
         self.poly_id = 1
         self.last_batch = None
+        self._org_id: Optional[str] = None
         
         # Init
         self.active_mask[:init_modes] = True
         self.occupancy[:init_modes] = 1.0 / init_modes
         self.w[:init_modes] = 1.0 / init_modes
         self.lambda_i[:init_modes] = 1.0
+
+    # -------------------------------------------------------------------------
+    # CHECKPOINTING: Save/Load State
+    # -------------------------------------------------------------------------
+    
+    def save_state(self, path: Union[str, Path], org_id: Optional[str] = None) -> str:
+        """
+        Save complete PMM state to disk.
+        
+        Args:
+            path: Directory or file path for checkpoint
+            org_id: Organization ID for versioning
+            
+        Returns:
+            Absolute path to saved checkpoint
+        """
+        path = Path(path)
+        if path.is_dir():
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            org_prefix = f"{org_id}_" if org_id else ""
+            filename = f"{org_prefix}pmm_checkpoint_{timestamp}.npz"
+            path = path / filename
+        
+        # Collect all state
+        state = {
+            # Tensor parameters
+            'mu': self.mu.detach().cpu().numpy(),
+            'F': self.F.detach().cpu().numpy(),
+            # Buffers
+            'w': self.w.cpu().numpy(),
+            'lambda_i': self.lambda_i.cpu().numpy(),
+            'occupancy': self.occupancy.cpu().numpy(),
+            'active_mask': self.active_mask.cpu().numpy(),
+            'risk': self.risk.cpu().numpy(),
+            'age': self.age.cpu().numpy(),
+            # Scalar state
+            'poly_id': np.array([self.poly_id]),
+            'latent_dim': np.array([self.latent_dim]),
+            'max_modes': np.array([self.max_modes]),
+            # Metadata
+            'org_id': np.array([org_id or ''], dtype=object),
+            'timestamp': np.array([datetime.now(timezone.utc).isoformat()], dtype=object),
+            'version': np.array(['1.0'], dtype=object),
+        }
+        
+        # Save poly_tracker as JSON string
+        state['poly_tracker_json'] = np.array([json.dumps(self.poly_tracker)], dtype=object)
+        
+        np.savez_compressed(str(path), **state)
+        logger.info(f"PMM state saved to {path}")
+        return str(path)
+    
+    def load_state(self, path: Union[str, Path, bytes]) -> Dict[str, Any]:
+        """
+        Load PMM state from checkpoint.
+        
+        Args:
+            path: Path to checkpoint file or bytes
+            
+        Returns:
+            Metadata dict with org_id, timestamp, version
+        """
+        if isinstance(path, bytes):
+            data = np.load(io.BytesIO(path), allow_pickle=True)
+        else:
+            path = Path(path)
+            if not path.exists():
+                raise FileNotFoundError(f"Checkpoint not found: {path}")
+            data = np.load(str(path), allow_pickle=True)
+        
+        # Restore tensors
+        with torch.no_grad():
+            self.mu.copy_(torch.from_numpy(data['mu']))
+            self.F.copy_(torch.from_numpy(data['F']))
+            self.w.copy_(torch.from_numpy(data['w']))
+            self.lambda_i.copy_(torch.from_numpy(data['lambda_i']))
+            self.occupancy.copy_(torch.from_numpy(data['occupancy']))
+            self.active_mask.copy_(torch.from_numpy(data['active_mask']))
+            self.risk.copy_(torch.from_numpy(data['risk']))
+            self.age.copy_(torch.from_numpy(data['age']))
+        
+        # Restore scalar state
+        self.poly_id = int(data['poly_id'][0])
+        
+        # Restore poly_tracker
+        if 'poly_tracker_json' in data:
+            self.poly_tracker = json.loads(str(data['poly_tracker_json'][0]))
+        
+        # Extract metadata
+        metadata = {
+            'org_id': str(data.get('org_id', [''])[0]),
+            'timestamp': str(data.get('timestamp', [''])[0]),
+            'version': str(data.get('version', ['1.0'])[0]),
+        }
+        
+        self._org_id = metadata['org_id'] if metadata['org_id'] else None
+        logger.info(f"PMM state loaded: {metadata}")
+        return metadata
+    
+    def reset_state(self, init_modes: int = 4) -> None:
+        """Reset PMM to initial state."""
+        with torch.no_grad():
+            self.mu.normal_(0, 0.1)
+            self.F.copy_(torch.eye(self.latent_dim).unsqueeze(0).repeat(self.max_modes, 1, 1) * 0.1)
+            self.w.fill_(1.0)
+            self.lambda_i.fill_(1.0)
+            self.occupancy.zero_()
+            self.active_mask.zero_()
+            self.risk.zero_()
+            self.age.zero_()
+            
+            self.active_mask[:init_modes] = True
+            self.occupancy[:init_modes] = 1.0 / init_modes
+            self.w[:init_modes] = 1.0 / init_modes
+            self.lambda_i[:init_modes] = 1.0
+        
+        self.poly_tracker = {}
+        self.poly_id = 1
+        self.last_batch = None
+        logger.info(f"PMM reset with {init_modes} initial modes")
+    
+    def get_mode_stats(self) -> Dict[str, Any]:
+        """Return live mode statistics."""
+        active_idx = torch.where(self.active_mask)[0].tolist()
+        return {
+            'n_active': self.n_active,
+            'max_modes': self.max_modes,
+            'active_indices': active_idx,
+            'occupancy': self.occupancy[self.active_mask].tolist(),
+            'risk': self.risk[self.active_mask].tolist(),
+            'age': self.age[self.active_mask].tolist(),
+            'poly_count': len(self.poly_tracker),
+        }
+    
+    def get_poly_ids(self) -> Dict[int, Dict[str, Any]]:
+        """Return discovered polymorph IDs."""
+        return self.poly_tracker.copy()
 
     @property
     def n_active(self): return self.active_mask.sum().item()
@@ -125,12 +271,20 @@ class StaticPseudoModeMemory(nn.Module):
     def n_active_modes(self): return self.n_active
 
     def forward(self, latent: torch.Tensor):
+        """Forward pass with numerical stability."""
         self.last_batch = latent.detach()
         if self.n_active == 0:
             return latent, {"alpha": torch.zeros(latent.shape[0], self.max_modes).to(latent.device)}
-            
+        
         mu_a = self.mu[self.active_mask]
-        sim = F.cosine_similarity(latent.unsqueeze(1), mu_a.unsqueeze(0), dim=2)
+        
+        # Numerical stability: clamp norms before cosine similarity
+        latent_norm = latent / (latent.norm(dim=-1, keepdim=True).clamp(min=self.EPS))
+        mu_norm = mu_a / (mu_a.norm(dim=-1, keepdim=True).clamp(min=self.EPS))
+        
+        sim = F.cosine_similarity(latent_norm.unsqueeze(1), mu_norm.unsqueeze(0), dim=2)
+        sim = sim.clamp(-1.0, 1.0)  # Clamp to valid range
+        
         a = sim * self.lambda_i[self.active_mask]
         alpha = F.softmax(a, dim=1)
         
@@ -181,10 +335,16 @@ class StaticPseudoModeMemory(nn.Module):
         self.last_batch = None
 
     def _merge_similar(self):
+        """Merge similar modes with mu normalization."""
         active_idx = torch.where(self.active_mask)[0]
         if len(active_idx) < 2: return
+        
         mu_a = self.mu[active_idx]
-        sim = F.cosine_similarity(mu_a.unsqueeze(1), mu_a.unsqueeze(0), dim=2)
+        # Use numerically stable cosine similarity
+        mu_norm = mu_a / (mu_a.norm(dim=-1, keepdim=True).clamp(min=self.EPS))
+        sim = F.cosine_similarity(mu_norm.unsqueeze(1), mu_norm.unsqueeze(0), dim=2)
+        sim = sim.clamp(-1.0, 1.0)
+        
         # Mask diagonal
         mask = ~torch.eye(len(active_idx), device=sim.device).bool()
         pairs = torch.where((sim > self.merge_thresh) & mask)
@@ -196,8 +356,14 @@ class StaticPseudoModeMemory(nn.Module):
             # Merge j → i
             occ_i = self.occupancy[i_idx]
             occ_j = self.occupancy[j_idx]
-            total = occ_i + occ_j + 1e-8
-            self.mu.data[i_idx] = (occ_i * self.mu[i_idx] + occ_j * self.mu[j_idx]) / total
+            total = occ_i + occ_j + self.EPS
+            
+            # Weighted average then normalize
+            merged_mu = (occ_i * self.mu[i_idx] + occ_j * self.mu[j_idx]) / total
+            # Normalize mu after merge for stability
+            merged_mu = merged_mu / (merged_mu.norm().clamp(min=self.EPS)) * self.mu[i_idx].norm().clamp(min=self.EPS)
+            self.mu.data[i_idx] = merged_mu
+            
             self.occupancy[i_idx] = total
             self.lambda_i[i_idx] = (occ_i * self.lambda_i[i_idx] + occ_j * self.lambda_i[j_idx]) / total
             self.active_mask[j_idx] = False

@@ -73,11 +73,15 @@ services:
       - "3000:3000"
     environment:
       - BENTOML_PORT=3000
+      - PMM_CHECKPOINT_DIR=/app/checkpoints
+      - PMM_AUTO_LOAD=true
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3000/healthz" ]
       interval: 30s
       timeout: 10s
       retries: 3
+    volumes:
+      - pmm-checkpoints:/app/checkpoints
   # ---------------------------------------------------------------------------
   # Frontend (Optional - if running in container)
   # ---------------------------------------------------------------------------
@@ -96,3 +100,4 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  pmm-checkpoints:
